@@ -100,8 +100,8 @@ function EditEventContent() {
 
 export default function EditEventPage() {
   return (
-    <AuthGate requireRole="admin">
-      <EditEventContent />
+    <AuthGate require="admin">
+      {() => <EditEventContent />}
     </AuthGate>
   )
 }

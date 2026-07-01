@@ -38,7 +38,7 @@ function StatCard({ label, value, icon }: StatCardProps) {
 
 function AdminDashboard() {
   const events = useQuery(api.events.listForAdmin)
-  const registrations = useQuery(api.registrations.listAll)
+  const registrations = useQuery(api.registrations.listAll, {})
 
   const loading = events === undefined || registrations === undefined
   const totalPersons = registrations?.reduce((sum, r) => sum + r.persons.length, 0) ?? 0

@@ -90,8 +90,8 @@ function StaffContent({ role }: { role: Role }) {
 
 export default function StaffPage() {
   return (
-    <AuthGate>
-      {(role) => <StaffContent role={role} />}
+    <AuthGate require="staff">
+      {({ role }) => <StaffContent role={role} />}
     </AuthGate>
   )
 }

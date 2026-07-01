@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useAuthActions } from '@convex-dev/auth/react'
-import { CalendarCheck, LayoutDashboard, LogOut } from 'lucide-react'
+import { CalendarCheck, LayoutDashboard, LogOut, Users } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import type { Role } from '@/lib/types'
 
@@ -28,10 +28,21 @@ export function AdminHeader({ role }: { role: Role }) {
         </Link>
         <div className="flex items-center gap-2">
           {isAdmin && (
-            <Button variant="ghost" size="sm" nativeButton={false} render={<Link href="/admin" />}>
-              <LayoutDashboard className="h-4 w-4" aria-hidden="true" />
-              Dashboard
-            </Button>
+            <>
+              <Button variant="ghost" size="sm" nativeButton={false} render={<Link href="/admin" />}>
+                <LayoutDashboard className="h-4 w-4" aria-hidden="true" />
+                Dashboard
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                nativeButton={false}
+                render={<Link href="/admin/account" />}
+              >
+                <Users className="h-4 w-4" aria-hidden="true" />
+                Account
+              </Button>
+            </>
           )}
           <Button type="button" variant="ghost" size="sm" onClick={handleSignOut}>
             <LogOut className="h-4 w-4" aria-hidden="true" />

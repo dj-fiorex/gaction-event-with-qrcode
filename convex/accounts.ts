@@ -77,6 +77,50 @@ export const emailExists = internalQuery({
   },
 })
 
+export const hasAnyUser = internalQuery({
+  args: {},
+  returns: v.boolean(),
+  handler: async (ctx) => {
+    const first = await ctx.db.query('users').first()
+    return first !== null
+  },
+})
+
+/** True quando non esiste ancora alcun account: la UI mostra il setup iniziale. */
+export const needsBootstrap = query({
+  args: {},
+  returns: v.boolean(),
+  handler: async (ctx) => {
+    const first = await ctx.db.query('users').first()
+    return first === null
+  },
+})
+
+/**
+ * Crea il primo account admin quando il sistema non ha ancora alcun utente.
+ * Serve al bootstrap iniziale (nessuna registrazione pubblica). È pubblica ma
+ * inerte non appena esiste almeno un utente.
+ */
+export const seedFirstAdmin = action({
+  args: { email: v.string(), password: v.string(), name: v.string() },
+  returns: v.object({ userId: v.id('users') }),
+  handler: async (ctx, args): Promise<{ userId: import('./_generated/dataModel').Id<'users'> }> => {
+    if (await ctx.runQuery(internal.accounts.hasAnyUser, {})) {
+      throw new Error('Esiste già almeno un account: registrazione bootstrap disabilitata')
+    }
+    const email = args.email.trim().toLowerCase()
+    if (!email) throw new Error('Email obbligatoria')
+    if (args.password.length < 8) throw new Error('La password deve avere almeno 8 caratteri')
+
+    const result = await createAccount(ctx, {
+      provider: 'password',
+      account: { id: email, secret: args.password },
+      profile: { email, name: args.name.trim(), role: 'admin' },
+    })
+    return { userId: result.user._id }
+  },
+})
+
 /**
  * Crea un account operatore/admin (solo admin).
  * `createAccount` richiede un contesto action, quindi questa è una action.

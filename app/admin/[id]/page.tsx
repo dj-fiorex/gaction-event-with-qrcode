@@ -264,8 +264,8 @@ function EventDetailContent() {
 
 export default function EventDetailPage() {
   return (
-    <AuthGate requireRole="admin">
-      <EventDetailContent />
+    <AuthGate require="admin">
+      {() => <EventDetailContent />}
     </AuthGate>
   )
 }
