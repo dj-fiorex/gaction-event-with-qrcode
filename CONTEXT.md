@@ -15,7 +15,13 @@ Un partecipante fisico all'Evento. Occupa un posto e riceve **1 QR code**. NON �
 Un raduno a cui gli Utenti si iscrivono. Genera **1 QR code per ogni Persona** (non per Attività). L'admin configura per ogni Evento se sono ammessi Figli (con max) e se sono ammessi Accompagnatori (con max).
 
 ### Attività
-_(da definire)_
+Un segmento di un Evento con un **orario di inizio e fine** e un **numero di posti limitato proprio** (indipendente dagli altri). Ogni Persona può essere iscritta a specifiche Attività; i posti si contano per singola Attività.
+
+### Policy di selezione Attività
+Impostazione a livello di Evento decisa dall'admin in fase di creazione. Determina come ogni Persona viene associata alle Attività:
+- **Tutte obbligatorie** — ogni Persona partecipa a tutte le Attività.
+- **Minimo N** — ogni Persona deve scegliere almeno N Attività.
+- **Libera** — ogni Persona sceglie liberamente quali Attività fare in fase di Registrazione.
 
 ### QR code
-_(da definire — 1 per Persona)_
+Un codice univoco generato **1 per ogni Persona** (non per Attività). Vale come pass per tutte le Attività a cui quella Persona è iscritta.
