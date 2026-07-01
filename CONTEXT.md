@@ -44,8 +44,16 @@ Una Registrazione è **atomica**: se anche un solo Slot selezionato non ha posti
 ### QR code
 Un codice univoco generato **1 per ogni Persona** (non per Attività). Vale come pass per tutte le Attività a cui quella Persona è iscritta.
 
-### Staff (Operatore)
-Ruolo dedicato alla scansione dei QR, separato dall'Admin, con accesso limitato alla sola interfaccia di scansione/check-in.
+### Staff (Operatore / Assistente)
+Ruolo dedicato alla scansione dei QR, separato dall'Admin, con accesso limitato alla sola interfaccia di scansione/check-in. Con Convex Auth ogni Operatore ha un **account reale** (email + password) e un campo `role` (`admin` | `staff`). Sinonimo usato dall'admin: **Assistente**.
+
+### Modalità di accesso all'Evento (checkInAccess)
+Impostazione a livello di Evento che determina chi può operare la scansione:
+- **private** — accessibile solo agli account (admin, oppure Assistenti **esplicitamente associati** all'Evento) autenticati via Convex Auth. L'admin seleziona quali Assistenti abilitare.
+- **password** — il link `/scan/[token]` è pubblico: chiunque abbia la password dell'Evento può operare, a prescindere dal login.
+
+### Associazione Assistente–Evento
+Per gli Eventi in modalità `private`, l'admin sceglie quali account Assistente sono abilitati a operare la scansione di quello specifico Evento. Un admin può sempre operare qualsiasi Evento.
 
 ### Check-in
 Atto di scansionare il QR di una Persona. Avviene:
