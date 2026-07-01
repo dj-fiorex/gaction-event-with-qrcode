@@ -1,3 +1,5 @@
+'use client'
+
 import {
   Table,
   TableBody,
@@ -8,8 +10,9 @@ import {
 } from '@/components/ui/table'
 import { Badge } from '@/components/ui/badge'
 import { PdfDownloadButton } from '@/components/admin/pdf-download-button'
-import { exportRegistrationTicketsPdf } from '@/lib/pdf/tickets-actions'
-import { formatDateTime } from '@/lib/format'
+import { downloadAllTickets } from '@/lib/pdf/download-tickets'
+import { formatDateRange, formatDateTime } from '@/lib/format'
+import { toRegisteredPersons } from '@/lib/qr-client'
 import type { EventWithStats, Registration } from '@/lib/types'
 
 interface RegistrationsTableProps {
@@ -87,7 +90,15 @@ export function RegistrationsTable({ registrations, events }: RegistrationsTable
                 </TableCell>
                 <TableCell className="text-right">
                   <PdfDownloadButton
-                    action={exportRegistrationTicketsPdf.bind(null, r.id)}
+                    onDownload={async () => {
+                      if (!event) throw new Error('Evento non trovato')
+                      const persons = await toRegisteredPersons(r.persons)
+                      await downloadAllTickets(persons, {
+                        title: event.title,
+                        location: event.location,
+                        dateRange: formatDateRange(event.startsAt, event.endsAt),
+                      })
+                    }}
                     label={`Scarica biglietti di ${r.contactEmail}`}
                     successMessage="Biglietti pronti"
                     iconOnly

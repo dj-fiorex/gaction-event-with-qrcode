@@ -1,15 +1,18 @@
+'use client'
+
 import Link from 'next/link'
-import { redirect } from 'next/navigation'
+import { useQuery } from 'convex/react'
 import { CalendarDays, Plus, Ticket, Users } from 'lucide-react'
+import { api } from '@/convex/_generated/api'
+import { AuthGate } from '@/components/auth/auth-gate'
 import { AdminHeader } from '@/components/admin/admin-header'
 import { AdminEventList } from '@/components/admin/admin-event-list'
 import { ExportButton } from '@/components/admin/export-button'
 import { RegistrationsTable } from '@/components/admin/registrations-table'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Skeleton } from '@/components/ui/skeleton'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { getRole } from '@/lib/auth'
-import { getEvents, getRegistrations } from '@/lib/queries'
 
 interface StatCardProps {
   label: string
@@ -33,18 +36,12 @@ function StatCard({ label, value, icon }: StatCardProps) {
   )
 }
 
-export default async function AdminPage() {
-  const role = await getRole()
-  if (!role) {
-    redirect('/admin/login')
-  }
-  if (role !== 'admin') {
-    redirect('/staff')
-  }
+function AdminDashboard() {
+  const events = useQuery(api.events.listForAdmin)
+  const registrations = useQuery(api.registrations.listAll)
 
-  const events = getEvents()
-  const registrations = getRegistrations()
-  const totalPersons = registrations.reduce((sum, r) => sum + r.persons.length, 0)
+  const loading = events === undefined || registrations === undefined
+  const totalPersons = registrations?.reduce((sum, r) => sum + r.persons.length, 0) ?? 0
 
   return (
     <div className="min-h-svh bg-muted/40">
@@ -55,66 +52,86 @@ export default async function AdminPage() {
           <p className="text-muted-foreground">Gestione eventi e registrazioni.</p>
         </div>
 
-        <div className="grid gap-4 sm:grid-cols-3">
-          <StatCard
-            label="Eventi attivi"
-            value={events.length}
-            icon={<CalendarDays className="h-5 w-5" aria-hidden="true" />}
-          />
-          <StatCard
-            label="Registrazioni"
-            value={registrations.length}
-            icon={<Users className="h-5 w-5" aria-hidden="true" />}
-          />
-          <StatCard
-            label="Persone iscritte"
-            value={totalPersons}
-            icon={<Ticket className="h-5 w-5" aria-hidden="true" />}
-          />
-        </div>
+        {loading ? (
+          <div className="grid gap-4 sm:grid-cols-3">
+            <Skeleton className="h-20" />
+            <Skeleton className="h-20" />
+            <Skeleton className="h-20" />
+          </div>
+        ) : (
+          <>
+            <div className="grid gap-4 sm:grid-cols-3">
+              <StatCard
+                label="Eventi attivi"
+                value={events.length}
+                icon={<CalendarDays className="h-5 w-5" aria-hidden="true" />}
+              />
+              <StatCard
+                label="Registrazioni"
+                value={registrations.length}
+                icon={<Users className="h-5 w-5" aria-hidden="true" />}
+              />
+              <StatCard
+                label="Persone iscritte"
+                value={totalPersons}
+                icon={<Ticket className="h-5 w-5" aria-hidden="true" />}
+              />
+            </div>
 
-        <Tabs defaultValue="registrations">
-          <TabsList>
-            <TabsTrigger value="registrations">Registrazioni</TabsTrigger>
-            <TabsTrigger value="events">Eventi</TabsTrigger>
-          </TabsList>
+            <Tabs defaultValue="registrations">
+              <TabsList>
+                <TabsTrigger value="registrations">Registrazioni</TabsTrigger>
+                <TabsTrigger value="events">Eventi</TabsTrigger>
+              </TabsList>
 
-          <TabsContent value="registrations" className="mt-4">
-            <Card>
-              <CardHeader className="flex-row items-center justify-between gap-4">
-                <div>
-                  <CardTitle>Utenti registrati</CardTitle>
-                  <CardDescription>
-                    Elenco completo delle registrazioni a tutti gli eventi.
-                  </CardDescription>
-                </div>
-                <ExportButton disabled={registrations.length === 0} />
-              </CardHeader>
-              <CardContent>
-                <RegistrationsTable registrations={registrations} events={events} />
-              </CardContent>
-            </Card>
-          </TabsContent>
+              <TabsContent value="registrations" className="mt-4">
+                <Card>
+                  <CardHeader className="flex-row items-center justify-between gap-4">
+                    <div>
+                      <CardTitle>Utenti registrati</CardTitle>
+                      <CardDescription>
+                        Elenco completo delle registrazioni a tutti gli eventi.
+                      </CardDescription>
+                    </div>
+                    <ExportButton
+                      registrations={registrations}
+                      events={events}
+                      disabled={registrations.length === 0}
+                    />
+                  </CardHeader>
+                  <CardContent>
+                    <RegistrationsTable registrations={registrations} events={events} />
+                  </CardContent>
+                </Card>
+              </TabsContent>
 
-          <TabsContent value="events" className="mt-4 flex flex-col gap-6">
-            <Card>
-              <CardHeader className="flex-row items-center justify-between gap-4">
-                <div>
-                  <CardTitle>Eventi esistenti</CardTitle>
-                  <CardDescription>Consulta disponibilità e gestisci gli eventi.</CardDescription>
-                </div>
-                <Button nativeButton={false} size="sm" render={<Link href="/admin/new" />}>
-                  <Plus className="h-4 w-4" aria-hidden="true" />
-                  Nuovo evento
-                </Button>
-              </CardHeader>
-              <CardContent>
-                <AdminEventList events={events} />
-              </CardContent>
-            </Card>
-          </TabsContent>
-        </Tabs>
+              <TabsContent value="events" className="mt-4 flex flex-col gap-6">
+                <Card>
+                  <CardHeader className="flex-row items-center justify-between gap-4">
+                    <div>
+                      <CardTitle>Eventi esistenti</CardTitle>
+                      <CardDescription>
+                        Consulta disponibilità e gestisci gli eventi.
+                      </CardDescription>
+                    </div>
+                    <Button nativeButton={false} size="sm" render={<Link href="/admin/new" />}>
+                      <Plus className="h-4 w-4" aria-hidden="true" />
+                      Nuovo evento
+                    </Button>
+                  </CardHeader>
+                  <CardContent>
+                    <AdminEventList events={events} />
+                  </CardContent>
+                </Card>
+              </TabsContent>
+            </Tabs>
+          </>
+        )}
       </main>
     </div>
   )
+}
+
+export default function AdminPage() {
+  return <AuthGate require="admin">{() => <AdminDashboard />}</AuthGate>
 }

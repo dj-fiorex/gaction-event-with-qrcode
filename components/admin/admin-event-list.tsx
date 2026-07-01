@@ -1,13 +1,14 @@
 'use client'
 
-import { useState, useTransition } from 'react'
+import { useState } from 'react'
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
+import { useMutation } from 'convex/react'
 import { CalendarClock, Eye, Layers, MapPin, Pencil, Trash2, Users } from 'lucide-react'
 import { toast } from 'sonner'
+import { api } from '@/convex/_generated/api'
+import type { Id } from '@/convex/_generated/dataModel'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { deleteEvent } from '@/lib/actions'
 import { formatDateRange } from '@/lib/format'
 import type { EventWithStats } from '@/lib/types'
 
@@ -22,25 +23,22 @@ const POLICY_LABEL: Record<EventWithStats['activityPolicy'], string> = {
 }
 
 export function AdminEventList({ events }: AdminEventListProps) {
-  const router = useRouter()
-  const [pending, startTransition] = useTransition()
+  const removeEvent = useMutation(api.events.remove)
   const [deletingId, setDeletingId] = useState<string | null>(null)
 
-  function handleDelete(id: string, title: string) {
+  async function handleDelete(id: string, title: string) {
     if (!window.confirm(`Eliminare l'evento "${title}" e tutte le sue registrazioni?`)) {
       return
     }
     setDeletingId(id)
-    startTransition(async () => {
-      const result = await deleteEvent(id)
-      if (!result.success) {
-        toast.error(result.error)
-      } else {
-        toast.success('Evento eliminato')
-        router.refresh()
-      }
+    try {
+      await removeEvent({ eventId: id as Id<'events'> })
+      toast.success('Evento eliminato')
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Eliminazione non riuscita')
+    } finally {
       setDeletingId(null)
-    })
+    }
   }
 
   if (events.length === 0) {
@@ -105,7 +103,7 @@ export function AdminEventList({ events }: AdminEventListProps) {
               variant="outline"
               size="sm"
               onClick={() => handleDelete(event.id, event.title)}
-              disabled={pending && deletingId === event.id}
+              disabled={deletingId === event.id}
             >
               <Trash2 className="h-4 w-4" aria-hidden="true" />
               Elimina

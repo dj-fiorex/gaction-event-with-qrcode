@@ -1,16 +1,17 @@
 'use client'
 
-import { useEffect, useState, useTransition } from 'react'
+import { useEffect, useState } from 'react'
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
+import { useMutation } from 'convex/react'
 import { Check, Copy, ExternalLink, KeyRound, RefreshCw, ScanLine } from 'lucide-react'
 import { toast } from 'sonner'
+import { api } from '@/convex/_generated/api'
+import type { Id } from '@/convex/_generated/dataModel'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { rotateScanToken, updateCheckInPassword } from '@/lib/actions'
 import type { CheckInAccess } from '@/lib/types'
 
 interface CheckInAccessCardProps {
@@ -26,12 +27,13 @@ export function CheckInAccessCard({
   checkInAccess,
   hasCheckInPassword,
 }: CheckInAccessCardProps) {
-  const router = useRouter()
+  const rotateScanToken = useMutation(api.events.rotateScanToken)
+  const setCheckInPassword = useMutation(api.events.setCheckInPassword)
   const [origin, setOrigin] = useState('')
   const [copied, setCopied] = useState(false)
   const [password, setPassword] = useState('')
-  const [rotating, startRotate] = useTransition()
-  const [savingPassword, startSavePassword] = useTransition()
+  const [rotating, setRotating] = useState(false)
+  const [savingPassword, setSavingPassword] = useState(false)
 
   useEffect(() => {
     setOrigin(window.location.origin)
@@ -50,7 +52,7 @@ export function CheckInAccessCard({
     }
   }
 
-  function handleRotateToken() {
+  async function handleRotateToken() {
     if (
       !window.confirm(
         'Rigenerare il link? Il link precedente smetterà immediatamente di funzionare.',
@@ -58,28 +60,28 @@ export function CheckInAccessCard({
     ) {
       return
     }
-    startRotate(async () => {
-      const result = await rotateScanToken(eventId)
-      if (!result.success) {
-        toast.error(result.error)
-        return
-      }
+    setRotating(true)
+    try {
+      await rotateScanToken({ eventId: eventId as Id<'events'> })
       toast.success('Nuovo link generato')
-      router.refresh()
-    })
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Rigenerazione non riuscita')
+    } finally {
+      setRotating(false)
+    }
   }
 
-  function handleSavePassword() {
-    startSavePassword(async () => {
-      const result = await updateCheckInPassword(eventId, password)
-      if (!result.success) {
-        toast.error(result.error)
-        return
-      }
+  async function handleSavePassword() {
+    setSavingPassword(true)
+    try {
+      await setCheckInPassword({ eventId: eventId as Id<'events'>, password })
       toast.success(hasCheckInPassword ? 'Password aggiornata' : 'Password impostata')
       setPassword('')
-      router.refresh()
-    })
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Salvataggio non riuscito')
+    } finally {
+      setSavingPassword(false)
+    }
   }
 
   return (

@@ -4,12 +4,10 @@ import { useState } from 'react'
 import { FileDown } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
-import type { ActionResult } from '@/lib/types'
-
-type TicketsPdfAction = () => Promise<ActionResult<{ base64: string; filename: string }>>
 
 interface PdfDownloadButtonProps {
-  action: TicketsPdfAction
+  /** Callback che genera e scarica il PDF lato client. */
+  onDownload: () => Promise<void>
   label: string
   loadingLabel?: string
   successMessage?: string
@@ -20,17 +18,8 @@ interface PdfDownloadButtonProps {
   iconOnly?: boolean
 }
 
-function base64ToPdfBlob(base64: string): Blob {
-  const bytes = atob(base64)
-  const buffer = new Uint8Array(bytes.length)
-  for (let i = 0; i < bytes.length; i++) {
-    buffer[i] = bytes.charCodeAt(i)
-  }
-  return new Blob([buffer], { type: 'application/pdf' })
-}
-
 export function PdfDownloadButton({
-  action,
+  onDownload,
   label,
   loadingLabel = 'Generazione…',
   successMessage = 'PDF pronto',
@@ -44,19 +33,7 @@ export function PdfDownloadButton({
   async function handleClick() {
     setLoading(true)
     try {
-      const result = await action()
-      if (!result.success) {
-        toast.error(result.error)
-        return
-      }
-      const url = URL.createObjectURL(base64ToPdfBlob(result.data.base64))
-      const link = document.createElement('a')
-      link.href = url
-      link.download = result.data.filename
-      document.body.appendChild(link)
-      link.click()
-      link.remove()
-      URL.revokeObjectURL(url)
+      await onDownload()
       toast.success(successMessage)
     } catch {
       toast.error('Errore durante la generazione del PDF')

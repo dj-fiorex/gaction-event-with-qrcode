@@ -16,6 +16,9 @@ export type CheckInAccess = 'private' | 'password'
 /** Categoria di una Persona. L'Utente iscritto è sempre una Persona di categoria "user". */
 export type PersonCategory = 'user' | 'child' | 'companion'
 
+/** Ruolo di un account operatore autenticato via Convex Auth. */
+export type Role = 'admin' | 'staff'
+
 /** Fascia oraria prenotabile dentro un'Attività, generata dalla Durata. */
 export interface Slot {
   id: string
