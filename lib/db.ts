@@ -12,14 +12,14 @@ import { seed, type SeedStore } from './seed'
  */
 
 const globalForDb = globalThis as unknown as {
-  __eventStoreV2?: SeedStore
+  __eventStoreV3?: SeedStore
 }
 
 function getStore(): SeedStore {
-  if (!globalForDb.__eventStoreV2) {
-    globalForDb.__eventStoreV2 = seed()
+  if (!globalForDb.__eventStoreV3) {
+    globalForDb.__eventStoreV3 = seed()
   }
-  return globalForDb.__eventStoreV2
+  return globalForDb.__eventStoreV3
 }
 
 export const db = {
