@@ -1,5 +1,5 @@
 import { createHash } from 'crypto'
-import { cookies } from 'next/headers'
+import { cookies, headers } from 'next/headers'
 
 const COOKIE_NAME = 'session'
 
@@ -29,12 +29,28 @@ export function verifyCredentials(email: string, password: string): Role | null 
   return null
 }
 
+/**
+ * Determina se la richiesta corrente arriva via HTTPS.
+ * La preview di v0 e la produzione sono servite su HTTPS tramite proxy,
+ * quindi controlliamo l'header x-forwarded-proto oltre a NODE_ENV.
+ */
+async function isSecureRequest(): Promise<boolean> {
+  if (process.env.NODE_ENV === 'production') return true
+  const headerStore = await headers()
+  const proto = headerStore.get('x-forwarded-proto')
+  return proto?.split(',')[0].trim() === 'https'
+}
+
 export async function createSession(role: Role): Promise<void> {
   const store = await cookies()
+  const secure = await isSecureRequest()
   store.set(COOKIE_NAME, `${role}.${sessionToken(role)}`, {
     httpOnly: true,
-    sameSite: 'lax',
-    secure: process.env.NODE_ENV === 'production',
+    // SameSite=None richiede Secure ed è necessario perché l'app gira
+    // dentro un iframe cross-site (preview di v0). In dev su HTTP puro
+    // ricadiamo su Lax dato che None senza Secure verrebbe rifiutato.
+    sameSite: secure ? 'none' : 'lax',
+    secure,
     path: '/',
     maxAge: 60 * 60 * 8,
   })
