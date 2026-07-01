@@ -42,6 +42,8 @@ const defaultValues: EventInput = {
   maxChildrenPerRegistration: 2,
   allowCompanions: false,
   maxCompanionsPerRegistration: 1,
+  checkInAccess: 'private',
+  checkInPassword: '',
   activities: [emptyActivity],
 }
 
@@ -56,9 +58,11 @@ interface EventFormProps {
   eventId?: string
   /** Valori iniziali del form (in "edit" derivano dall'Evento esistente). */
   initialValues?: EventInput
+  /** In "edit": indica se l'Evento ha già una password di check-in impostata. */
+  hasCheckInPassword?: boolean
 }
 
-export function EventForm({ mode, eventId, initialValues }: EventFormProps) {
+export function EventForm({ mode, eventId, initialValues, hasCheckInPassword }: EventFormProps) {
   const router = useRouter()
   const [submitting, setSubmitting] = useState(false)
 
@@ -78,6 +82,7 @@ export function EventForm({ mode, eventId, initialValues }: EventFormProps) {
   const activityPolicy = watch('activityPolicy')
   const allowChildren = watch('allowChildren')
   const allowCompanions = watch('allowCompanions')
+  const checkInAccess = watch('checkInAccess')
 
   const onSubmit = handleSubmit(async (values) => {
     setSubmitting(true)
@@ -312,6 +317,69 @@ export function EventForm({ mode, eventId, initialValues }: EventFormProps) {
           </p>
         </div>
       </div>
+
+      {/* Accesso al check-in */}
+      <fieldset className="flex flex-col gap-4 rounded-lg border border-border p-4">
+        <div>
+          <legend className="font-medium">Accesso al check-in</legend>
+          <p className="text-sm text-muted-foreground">
+            Scegli chi può aprire l&apos;interfaccia di scansione tramite il link univoco
+            dell&apos;evento.
+          </p>
+        </div>
+
+        <div className="grid gap-2 sm:max-w-xs">
+          <Label htmlFor="checkInAccess">Modalità</Label>
+          <Controller
+            control={control}
+            name="checkInAccess"
+            render={({ field }) => (
+              <Select
+                items={[
+                  { value: 'private', label: 'Privato (solo admin/staff)' },
+                  { value: 'password', label: 'Protetto da password' },
+                ]}
+                value={field.value}
+                onValueChange={field.onChange}
+              >
+                <SelectTrigger id="checkInAccess" className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="private">Privato (solo admin/staff)</SelectItem>
+                  <SelectItem value="password">Protetto da password</SelectItem>
+                </SelectContent>
+              </Select>
+            )}
+          />
+          <p className="text-sm text-muted-foreground">
+            {checkInAccess === 'password'
+              ? 'Chiunque abbia il link può accedere inserendo la password.'
+              : 'Il link richiede una sessione admin/staff attiva.'}
+          </p>
+        </div>
+
+        {checkInAccess === 'password' && (
+          <div className="grid gap-2 sm:max-w-xs">
+            <Label htmlFor="checkInPassword">
+              {mode === 'edit' && hasCheckInPassword ? 'Nuova password' : 'Password'}
+            </Label>
+            <Input
+              id="checkInPassword"
+              type="password"
+              autoComplete="new-password"
+              {...register('checkInPassword')}
+              aria-invalid={!!errors.checkInPassword}
+            />
+            <FieldError message={errors.checkInPassword?.message} />
+            {mode === 'edit' && hasCheckInPassword && (
+              <p className="text-sm text-muted-foreground">
+                Una password è già impostata. Lascia vuoto per mantenerla.
+              </p>
+            )}
+          </div>
+        )}
+      </fieldset>
 
       {/* Figli e accompagnatori */}
       <div className="flex flex-col gap-4 rounded-lg border border-border p-4">

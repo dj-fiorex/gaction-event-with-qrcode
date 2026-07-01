@@ -41,6 +41,17 @@ export const eventSchema = z
     maxChildrenPerRegistration: z.coerce.number().int().min(0).default(0),
     allowCompanions: z.boolean().default(false),
     maxCompanionsPerRegistration: z.coerce.number().int().min(0).default(0),
+    checkInAccess: z.enum(['private', 'password']).default('private'),
+    /**
+     * Password di check-in. Stringa vuota = "mantieni quella corrente" (in
+     * modifica) oppure "nessuna" (in creazione). Se valorizzata, min 4 caratteri.
+     */
+    checkInPassword: z
+      .string()
+      .trim()
+      .min(4, 'La password deve avere almeno 4 caratteri')
+      .optional()
+      .or(z.literal('')),
     activities: z.array(activityInputSchema).min(1, 'Aggiungi almeno un\u2019attività'),
   })
   .refine(

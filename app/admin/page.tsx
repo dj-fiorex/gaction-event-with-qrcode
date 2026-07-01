@@ -39,7 +39,7 @@ export default async function AdminPage() {
     redirect('/admin/login')
   }
   if (role !== 'admin') {
-    redirect('/admin/validazione')
+    redirect('/staff')
   }
 
   const events = getEvents()

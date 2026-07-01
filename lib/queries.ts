@@ -43,9 +43,13 @@ export function computeStats(event: Event): EventWithStats {
   const totalTaken = allSlots.reduce((sum, s) => sum + s.taken, 0)
   const totalAvailable = allSlots.reduce((sum, s) => sum + s.available, 0)
 
+  // Non esporre mai l'hash della password verso i client component.
+  const { checkInPasswordHash, ...safeEvent } = event
+
   return {
-    ...event,
+    ...safeEvent,
     activities,
+    hasCheckInPassword: checkInPasswordHash !== null,
     registrationsCount: regs.length,
     personsCount,
     startsAt: starts.length ? new Date(Math.min(...starts)).toISOString() : null,
@@ -69,6 +73,14 @@ export function getEvents(): EventWithStats[] {
 
 export function getEvent(id: string): EventWithStats | null {
   const event = db.events.find((e) => e.id === id)
+  return event ? computeStats(event) : null
+}
+
+/** Risolve un Evento a partire dal token del link pubblico di scansione. */
+export function getEventByScanToken(token: string): EventWithStats | null {
+  const trimmed = token.trim()
+  if (!trimmed) return null
+  const event = db.events.find((e) => e.scanToken === trimmed)
   return event ? computeStats(event) : null
 }
 

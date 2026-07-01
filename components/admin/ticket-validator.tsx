@@ -31,9 +31,8 @@ const CATEGORY_LABEL: Record<'user' | 'child' | 'companion', string> = {
   companion: 'Accompagnatore',
 }
 
-export function TicketValidator({ events }: { events: EventWithStats[] }) {
+export function TicketValidator({ event }: { event: EventWithStats }) {
   const [checkMode, setCheckMode] = useState<CheckInMode>('event')
-  const [eventId, setEventId] = useState<string>(events[0]?.id ?? '')
   const [activityId, setActivityId] = useState<string>('')
   const [inputMode, setInputMode] = useState<InputMode>('camera')
   const [scanning, setScanning] = useState(true)
@@ -41,33 +40,23 @@ export function TicketValidator({ events }: { events: EventWithStats[] }) {
   const [result, setResult] = useState<CheckInResult | null>(null)
   const [pending, startTransition] = useTransition()
 
-  const selectedEvent = useMemo(
-    () => events.find((e) => e.id === eventId) ?? null,
-    [events, eventId],
-  )
-
-  const eventItems = useMemo(
-    () => events.map((e) => ({ value: e.id, label: e.title })),
-    [events],
-  )
-
   const activityItems = useMemo(
     () =>
-      selectedEvent?.activities.map((a) => ({
+      event.activities.map((a) => ({
         value: a.id,
         label: `${a.title} · ${formatTimeRange(a.start, a.end)}`,
-      })) ?? [],
-    [selectedEvent],
+      })),
+    [event],
   )
 
-  const contextReady =
-    eventId.length > 0 && (checkMode === 'event' || activityId.length > 0)
+  const contextReady = checkMode === 'event' || activityId.length > 0
 
   function runCheckIn(code: string) {
     const trimmed = code.trim()
     if (!trimmed || !contextReady) return
     startTransition(async () => {
       const res = await checkInPerson({
+        eventId: event.id,
         code: trimmed,
         mode: checkMode,
         activityId: checkMode === 'activity' ? activityId : undefined,
@@ -125,30 +114,6 @@ export function TicketValidator({ events }: { events: EventWithStats[] }) {
             </div>
           </div>
 
-          <div className="grid gap-2">
-            <Label htmlFor="event">Evento</Label>
-            <Select
-              items={eventItems}
-              value={eventId}
-              onValueChange={(value) => {
-                setEventId(value ?? '')
-                setActivityId('')
-                reset()
-              }}
-            >
-              <SelectTrigger id="event" className="w-full">
-                <SelectValue placeholder="Seleziona un evento" />
-              </SelectTrigger>
-              <SelectContent>
-                {events.map((event) => (
-                  <SelectItem key={event.id} value={event.id}>
-                    {event.title}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
           {checkMode === 'activity' && (
             <div className="grid gap-2">
               <Label htmlFor="activity">Attività</Label>
@@ -164,7 +129,7 @@ export function TicketValidator({ events }: { events: EventWithStats[] }) {
                   <SelectValue placeholder="Seleziona un'attività" />
                 </SelectTrigger>
                 <SelectContent>
-                  {selectedEvent?.activities.map((activity) => (
+                  {event.activities.map((activity) => (
                     <SelectItem key={activity.id} value={activity.id}>
                       {activity.title} · {formatTimeRange(activity.start, activity.end)}
                     </SelectItem>
@@ -203,8 +168,7 @@ export function TicketValidator({ events }: { events: EventWithStats[] }) {
 
       {!contextReady && (
         <p className="text-sm text-muted-foreground">
-          Seleziona {checkMode === 'activity' ? 'evento e attività' : 'un evento'} per abilitare la
-          scansione.
+          Seleziona un&apos;attività per abilitare la scansione.
         </p>
       )}
 

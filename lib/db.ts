@@ -1,6 +1,7 @@
 import { randomUUID } from 'crypto'
+import { hashCheckInPassword } from './auth'
 import { generateSlots } from './slots'
-import { generateTicketCode } from './qr'
+import { generateScanToken, generateTicketCode } from './qr'
 import type { Activity, Event, Person, Registration } from './types'
 
 /**
@@ -90,6 +91,9 @@ function seed(): Store {
     maxChildrenPerRegistration: 4,
     allowCompanions: true,
     maxCompanionsPerRegistration: 2,
+    checkInAccess: 'private',
+    scanToken: generateScanToken(),
+    checkInPasswordHash: null,
     activities: [
       buildActivity(familyDayId, labId, 'Laboratorio creativo', labStart, labEnd, 30, 10),
       buildActivity(familyDayId, showId, 'Spettacolo dal vivo', showStart, showEnd, 60, 40),
@@ -118,6 +122,9 @@ function seed(): Store {
     maxChildrenPerRegistration: 0,
     allowCompanions: false,
     maxCompanionsPerRegistration: 0,
+    checkInAccess: 'password',
+    scanToken: generateScanToken(),
+    checkInPasswordHash: hashCheckInPassword('summit2026'),
     activities: [
       buildActivity(summitId, talkId, 'Keynote di apertura', talkStart, talkEnd, 120, 120),
     ],

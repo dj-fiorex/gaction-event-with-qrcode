@@ -8,7 +8,7 @@ export default async function AdminLoginPage() {
     redirect('/admin')
   }
   if (role === 'staff') {
-    redirect('/admin/validazione')
+    redirect('/staff')
   }
 
   return (

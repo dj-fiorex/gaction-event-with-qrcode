@@ -6,6 +6,13 @@
 /** Policy con cui una Prenotazione viene associata alle Attività dell'Evento. */
 export type ActivityPolicy = 'all' | 'min' | 'free'
 
+/**
+ * Modalità di accesso all'interfaccia di scansione di un Evento.
+ * - "private": accessibile solo con una sessione admin/staff valida.
+ * - "password": il link è pubblico, l'accesso richiede la password dell'Evento.
+ */
+export type CheckInAccess = 'private' | 'password'
+
 /** Categoria di una Persona. L'Utente iscritto è sempre una Persona di categoria "user". */
 export type PersonCategory = 'user' | 'child' | 'companion'
 
@@ -54,6 +61,15 @@ export interface Event {
   maxChildrenPerRegistration: number
   allowCompanions: boolean
   maxCompanionsPerRegistration: number
+  /** Modalità di accesso al check-in: privata (sessione) o password. */
+  checkInAccess: CheckInAccess
+  /** Token univoco e non indovinabile usato nel link /scan/[token]. Rotabile. */
+  scanToken: string
+  /**
+   * Hash della password di check-in (solo per checkInAccess = "password").
+   * null se non impostata. La password in chiaro non viene mai persistita.
+   */
+  checkInPasswordHash: string | null
   activities: Activity[]
 }
 
@@ -134,8 +150,10 @@ export interface ActivityWithPeople extends Omit<ActivityWithAvailability, 'slot
   slots: SlotWithPeople[]
 }
 
-export interface EventWithStats extends Omit<Event, 'activities'> {
+export interface EventWithStats extends Omit<Event, 'activities' | 'checkInPasswordHash'> {
   activities: ActivityWithAvailability[]
+  /** true se è impostata una password di check-in (l'hash non viene esposto). */
+  hasCheckInPassword: boolean
   registrationsCount: number
   personsCount: number
   /** Inizio della prima Attività, se presente. */

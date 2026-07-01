@@ -11,6 +11,7 @@ import {
   Users,
 } from 'lucide-react'
 import { AdminHeader } from '@/components/admin/admin-header'
+import { CheckInAccessCard } from '@/components/admin/check-in-access-card'
 import { EventActivityMonitor } from '@/components/admin/event-activity-monitor'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -63,7 +64,7 @@ export default async function EventDetailPage({ params }: { params: Promise<{ id
     redirect('/admin/login')
   }
   if (role !== 'admin') {
-    redirect('/admin/validazione')
+    redirect('/staff')
   }
 
   const { id } = await params
@@ -185,6 +186,13 @@ export default async function EventDetailPage({ params }: { params: Promise<{ id
             </dl>
           </CardContent>
         </Card>
+
+        <CheckInAccessCard
+          eventId={event.id}
+          scanToken={event.scanToken}
+          checkInAccess={event.checkInAccess}
+          hasCheckInPassword={event.hasCheckInPassword}
+        />
 
         <section className="flex flex-col gap-3">
           <div>
