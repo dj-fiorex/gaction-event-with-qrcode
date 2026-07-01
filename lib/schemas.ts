@@ -36,6 +36,7 @@ export const eventSchema = z
       .int()
       .min(0)
       .default(15),
+    allowQrReuse: z.boolean().default(false),
     allowChildren: z.boolean().default(false),
     maxChildrenPerRegistration: z.coerce.number().int().min(0).default(0),
     allowCompanions: z.boolean().default(false),

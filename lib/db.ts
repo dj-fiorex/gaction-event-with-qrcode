@@ -51,6 +51,8 @@ function person(name: string, category: Person['category'], age: number | null):
     age,
     ticketCode: generateTicketCode(),
     eventCheckInAt: null,
+    eventCheckInCount: 0,
+    eventCheckInLastAt: null,
     activityCheckIns: [],
   }
 }
@@ -83,6 +85,7 @@ function seed(): Store {
     minActivities: 0,
     allowOverlap: false,
     checkInToleranceMinutes: 15,
+    allowQrReuse: false,
     allowChildren: true,
     maxChildrenPerRegistration: 4,
     allowCompanions: true,
@@ -110,6 +113,7 @@ function seed(): Store {
     minActivities: 0,
     allowOverlap: true,
     checkInToleranceMinutes: 10,
+    allowQrReuse: true,
     allowChildren: false,
     maxChildrenPerRegistration: 0,
     allowCompanions: false,

@@ -44,6 +44,12 @@ export interface Event {
   allowOverlap: boolean
   /** Margine in minuti entro cui è consentito il check-in di uno Slot. */
   checkInToleranceMinutes: number
+  /**
+   * Se true, lo stesso QR può essere scansionato più volte (ingresso evento e
+   * attività) senza essere bloccato: ogni scansione ripetuta resta valida e
+   * incrementa il contatore degli ingressi.
+   */
+  allowQrReuse: boolean
   allowChildren: boolean
   maxChildrenPerRegistration: number
   allowCompanions: boolean
@@ -55,7 +61,12 @@ export interface Event {
 export interface ActivityCheckIn {
   activityId: string
   slotId: string
+  /** Orario del primo check-in su questa Attività/Slot. */
   at: string
+  /** Numero totale di scansioni valide (>= 1). Rilevante quando allowQrReuse è attivo. */
+  count: number
+  /** Orario dell'ultima scansione valida. */
+  lastAt: string
 }
 
 /** Partecipante fisico. Occupa un posto in ogni Slot selezionato e ha 1 QR. */
@@ -66,8 +77,12 @@ export interface Person {
   /** Valorizzata solo per la categoria "child". */
   age: number | null
   ticketCode: string
-  /** Check-in all'ingresso dell'Evento. */
+  /** Orario del primo check-in all'ingresso dell'Evento. */
   eventCheckInAt: string | null
+  /** Numero totale di ingressi all'Evento (0 se mai entrato). */
+  eventCheckInCount: number
+  /** Orario dell'ultimo ingresso all'Evento. */
+  eventCheckInLastAt: string | null
   activityCheckIns: ActivityCheckIn[]
 }
 
@@ -105,6 +120,8 @@ export interface SlotPerson {
   /** true se la Persona ha effettuato il check-in su questo specifico Slot. */
   checkedIn: boolean
   checkedInAt: string | null
+  /** Numero di check-in effettuati su questo Slot (>= 1 se checkedIn). */
+  checkInCount: number
 }
 
 export interface SlotWithPeople extends SlotWithAvailability {
@@ -168,4 +185,6 @@ export interface CheckInResult {
   slotStart?: string
   slotEnd?: string
   at?: string
+  /** Numero totale di ingressi registrati per questa Persona nel contesto (mode/attività). */
+  count?: number
 }

@@ -69,6 +69,11 @@ function SlotPeopleList({ slot }: { slot: SlotWithPeople }) {
             <span className="flex items-center gap-1.5 text-primary">
               <CheckCircle2 className="h-4 w-4" aria-hidden="true" />
               <span className="font-medium">Dentro</span>
+              {person.checkInCount > 1 && (
+                <Badge variant="secondary" className="font-normal">
+                  x{person.checkInCount}
+                </Badge>
+              )}
               {person.checkedInAt && (
                 <span className="text-muted-foreground">
                   · {formatDateTime(person.checkedInAt)}

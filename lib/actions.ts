@@ -139,6 +139,8 @@ function buildPerson(name: string, category: Person['category'], age: number | n
     age,
     ticketCode: generateTicketCode(),
     eventCheckInAt: null,
+    eventCheckInCount: 0,
+    eventCheckInLastAt: null,
     activityCheckIns: [],
   }
 }
@@ -257,6 +259,7 @@ function eventSettingsFromInput(input: EventInput) {
     minActivities: input.activityPolicy === 'min' ? input.minActivities : 0,
     allowOverlap: input.allowOverlap,
     checkInToleranceMinutes: input.checkInToleranceMinutes,
+    allowQrReuse: input.allowQrReuse,
     allowChildren: input.allowChildren,
     maxChildrenPerRegistration: input.allowChildren ? input.maxChildrenPerRegistration : 0,
     allowCompanions: input.allowCompanions,
@@ -374,16 +377,33 @@ export async function checkInPerson(args: {
   }
 
   if (args.mode === 'event') {
+    const now = new Date().toISOString()
     if (person.eventCheckInAt) {
+      if (!event.allowQrReuse) {
+        return {
+          status: 'event-already',
+          message: 'Ingresso già registrato in precedenza.',
+          person: personSummary,
+          eventTitle: event.title,
+          at: person.eventCheckInAt,
+          count: person.eventCheckInCount,
+        }
+      }
+      person.eventCheckInCount += 1
+      person.eventCheckInLastAt = now
+      revalidatePath('/admin')
       return {
-        status: 'event-already',
-        message: 'Ingresso già registrato in precedenza.',
+        status: 'event-valid',
+        message: `Rientro registrato (ingresso n° ${person.eventCheckInCount}).`,
         person: personSummary,
         eventTitle: event.title,
         at: person.eventCheckInAt,
+        count: person.eventCheckInCount,
       }
     }
-    person.eventCheckInAt = new Date().toISOString()
+    person.eventCheckInAt = now
+    person.eventCheckInCount = 1
+    person.eventCheckInLastAt = now
     revalidatePath('/admin')
     return {
       status: 'event-valid',
@@ -391,6 +411,7 @@ export async function checkInPerson(args: {
       person: personSummary,
       eventTitle: event.title,
       at: person.eventCheckInAt,
+      count: person.eventCheckInCount,
     }
   }
 
@@ -445,22 +466,39 @@ export async function checkInPerson(args: {
     }
   }
 
+  const at = new Date().toISOString()
   const already = person.activityCheckIns.find((c) => c.activityId === activity.id)
   if (already) {
+    if (!event.allowQrReuse) {
+      return {
+        status: 'activity-already',
+        message: 'Check-in attività già effettuato.',
+        person: personSummary,
+        eventTitle: event.title,
+        activityTitle: activity.title,
+        slotStart: slot.start,
+        slotEnd: slot.end,
+        at: already.at,
+        count: already.count,
+      }
+    }
+    already.count += 1
+    already.lastAt = at
+    revalidatePath('/admin')
     return {
-      status: 'activity-already',
-      message: 'Check-in attività già effettuato.',
+      status: 'activity-valid',
+      message: `Rientro in "${activity.title}" registrato (accesso n° ${already.count}).`,
       person: personSummary,
       eventTitle: event.title,
       activityTitle: activity.title,
       slotStart: slot.start,
       slotEnd: slot.end,
       at: already.at,
+      count: already.count,
     }
   }
 
-  const at = new Date().toISOString()
-  person.activityCheckIns.push({ activityId: activity.id, slotId: slot.id, at })
+  person.activityCheckIns.push({ activityId: activity.id, slotId: slot.id, at, count: 1, lastAt: at })
   revalidatePath('/admin')
   return {
     status: 'activity-valid',
@@ -471,5 +509,6 @@ export async function checkInPerson(args: {
     slotStart: slot.start,
     slotEnd: slot.end,
     at,
+    count: 1,
   }
 }
