@@ -1,10 +1,14 @@
 import { redirect } from 'next/navigation'
 import { LoginForm } from '@/components/admin/login-form'
-import { isAuthenticated } from '@/lib/auth'
+import { getRole } from '@/lib/auth'
 
 export default async function AdminLoginPage() {
-  if (await isAuthenticated()) {
+  const role = await getRole()
+  if (role === 'admin') {
     redirect('/admin')
+  }
+  if (role === 'staff') {
+    redirect('/admin/validazione')
   }
 
   return (

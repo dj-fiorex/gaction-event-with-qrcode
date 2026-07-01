@@ -1,24 +1,37 @@
 import { createHash } from 'crypto'
 import { cookies } from 'next/headers'
 
-const COOKIE_NAME = 'admin_session'
+const COOKIE_NAME = 'session'
+
+export type Role = 'admin' | 'staff'
+
 const ADMIN_EMAIL = process.env.ADMIN_EMAIL ?? 'admin@eventi.it'
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD ?? 'admin123'
+const STAFF_EMAIL = process.env.STAFF_EMAIL ?? 'staff@eventi.it'
+const STAFF_PASSWORD = process.env.STAFF_PASSWORD ?? 'staff123'
 
-/** Token di sessione deterministico legato alle credenziali correnti. */
-function sessionToken(): string {
-  return createHash('sha256')
-    .update(`${ADMIN_EMAIL}:${ADMIN_PASSWORD}:evt-admin`)
-    .digest('hex')
+/** Token di sessione deterministico legato al ruolo e alle sue credenziali. */
+function sessionToken(role: Role): string {
+  const secret =
+    role === 'admin' ? `${ADMIN_EMAIL}:${ADMIN_PASSWORD}` : `${STAFF_EMAIL}:${STAFF_PASSWORD}`
+  return createHash('sha256').update(`${role}:${secret}:evt-session`).digest('hex')
 }
 
-export function verifyCredentials(email: string, password: string): boolean {
-  return email.trim().toLowerCase() === ADMIN_EMAIL.toLowerCase() && password === ADMIN_PASSWORD
+/** Restituisce il ruolo se le credenziali sono valide, altrimenti null. */
+export function verifyCredentials(email: string, password: string): Role | null {
+  const normalized = email.trim().toLowerCase()
+  if (normalized === ADMIN_EMAIL.toLowerCase() && password === ADMIN_PASSWORD) {
+    return 'admin'
+  }
+  if (normalized === STAFF_EMAIL.toLowerCase() && password === STAFF_PASSWORD) {
+    return 'staff'
+  }
+  return null
 }
 
-export async function createSession(): Promise<void> {
+export async function createSession(role: Role): Promise<void> {
   const store = await cookies()
-  store.set(COOKIE_NAME, sessionToken(), {
+  store.set(COOKIE_NAME, `${role}.${sessionToken(role)}`, {
     httpOnly: true,
     sameSite: 'lax',
     secure: process.env.NODE_ENV === 'production',
@@ -32,7 +45,24 @@ export async function destroySession(): Promise<void> {
   store.delete(COOKIE_NAME)
 }
 
-export async function isAuthenticated(): Promise<boolean> {
+/** Ruolo corrente derivato dal cookie di sessione, o null se non valido. */
+export async function getRole(): Promise<Role | null> {
   const store = await cookies()
-  return store.get(COOKIE_NAME)?.value === sessionToken()
+  const raw = store.get(COOKIE_NAME)?.value
+  if (!raw) return null
+  const [role, token] = raw.split('.') as [Role, string]
+  if ((role === 'admin' || role === 'staff') && token === sessionToken(role)) {
+    return role
+  }
+  return null
+}
+
+/** True per qualsiasi sessione valida (admin o staff). */
+export async function isAuthenticated(): Promise<boolean> {
+  return (await getRole()) !== null
+}
+
+/** True solo per una sessione admin. */
+export async function isAdmin(): Promise<boolean> {
+  return (await getRole()) === 'admin'
 }

@@ -1,57 +1,142 @@
-export interface EventChildOption {
-  /** Se true, in fase di registrazione è possibile associare dei bambini. */
-  allowChildren: boolean
-  /** Numero massimo di bambini associabili a una singola registrazione. */
-  maxChildrenPerRegistration: number
+/**
+ * Modello di dominio.
+ * Terminologia allineata a CONTEXT.md (Utente, Persona, Evento, Attività, Slot).
+ */
+
+/** Policy con cui una Prenotazione viene associata alle Attività dell'Evento. */
+export type ActivityPolicy = 'all' | 'min' | 'free'
+
+/** Categoria di una Persona. L'Utente iscritto è sempre una Persona di categoria "user". */
+export type PersonCategory = 'user' | 'child' | 'companion'
+
+/** Fascia oraria prenotabile dentro un'Attività, generata dalla Durata. */
+export interface Slot {
+  id: string
+  activityId: string
+  start: string
+  end: string
+  capacity: number
+}
+
+/** Segmento di un Evento con finestra oraria e Slot generati dalla Durata. */
+export interface Activity {
+  id: string
+  eventId: string
+  title: string
+  start: string
+  end: string
+  slotDurationMinutes: number
+  capacityPerSlot: number
+  slots: Slot[]
 }
 
 export interface Event {
   id: string
   title: string
   description: string
-  /** Data/ora dell'evento in formato ISO. */
-  date: string
   location: string
-  /** Numero massimo di posti (conteggia dipendenti + bambini). */
-  capacity: number
   imageUrl: string
-  childOptions: EventChildOption
   createdAt: string
+  activityPolicy: ActivityPolicy
+  /** Numero minimo di Attività da selezionare quando activityPolicy = "min". */
+  minActivities: number
+  /** Se false, la Prenotazione non può selezionare Slot che si sovrappongono. */
+  allowOverlap: boolean
+  /** Margine in minuti entro cui è consentito il check-in di uno Slot. */
+  checkInToleranceMinutes: number
+  allowChildren: boolean
+  maxChildrenPerRegistration: number
+  allowCompanions: boolean
+  maxCompanionsPerRegistration: number
+  activities: Activity[]
 }
 
-export interface RegistrationChild {
+/** Check-in di una Persona all'ingresso di una specifica Attività/Slot. */
+export interface ActivityCheckIn {
+  activityId: string
+  slotId: string
+  at: string
+}
+
+/** Partecipante fisico. Occupa un posto in ogni Slot selezionato e ha 1 QR. */
+export interface Person {
+  id: string
   name: string
-  age: number
+  category: PersonCategory
+  /** Valorizzata solo per la categoria "child". */
+  age: number | null
+  ticketCode: string
+  /** Check-in all'ingresso dell'Evento. */
+  eventCheckInAt: string | null
+  activityCheckIns: ActivityCheckIn[]
 }
 
+/** Uno Slot scelto per una specifica Attività (selezione unica per Prenotazione). */
+export interface SlotSelection {
+  activityId: string
+  slotId: string
+}
+
+/** Insieme di Persone iscritte insieme da un Utente in un'unica operazione. */
 export interface Registration {
   id: string
   eventId: string
-  employeeName: string
-  employeeEmail: string
-  department: string
-  children: RegistrationChild[]
-  /** Codice univoco codificato nel QR del ticket. */
-  ticketCode: string
-  used: boolean
-  usedAt: string | null
+  contactEmail: string
+  selections: SlotSelection[]
+  persons: Person[]
   createdAt: string
 }
 
-export interface EventWithStats extends Event {
-  /** Posti occupati (dipendente + bambini per ogni registrazione). */
-  seatsTaken: number
-  seatsAvailable: number
+export interface SlotWithAvailability extends Slot {
+  taken: number
+  available: number
+}
+
+export interface ActivityWithAvailability extends Omit<Activity, 'slots'> {
+  slots: SlotWithAvailability[]
+}
+
+export interface EventWithStats extends Omit<Event, 'activities'> {
+  activities: ActivityWithAvailability[]
   registrationsCount: number
+  personsCount: number
+  /** Inizio della prima Attività, se presente. */
+  startsAt: string | null
+  /** Fine dell'ultima Attività, se presente. */
+  endsAt: string | null
 }
 
 export type ActionResult<T = undefined> =
   | { success: true; data: T }
   | { success: false; error: string }
 
-export interface TicketValidationResult {
-  status: 'valid' | 'already-used' | 'not-found'
-  registration?: Registration
-  event?: Event
-  usedAt?: string | null
+export type CheckInMode = 'event' | 'activity'
+
+export type CheckInStatus =
+  | 'event-valid'
+  | 'event-already'
+  | 'activity-valid'
+  | 'activity-already'
+  | 'not-registered-activity'
+  | 'too-early'
+  | 'too-late'
+  | 'wrong-event'
+  | 'not-found'
+
+export interface CheckInPersonSummary {
+  name: string
+  category: PersonCategory
+  age: number | null
+  ticketCode: string
+}
+
+export interface CheckInResult {
+  status: CheckInStatus
+  message: string
+  person?: CheckInPersonSummary
+  eventTitle?: string
+  activityTitle?: string
+  slotStart?: string
+  slotEnd?: string
+  at?: string
 }

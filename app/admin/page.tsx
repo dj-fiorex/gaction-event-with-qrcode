@@ -7,7 +7,7 @@ import { ExportButton } from '@/components/admin/export-button'
 import { RegistrationsTable } from '@/components/admin/registrations-table'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { isAuthenticated } from '@/lib/auth'
+import { getRole } from '@/lib/auth'
 import { getEvents, getRegistrations } from '@/lib/queries'
 
 interface StatCardProps {
@@ -33,17 +33,21 @@ function StatCard({ label, value, icon }: StatCardProps) {
 }
 
 export default async function AdminPage() {
-  if (!(await isAuthenticated())) {
+  const role = await getRole()
+  if (!role) {
     redirect('/admin/login')
+  }
+  if (role !== 'admin') {
+    redirect('/admin/validazione')
   }
 
   const events = getEvents()
   const registrations = getRegistrations()
-  const totalSeats = registrations.reduce((sum, r) => sum + 1 + r.children.length, 0)
+  const totalPersons = registrations.reduce((sum, r) => sum + r.persons.length, 0)
 
   return (
     <div className="min-h-svh bg-muted/40">
-      <AdminHeader />
+      <AdminHeader role="admin" />
       <main className="mx-auto flex max-w-6xl flex-col gap-6 px-4 py-8">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Dashboard</h1>
@@ -62,8 +66,8 @@ export default async function AdminPage() {
             icon={<Users className="h-5 w-5" aria-hidden="true" />}
           />
           <StatCard
-            label="Posti impegnati"
-            value={totalSeats}
+            label="Persone iscritte"
+            value={totalPersons}
             icon={<Ticket className="h-5 w-5" aria-hidden="true" />}
           />
         </div>
@@ -86,7 +90,7 @@ export default async function AdminPage() {
                 <ExportButton disabled={registrations.length === 0} />
               </CardHeader>
               <CardContent>
-                <RegistrationsTable registrations={registrations} />
+                <RegistrationsTable registrations={registrations} events={events} />
               </CardContent>
             </Card>
           </TabsContent>
