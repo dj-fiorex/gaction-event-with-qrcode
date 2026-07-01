@@ -15,7 +15,16 @@ Un partecipante fisico all'Evento. Occupa un posto e riceve **1 QR code**. NON �
 Un raduno a cui gli Utenti si iscrivono. Genera **1 QR code per ogni Persona** (non per Attività). L'admin configura per ogni Evento se sono ammessi Figli (con max) e se sono ammessi Accompagnatori (con max).
 
 ### Attività
-Un segmento di un Evento con un **orario di inizio e fine** e un **numero di posti limitato proprio** (indipendente dagli altri). I posti si contano per singola Attività.
+Un segmento di un Evento con un **orario di inizio e fine** e una **Durata** (definita dall'admin). Dalla finestra inizio-fine e dalla Durata l'app **genera automaticamente gli Slot**. I posti limitati si contano per singolo Slot.
+
+### Durata
+Lunghezza in minuti di ogni Slot dell'Attività, impostata dall'admin. L'app divide la finestra inizio-fine dell'Attività in Slot consecutivi di questa Durata.
+
+### Slot
+Fascia oraria prenotabile all'interno di un'Attività, generata automaticamente dalla Durata. Ha un proprio inizio/fine e un **numero di posti limitato proprio**. Una Persona prenota uno Slot specifico; il check-in di Attività verifica che arrivi nel suo Slot.
+
+### Tolleranza check-in
+Margine in minuti, **configurabile dall'admin**, entro cui è consentito il check-in di uno Slot rispetto al suo orario. Fuori da questo margine il check-in è bloccato.
 
 ### Prenotazione
 L'insieme delle Persone iscritte insieme da un Utente in un'unica operazione. La **selezione di Attività è unica per Prenotazione**: tutte le Persone della stessa Prenotazione partecipano allo stesso set di Attività. Ogni Persona occupa comunque 1 posto in ciascuna Attività selezionata.
