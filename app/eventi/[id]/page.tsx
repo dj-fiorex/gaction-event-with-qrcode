@@ -28,6 +28,7 @@ export default async function EventPage({
           variant="ghost"
           size="sm"
           className="mb-4"
+          nativeButton={false}
           render={<Link href="/" />}
         >
           <ArrowLeft className="h-4 w-4" aria-hidden="true" />

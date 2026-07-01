@@ -45,6 +45,7 @@ export function EventCard({ event }: { event: EventWithStats }) {
       <CardFooter>
         <Button
           className="w-full"
+          nativeButton={false}
           render={<Link href={`/eventi/${event.id}`} />}
         >
           Dettagli e registrazione

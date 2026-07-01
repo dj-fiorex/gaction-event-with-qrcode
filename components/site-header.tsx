@@ -15,6 +15,7 @@ export function SiteHeader() {
         <Button
           variant="ghost"
           size="sm"
+          nativeButton={false}
           render={<Link href="/admin">Area riservata</Link>}
         />
       </div>
