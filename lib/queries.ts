@@ -101,6 +101,7 @@ export function getActivityAttendance(eventId: string): ActivityWithPeople[] {
             ticketCode: person.ticketCode,
             checkedIn: Boolean(checkIn),
             checkedInAt: checkIn?.at ?? null,
+            checkInCount: checkIn?.count ?? 0,
           })
         }
       }

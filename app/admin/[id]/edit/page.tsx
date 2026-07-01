@@ -20,6 +20,7 @@ function toEventInput(event: EventWithStats): EventInput {
     minActivities: event.activityPolicy === 'min' ? event.minActivities : 1,
     allowOverlap: event.allowOverlap,
     checkInToleranceMinutes: event.checkInToleranceMinutes,
+    allowQrReuse: event.allowQrReuse,
     allowChildren: event.allowChildren,
     maxChildrenPerRegistration: event.maxChildrenPerRegistration || 2,
     allowCompanions: event.allowCompanions,

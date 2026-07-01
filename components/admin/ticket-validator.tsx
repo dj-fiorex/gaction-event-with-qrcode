@@ -2,7 +2,8 @@
 
 import { useMemo, useState, useTransition } from 'react'
 import { Scanner, type IDetectedBarcode } from '@yudiel/react-qr-scanner'
-import { CheckCircle2, Clock, Keyboard, ScanLine, XCircle } from 'lucide-react'
+import { CheckCircle2, Clock, Keyboard, Repeat, ScanLine, XCircle } from 'lucide-react'
+import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -289,6 +290,13 @@ function ResultCard({ result, onReset }: { result: CheckInResult; onReset: () =>
       </CardHeader>
       <CardContent className="flex flex-col gap-3 text-foreground">
         <p className="text-sm font-medium">{result.message}</p>
+
+        {typeof result.count === 'number' && result.count > 1 && (
+          <Badge variant="secondary" className="w-fit gap-1">
+            <Repeat className="h-3.5 w-3.5" aria-hidden="true" />
+            {result.count}° ingresso
+          </Badge>
+        )}
 
         {result.person && (
           <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-sm">

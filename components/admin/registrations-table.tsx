@@ -45,6 +45,10 @@ export function RegistrationsTable({ registrations, events }: RegistrationsTable
             const children = r.persons.filter((p) => p.category === 'child').length
             const companions = r.persons.filter((p) => p.category === 'companion').length
             const checkedIn = r.persons.filter((p) => p.eventCheckInAt).length
+            const reentries = r.persons.reduce(
+              (sum, p) => sum + Math.max(0, (p.eventCheckInCount ?? 0) - 1),
+              0,
+            )
             const activities = r.selections
               .map((s) => event?.activities.find((a) => a.id === s.activityId)?.title ?? s.activityId)
               .join(', ')
@@ -64,7 +68,16 @@ export function RegistrationsTable({ registrations, events }: RegistrationsTable
                   {activities || '—'}
                 </TableCell>
                 <TableCell className="text-center">
-                  {checkedIn}/{r.persons.length}
+                  <div className="flex items-center justify-center gap-1.5">
+                    <span>
+                      {checkedIn}/{r.persons.length}
+                    </span>
+                    {reentries > 0 && (
+                      <Badge variant="outline" className="font-normal">
+                        +{reentries} {reentries === 1 ? 'rientro' : 'rientri'}
+                      </Badge>
+                    )}
+                  </div>
                 </TableCell>
                 <TableCell className="text-muted-foreground">
                   {formatDateTime(r.createdAt)}

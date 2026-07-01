@@ -37,6 +37,7 @@ const defaultValues: EventInput = {
   minActivities: 1,
   allowOverlap: false,
   checkInToleranceMinutes: 15,
+  allowQrReuse: false,
   allowChildren: false,
   maxChildrenPerRegistration: 2,
   allowCompanions: false,
@@ -285,6 +286,30 @@ export function EventForm({ mode, eventId, initialValues }: EventFormProps) {
             aria-invalid={!!errors.checkInToleranceMinutes}
           />
           <FieldError message={errors.checkInToleranceMinutes?.message} />
+        </div>
+      </div>
+
+      <div className="flex items-start gap-2 rounded-lg border border-border p-4">
+        <Controller
+          control={control}
+          name="allowQrReuse"
+          render={({ field }) => (
+            <Checkbox
+              id="allowQrReuse"
+              className="mt-0.5"
+              checked={field.value}
+              onCheckedChange={(checked) => field.onChange(checked === true)}
+            />
+          )}
+        />
+        <div className="grid gap-1">
+          <Label htmlFor="allowQrReuse" className="font-normal">
+            Consenti riuso del QR
+          </Label>
+          <p className="text-sm text-muted-foreground">
+            Se attivo, lo stesso QR può essere scansionato più volte (ingresso evento e attività):
+            ogni rientro resta valido e viene conteggiato.
+          </p>
         </div>
       </div>
 
