@@ -20,3 +20,28 @@ export function formatDateTime(iso: string | null): string {
     timeStyle: 'short',
   })
 }
+
+/** Solo l'orario (HH:mm) di un istante ISO. */
+export function formatTime(iso: string): string {
+  return new Date(iso).toLocaleTimeString('it-IT', {
+    hour: '2-digit',
+    minute: '2-digit',
+  })
+}
+
+/** Intervallo orario compatto, es. "10:00 – 10:30". */
+export function formatTimeRange(startIso: string, endIso: string): string {
+  return `${formatTime(startIso)} \u2013 ${formatTime(endIso)}`
+}
+
+/** Data + intervallo orario, es. "20 luglio 2026, 10:00 – 13:00". */
+export function formatDateRange(startIso: string | null, endIso: string | null): string {
+  if (!startIso) return 'Data da definire'
+  const day = new Date(startIso).toLocaleDateString('it-IT', {
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+  })
+  if (!endIso) return `${day}, ${formatTime(startIso)}`
+  return `${day}, ${formatTimeRange(startIso, endIso)}`
+}

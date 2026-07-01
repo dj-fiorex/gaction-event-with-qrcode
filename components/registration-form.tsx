@@ -1,82 +1,137 @@
 'use client'
 
-import { useState } from 'react'
-import { useForm, useFieldArray } from 'react-hook-form'
+import { useMemo, useState } from 'react'
+import { useFieldArray, useForm } from 'react-hook-form'
 import { Plus, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { registerForEvent } from '@/lib/actions'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
+import { registerForEvent, type RegisteredPerson } from '@/lib/actions'
 import { registrationSchema, type RegistrationInput } from '@/lib/schemas'
 import { typedZodResolver } from '@/lib/zod-resolver'
-import type { EventWithStats } from '@/lib/types'
+import { formatTimeRange } from '@/lib/format'
+import { intervalsOverlap } from '@/lib/slots'
+import type { EventWithStats, SlotWithAvailability } from '@/lib/types'
 import { TicketResult } from './ticket-result'
 
-interface TicketData {
-  ticketCode: string
-  qrDataUrl: string
-  emailSimulated: boolean
+const NONE = '__none__'
+
+const POLICY_HINT: Record<EventWithStats['activityPolicy'], (min: number) => string> = {
+  all: () => 'Devi selezionare uno slot per ogni attività.',
+  min: (min) => `Devi selezionare almeno ${min} attività.`,
+  free: () => 'Seleziona le attività a cui vuoi partecipare.',
 }
 
 export function RegistrationForm({ event }: { event: EventWithStats }) {
-  const [ticket, setTicket] = useState<TicketData | null>(null)
+  const [tickets, setTickets] = useState<RegisteredPerson[] | null>(null)
   const [submitting, setSubmitting] = useState(false)
+  const [slotByActivity, setSlotByActivity] = useState<Record<string, string>>({})
 
   const {
     register,
     handleSubmit,
     control,
     reset,
+    watch,
     formState: { errors },
   } = useForm<RegistrationInput>({
     resolver: typedZodResolver(registrationSchema),
     defaultValues: {
       eventId: event.id,
-      employeeName: '',
-      employeeEmail: '',
-      department: '',
+      userName: '',
+      contactEmail: '',
       children: [],
+      companions: [],
+      selections: [],
     },
   })
 
-  const { fields, append, remove } = useFieldArray({ control, name: 'children' })
+  const childrenArray = useFieldArray({ control, name: 'children' })
+  const companionsArray = useFieldArray({ control, name: 'companions' })
 
-  const allowChildren = event.childOptions.allowChildren
-  const maxChildren = event.childOptions.maxChildrenPerRegistration
+  const personsNeeded = 1 + childrenArray.fields.length + companionsArray.fields.length
+
+  const slotById = useMemo(() => {
+    const map = new Map<string, SlotWithAvailability>()
+    for (const activity of event.activities) {
+      for (const slot of activity.slots) map.set(slot.id, slot)
+    }
+    return map
+  }, [event.activities])
+
+  function setSlot(activityId: string, slotId: string) {
+    setSlotByActivity((prev) => ({ ...prev, [activityId]: slotId }))
+  }
+
+  function buildSelections() {
+    return event.activities
+      .map((a) => ({ activityId: a.id, slotId: slotByActivity[a.id] ?? '' }))
+      .filter((s) => s.slotId && s.slotId !== NONE)
+  }
+
+  function validateSelectionsClient(selections: { activityId: string; slotId: string }[]): string | null {
+    if (event.activityPolicy === 'all' && selections.length !== event.activities.length) {
+      return 'Devi selezionare uno slot per ogni attività'
+    }
+    if (event.activityPolicy === 'min' && selections.length < event.minActivities) {
+      return `Devi selezionare almeno ${event.minActivities} attività`
+    }
+    if (event.activityPolicy === 'free' && selections.length === 0) {
+      return 'Seleziona almeno un\u2019attività'
+    }
+    if (!event.allowOverlap) {
+      const slots = selections.map((s) => slotById.get(s.slotId)!).filter(Boolean)
+      for (let i = 0; i < slots.length; i++) {
+        for (let j = i + 1; j < slots.length; j++) {
+          if (intervalsOverlap(slots[i].start, slots[i].end, slots[j].start, slots[j].end)) {
+            return 'Hai selezionato slot che si sovrappongono nel tempo'
+          }
+        }
+      }
+    }
+    return null
+  }
 
   const onSubmit = handleSubmit(async (values) => {
+    const selections = buildSelections()
+    const selectionError = validateSelectionsClient(selections)
+    if (selectionError) {
+      toast.error(selectionError)
+      return
+    }
+
     setSubmitting(true)
-    const result = await registerForEvent(values)
+    const result = await registerForEvent({ ...values, selections })
     setSubmitting(false)
+
     if (result.success) {
-      setTicket(result.data)
+      setTickets(result.data.persons)
       toast.success('Registrazione completata')
     } else {
       toast.error(result.error)
     }
   })
 
-  if (ticket) {
+  if (tickets) {
     return (
       <TicketResult
-        {...ticket}
+        persons={tickets}
+        eventTitle={event.title}
         onReset={() => {
           reset()
-          setTicket(null)
+          setSlotByActivity({})
+          setTickets(null)
         }}
       />
-    )
-  }
-
-  if (event.seatsAvailable <= 0) {
-    return (
-      <Card>
-        <CardContent className="py-10 text-center text-muted-foreground">
-          I posti per questo evento sono esauriti.
-        </CardContent>
-      </Card>
     )
   }
 
@@ -90,112 +145,185 @@ export function RegistrationForm({ event }: { event: EventWithStats }) {
           <input type="hidden" {...register('eventId')} />
 
           <div className="grid gap-2">
-            <Label htmlFor="employeeName">Nome e cognome</Label>
-            <Input id="employeeName" {...register('employeeName')} aria-invalid={!!errors.employeeName} />
-            {errors.employeeName && (
-              <p className="text-sm text-destructive">{errors.employeeName.message}</p>
-            )}
+            <Label htmlFor="userName">Il tuo nome e cognome</Label>
+            <Input id="userName" {...register('userName')} aria-invalid={!!errors.userName} />
+            {errors.userName && <p className="text-sm text-destructive">{errors.userName.message}</p>}
           </div>
 
           <div className="grid gap-2">
-            <Label htmlFor="employeeEmail">Email aziendale</Label>
+            <Label htmlFor="contactEmail">Email</Label>
             <Input
-              id="employeeEmail"
+              id="contactEmail"
               type="email"
-              {...register('employeeEmail')}
-              aria-invalid={!!errors.employeeEmail}
+              {...register('contactEmail')}
+              aria-invalid={!!errors.contactEmail}
             />
-            {errors.employeeEmail && (
-              <p className="text-sm text-destructive">{errors.employeeEmail.message}</p>
+            {errors.contactEmail && (
+              <p className="text-sm text-destructive">{errors.contactEmail.message}</p>
             )}
           </div>
 
-          <div className="grid gap-2">
-            <Label htmlFor="department">Reparto</Label>
-            <Input id="department" {...register('department')} aria-invalid={!!errors.department} />
-            {errors.department && (
-              <p className="text-sm text-destructive">{errors.department.message}</p>
-            )}
-          </div>
-
-          {allowChildren && (
-            <div className="flex flex-col gap-3 rounded-lg border border-border p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="font-medium">Bambini associati</p>
-                  <p className="text-sm text-muted-foreground">
-                    Fino a {maxChildren} bambini per registrazione.
-                  </p>
+          {event.allowChildren && (
+            <PersonRepeater
+              title="Figli"
+              hint={`Fino a ${event.maxChildrenPerRegistration} figli. Riceveranno un proprio QR.`}
+              fields={childrenArray.fields}
+              canAdd={childrenArray.fields.length < event.maxChildrenPerRegistration}
+              onAdd={() => childrenArray.append({ name: '', age: 0 })}
+              onRemove={childrenArray.remove}
+              renderExtra={(index) => (
+                <div className="grid w-24 gap-2">
+                  <Label htmlFor={`child-age-${index}`} className="sr-only">
+                    Età
+                  </Label>
+                  <Input
+                    id={`child-age-${index}`}
+                    type="number"
+                    min={0}
+                    max={17}
+                    placeholder="Età"
+                    {...register(`children.${index}.age` as const, { valueAsNumber: true })}
+                  />
                 </div>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  disabled={fields.length >= maxChildren}
-                  onClick={() => append({ name: '', age: 0 })}
-                >
-                  <Plus className="h-4 w-4" aria-hidden="true" />
-                  Aggiungi
-                </Button>
-              </div>
-
-              {fields.map((field, index) => (
-                <div key={field.id} className="flex items-start gap-3">
-                  <div className="grid flex-1 gap-2">
-                    <Label htmlFor={`child-name-${index}`} className="sr-only">
-                      Nome bambino
-                    </Label>
-                    <Input
-                      id={`child-name-${index}`}
-                      placeholder="Nome"
-                      {...register(`children.${index}.name` as const)}
-                      aria-invalid={!!errors.children?.[index]?.name}
-                    />
-                    {errors.children?.[index]?.name && (
-                      <p className="text-sm text-destructive">
-                        {errors.children[index]?.name?.message}
-                      </p>
-                    )}
-                  </div>
-                  <div className="grid w-24 gap-2">
-                    <Label htmlFor={`child-age-${index}`} className="sr-only">
-                      Età bambino
-                    </Label>
-                    <Input
-                      id={`child-age-${index}`}
-                      type="number"
-                      min={0}
-                      max={17}
-                      placeholder="Età"
-                      {...register(`children.${index}.age` as const, { valueAsNumber: true })}
-                      aria-invalid={!!errors.children?.[index]?.age}
-                    />
-                    {errors.children?.[index]?.age && (
-                      <p className="text-sm text-destructive">
-                        {errors.children[index]?.age?.message}
-                      </p>
-                    )}
-                  </div>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    className="mt-0.5"
-                    onClick={() => remove(index)}
-                    aria-label="Rimuovi bambino"
-                  >
-                    <Trash2 className="h-4 w-4" aria-hidden="true" />
-                  </Button>
-                </div>
-              ))}
-            </div>
+              )}
+              register={(index) => register(`children.${index}.name` as const)}
+              namePlaceholder="Nome del figlio"
+            />
           )}
 
+          {event.allowCompanions && (
+            <PersonRepeater
+              title="Accompagnatori"
+              hint={`Fino a ${event.maxCompanionsPerRegistration} accompagnatori. Riceveranno un proprio QR.`}
+              fields={companionsArray.fields}
+              canAdd={companionsArray.fields.length < event.maxCompanionsPerRegistration}
+              onAdd={() => companionsArray.append({ name: '' })}
+              onRemove={companionsArray.remove}
+              register={(index) => register(`companions.${index}.name` as const)}
+              namePlaceholder="Nome dell'accompagnatore"
+            />
+          )}
+
+          {/* Selezione attività / slot */}
+          <div className="flex flex-col gap-3 rounded-lg border border-border p-4">
+            <div>
+              <p className="font-medium">Attività</p>
+              <p className="text-sm text-muted-foreground">
+                {POLICY_HINT[event.activityPolicy](event.minActivities)} Lo slot scelto vale per tutte
+                le {personsNeeded} persone della prenotazione.
+              </p>
+            </div>
+
+            {event.activities.map((activity) => {
+              const selected = slotByActivity[activity.id] ?? ''
+              const items = [
+                ...(event.activityPolicy !== 'all'
+                  ? [{ value: NONE, label: 'Non partecipo' }]
+                  : []),
+                ...activity.slots.map((slot) => ({
+                  value: slot.id,
+                  label: `${formatTimeRange(slot.start, slot.end)} · ${
+                    slot.available < personsNeeded ? 'posti insufficienti' : `${slot.available} posti`
+                  }`,
+                })),
+              ]
+              return (
+                <div key={activity.id} className="grid gap-2">
+                  <Label htmlFor={`slot-${activity.id}`}>{activity.title}</Label>
+                  <Select
+                    items={items}
+                    value={selected}
+                    onValueChange={(value) => setSlot(activity.id, value ?? '')}
+                  >
+                    <SelectTrigger id={`slot-${activity.id}`} className="w-full">
+                      <SelectValue placeholder="Seleziona una fascia oraria" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {event.activityPolicy !== 'all' && (
+                        <SelectItem value={NONE}>Non partecipo</SelectItem>
+                      )}
+                      {activity.slots.map((slot) => {
+                        const disabled = slot.available < personsNeeded
+                        return (
+                          <SelectItem key={slot.id} value={slot.id} disabled={disabled}>
+                            {formatTimeRange(slot.start, slot.end)} ·{' '}
+                            {disabled ? 'posti insufficienti' : `${slot.available} posti`}
+                          </SelectItem>
+                        )
+                      })}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )
+            })}
+          </div>
+
           <Button type="submit" disabled={submitting} className="w-full">
-            {submitting ? 'Registrazione in corso…' : 'Conferma registrazione'}
+            {submitting ? 'Registrazione in corso…' : `Conferma registrazione (${personsNeeded} persone)`}
           </Button>
         </form>
       </CardContent>
     </Card>
+  )
+}
+
+interface PersonRepeaterProps {
+  title: string
+  hint: string
+  fields: { id: string }[]
+  canAdd: boolean
+  onAdd: () => void
+  onRemove: (index: number) => void
+  register: (index: number) => ReturnType<ReturnType<typeof useForm<RegistrationInput>>['register']>
+  namePlaceholder: string
+  renderExtra?: (index: number) => React.ReactNode
+}
+
+function PersonRepeater({
+  title,
+  hint,
+  fields,
+  canAdd,
+  onAdd,
+  onRemove,
+  register,
+  namePlaceholder,
+  renderExtra,
+}: PersonRepeaterProps) {
+  return (
+    <div className="flex flex-col gap-3 rounded-lg border border-border p-4">
+      <div className="flex items-center justify-between">
+        <div>
+          <p className="font-medium">{title}</p>
+          <p className="text-sm text-muted-foreground">{hint}</p>
+        </div>
+        <Button type="button" variant="outline" size="sm" disabled={!canAdd} onClick={onAdd}>
+          <Plus className="h-4 w-4" aria-hidden="true" />
+          Aggiungi
+        </Button>
+      </div>
+
+      {fields.map((field, index) => (
+        <div key={field.id} className="flex items-start gap-3">
+          <div className="grid flex-1 gap-2">
+            <Label htmlFor={`${title}-name-${index}`} className="sr-only">
+              {namePlaceholder}
+            </Label>
+            <Input id={`${title}-name-${index}`} placeholder={namePlaceholder} {...register(index)} />
+          </div>
+          {renderExtra?.(index)}
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className="mt-0.5"
+            onClick={() => onRemove(index)}
+            aria-label="Rimuovi"
+          >
+            <Trash2 className="h-4 w-4" aria-hidden="true" />
+          </Button>
+        </div>
+      ))}
+    </div>
   )
 }

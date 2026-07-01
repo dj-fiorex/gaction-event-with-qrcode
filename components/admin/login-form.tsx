@@ -20,7 +20,7 @@ export function LoginForm() {
           <Lock className="h-5 w-5" aria-hidden="true" />
         </span>
         <CardTitle>Area riservata</CardTitle>
-        <CardDescription>Accedi con le credenziali amministratore.</CardDescription>
+        <CardDescription>Accedi con le credenziali admin o staff.</CardDescription>
       </CardHeader>
       <CardContent>
         <form action={formAction} className="flex flex-col gap-4">

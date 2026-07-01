@@ -1,12 +1,12 @@
 import Image from 'next/image'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
-import { ArrowLeft, CalendarDays, MapPin, Users } from 'lucide-react'
+import { ArrowLeft, CalendarDays, Clock, MapPin, Users } from 'lucide-react'
 import { RegistrationForm } from '@/components/registration-form'
 import { SiteHeader } from '@/components/site-header'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { formatEventDate } from '@/lib/format'
+import { formatEventDate, formatTimeRange } from '@/lib/format'
 import { getEvent } from '@/lib/queries'
 
 export default async function EventPage({
@@ -18,7 +18,7 @@ export default async function EventPage({
   const event = getEvent(id)
   if (!event) notFound()
 
-  const soldOut = event.seatsAvailable <= 0
+  const soldOut = event.soldOut
 
   return (
     <div className="min-h-dvh">
@@ -53,14 +53,14 @@ export default async function EventPage({
                 {event.title}
               </h1>
               <Badge variant={soldOut ? 'destructive' : 'secondary'}>
-                {soldOut ? 'Esaurito' : `${event.seatsAvailable} posti liberi`}
+                {soldOut ? 'Esaurito' : `${event.totalAvailable} posti liberi`}
               </Badge>
             </div>
 
             <div className="mt-4 flex flex-col gap-2 text-sm text-muted-foreground">
               <span className="flex items-center gap-2">
                 <CalendarDays className="h-4 w-4" aria-hidden="true" />
-                {formatEventDate(event.date)}
+                {event.startsAt ? formatEventDate(event.startsAt) : 'Date da definire'}
               </span>
               <span className="flex items-center gap-2">
                 <MapPin className="h-4 w-4" aria-hidden="true" />
@@ -68,7 +68,7 @@ export default async function EventPage({
               </span>
               <span className="flex items-center gap-2">
                 <Users className="h-4 w-4" aria-hidden="true" />
-                {event.seatsTaken} / {event.capacity} posti occupati
+                {event.totalTaken} / {event.totalCapacity} posti occupati
               </span>
             </div>
 
@@ -76,12 +76,28 @@ export default async function EventPage({
               {event.description}
             </p>
 
-            {event.childOptions.allowChildren && (
-              <p className="mt-4 rounded-lg bg-accent px-4 py-3 text-sm text-accent-foreground">
-                Evento aperto alle famiglie: puoi associare fino a{' '}
-                {event.childOptions.maxChildrenPerRegistration} bambini alla tua registrazione.
-              </p>
-            )}
+            <section className="mt-8">
+              <h2 className="text-lg font-semibold">Attività in programma</h2>
+              <ul className="mt-3 flex flex-col gap-3">
+                {event.activities.map((activity) => (
+                  <li
+                    key={activity.id}
+                    className="rounded-lg border border-border p-4"
+                  >
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <p className="font-medium">{activity.title}</p>
+                      <Badge variant="secondary">
+                        {activity.slotDurationMinutes} min · {activity.slots.length} fasce
+                      </Badge>
+                    </div>
+                    <p className="mt-1 flex items-center gap-2 text-sm text-muted-foreground">
+                      <Clock className="h-4 w-4" aria-hidden="true" />
+                      {formatTimeRange(activity.start, activity.end)}
+                    </p>
+                  </li>
+                ))}
+              </ul>
+            </section>
           </div>
 
           <div className="lg:sticky lg:top-6 lg:self-start">

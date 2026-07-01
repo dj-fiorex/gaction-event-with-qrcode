@@ -1,0 +1,53 @@
+# Context — Glossary
+
+## Ubiquitous Language
+
+### Utente
+Chi si iscrive a un Evento e gestisce la prenotazione. Un Utente è **sempre anche una Persona**: partecipa, occupa un posto e riceve un proprio QR code. Può portare altre Persone (Figli e Accompagnatori).
+
+### Persona
+Un partecipante fisico all'Evento. Occupa un posto e riceve **1 QR code**. NON è un account. Ha almeno un **nome**. Categorie di Persona:
+- **Utente** — l'iscritto stesso (vedi sopra).
+- **Figlio** — persona a carico portata dall'Utente, con **nome + età**. Ammessi solo se l'admin lo consente per l'Evento, entro un massimo **per Prenotazione**.
+- **Accompagnatore** — persona adulta al seguito, con **nome**. Ammessi solo se l'admin lo consente per l'Evento, entro un massimo **per Prenotazione**.
+
+### Evento
+Un raduno a cui gli Utenti si iscrivono. Genera **1 QR code per ogni Persona** (non per Attività). L'admin configura per ogni Evento se sono ammessi Figli (con max) e se sono ammessi Accompagnatori (con max).
+
+### Attività
+Un segmento di un Evento con un **orario di inizio e fine** e una **Durata** (definita dall'admin). Dalla finestra inizio-fine e dalla Durata l'app **genera automaticamente gli Slot**. I posti limitati si contano per singolo Slot.
+
+### Durata
+Lunghezza in minuti di ogni Slot dell'Attività, impostata dall'admin. L'app divide la finestra inizio-fine dell'Attività in Slot consecutivi di questa Durata.
+
+### Slot
+Fascia oraria prenotabile all'interno di un'Attività, generata automaticamente dalla Durata. Ha un proprio inizio/fine e un **numero di posti limitato proprio**. Una Persona prenota uno Slot specifico; il check-in di Attività verifica che arrivi nel suo Slot.
+
+### Tolleranza check-in
+Margine in minuti, **configurabile dall'admin**, entro cui è consentito il check-in di uno Slot rispetto al suo orario. Fuori da questo margine il check-in è bloccato.
+
+### Prenotazione
+L'insieme delle Persone iscritte insieme da un Utente in un'unica operazione. La **selezione è unica per Prenotazione**: per ogni Attività scelta si seleziona **uno Slot specifico**, e tutte le Persone della Prenotazione occupano quello stesso Slot. Ogni Persona occupa 1 posto in ciascuno Slot selezionato.
+
+### Permetti sovrapposizioni
+Booleano a livello di Evento impostato dall'admin. Se falso, il sistema impedisce a una Prenotazione di selezionare Slot che si sovrappongono nel tempo. Se vero, gli Slot sovrapposti sono consentiti.
+
+### Policy di selezione Attività
+Impostazione a livello di Evento decisa dall'admin in fase di creazione. Determina come la Prenotazione viene associata alle Attività:
+- **Tutte obbligatorie** — la Prenotazione include tutte le Attività.
+- **Minimo N** — la Prenotazione deve includere almeno N Attività.
+- **Libera** — l'Utente sceglie liberamente quali Attività includere in fase di Registrazione.
+
+### Regola di capacità (atomica)
+Una Registrazione è **atomica**: se anche un solo Slot selezionato non ha posti liberi sufficienti per **tutte** le Persone della Prenotazione, l'intera Registrazione fallisce. Nessuna iscrizione parziale, nessuna famiglia divisa.
+
+### QR code
+Un codice univoco generato **1 per ogni Persona** (non per Attività). Vale come pass per tutte le Attività a cui quella Persona è iscritta.
+
+### Staff (Operatore)
+Ruolo dedicato alla scansione dei QR, separato dall'Admin, con accesso limitato alla sola interfaccia di scansione/check-in.
+
+### Check-in
+Atto di scansionare il QR di una Persona. Avviene:
+1. **All'ingresso dell'Evento** — validazione generale.
+2. **All'ingresso di ogni Attività** — verifica che la Persona sia iscritta a quell'Attività e che stia arrivando nella fascia oraria corretta (arrivo troppo in anticipo/fuori orario = bloccato).

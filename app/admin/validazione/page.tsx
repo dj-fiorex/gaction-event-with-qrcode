@@ -1,25 +1,29 @@
 import { redirect } from 'next/navigation'
 import { AdminHeader } from '@/components/admin/admin-header'
 import { TicketValidator } from '@/components/admin/ticket-validator'
-import { isAuthenticated } from '@/lib/auth'
+import { getRole } from '@/lib/auth'
+import { getEvents } from '@/lib/queries'
 
 export default async function ValidationPage() {
-  if (!(await isAuthenticated())) {
+  const role = await getRole()
+  if (!role) {
     redirect('/admin/login')
   }
 
+  const events = getEvents()
+
   return (
     <div className="min-h-svh bg-muted/40">
-      <AdminHeader />
+      <AdminHeader role={role} />
       <main className="mx-auto flex max-w-lg flex-col gap-6 px-4 py-8">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Validazione accessi</h1>
           <p className="text-muted-foreground">
-            Scansiona il QR code del ticket per verificare l&apos;accesso. Al primo utilizzo il
-            ticket viene invalidato automaticamente.
+            Scansiona o inserisci il codice del QR. Scegli se registrare l&apos;ingresso
+            all&apos;evento oppure l&apos;accesso a una singola attività.
           </p>
         </div>
-        <TicketValidator />
+        <TicketValidator events={events} />
       </main>
     </div>
   )
