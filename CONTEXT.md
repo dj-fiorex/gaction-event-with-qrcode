@@ -55,6 +55,12 @@ Impostazione a livello di Evento che determina chi può operare la scansione:
 ### Associazione Assistente–Evento
 Per gli Eventi in modalità `private`, l'admin sceglie quali account Assistente sono abilitati a operare la scansione di quello specifico Evento. Un admin può sempre operare qualsiasi Evento.
 
+### qrToken
+Stringa opaca random associata a ogni Persona, indicizzata in Convex, che identifica il QR. Disaccoppiata dall'`_id` interno del documento e rigenerabile. Il lookup alla scansione avviene tramite indice `by_qrToken`.
+
+### Esito check-in
+Valore di ritorno delle mutation di check-in, gestito dalla UI: `ok` | `gia_registrato` (Persona già passata) | `slot_pieno` (capacità Slot raggiunta) | `fuori_orario` (fuori dalla Tolleranza) | `non_autorizzato`. Le mutation Convex sono transazionali: lo stato viene ri-letto dentro la transazione per evitare doppi check-in e overbooking.
+
 ### Check-in
 Atto di scansionare il QR di una Persona. Avviene:
 1. **All'ingresso dell'Evento** — validazione generale.
