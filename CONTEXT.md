@@ -31,3 +31,11 @@ Una Registrazione è **atomica**: se anche una sola Attività selezionata non ha
 
 ### QR code
 Un codice univoco generato **1 per ogni Persona** (non per Attività). Vale come pass per tutte le Attività a cui quella Persona è iscritta.
+
+### Staff (Operatore)
+Ruolo dedicato alla scansione dei QR, separato dall'Admin, con accesso limitato alla sola interfaccia di scansione/check-in.
+
+### Check-in
+Atto di scansionare il QR di una Persona. Avviene:
+1. **All'ingresso dell'Evento** — validazione generale.
+2. **All'ingresso di ogni Attività** — verifica che la Persona sia iscritta a quell'Attività e che stia arrivando nella fascia oraria corretta (arrivo troppo in anticipo/fuori orario = bloccato).
