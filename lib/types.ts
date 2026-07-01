@@ -96,6 +96,27 @@ export interface ActivityWithAvailability extends Omit<Activity, 'slots'> {
   slots: SlotWithAvailability[]
 }
 
+/** Persona associata a uno Slot, con stato del check-in all'Attività/Slot. */
+export interface SlotPerson {
+  id: string
+  name: string
+  category: PersonCategory
+  ticketCode: string
+  /** true se la Persona ha effettuato il check-in su questo specifico Slot. */
+  checkedIn: boolean
+  checkedInAt: string | null
+}
+
+export interface SlotWithPeople extends SlotWithAvailability {
+  persons: SlotPerson[]
+  /** Numero di Persone che hanno fatto il check-in e sono dentro questo Slot. */
+  checkedInCount: number
+}
+
+export interface ActivityWithPeople extends Omit<ActivityWithAvailability, 'slots'> {
+  slots: SlotWithPeople[]
+}
+
 export interface EventWithStats extends Omit<Event, 'activities'> {
   activities: ActivityWithAvailability[]
   registrationsCount: number

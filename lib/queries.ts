@@ -2,12 +2,15 @@ import 'server-only'
 import { db } from './db'
 import type {
   Activity,
+  ActivityWithPeople,
   Event,
   EventWithStats,
   Person,
   Registration,
   Slot,
+  SlotPerson,
   SlotWithAvailability,
+  SlotWithPeople,
 } from './types'
 
 /** Conta quante Persone occupano un dato Slot in tutte le Prenotazioni. */
@@ -67,6 +70,57 @@ export function getEvents(): EventWithStats[] {
 export function getEvent(id: string): EventWithStats | null {
   const event = db.events.find((e) => e.id === id)
   return event ? computeStats(event) : null
+}
+
+/**
+ * Restituisce le Attività di un Evento con, per ogni Slot, l'elenco delle Persone
+ * che lo occupano e lo stato del loro check-in su quello Slot.
+ */
+export function getActivityAttendance(eventId: string): ActivityWithPeople[] {
+  const event = db.events.find((e) => e.id === eventId)
+  if (!event) return []
+
+  const regs = db.registrations.filter((r) => r.eventId === eventId)
+
+  return event.activities.map((activity) => {
+    const slots: SlotWithPeople[] = activity.slots.map((slot) => {
+      const persons: SlotPerson[] = []
+
+      for (const reg of regs) {
+        const selected = reg.selections.some((s) => s.slotId === slot.id)
+        if (!selected) continue
+
+        for (const person of reg.persons) {
+          const checkIn = person.activityCheckIns.find(
+            (c) => c.activityId === activity.id && c.slotId === slot.id,
+          )
+          persons.push({
+            id: person.id,
+            name: person.name,
+            category: person.category,
+            ticketCode: person.ticketCode,
+            checkedIn: Boolean(checkIn),
+            checkedInAt: checkIn?.at ?? null,
+          })
+        }
+      }
+
+      persons.sort((a, b) => a.name.localeCompare(b.name, 'it'))
+
+      const taken = persons.length
+      const checkedInCount = persons.filter((p) => p.checkedIn).length
+
+      return {
+        ...slot,
+        taken,
+        available: Math.max(0, slot.capacity - taken),
+        persons,
+        checkedInCount,
+      }
+    })
+
+    return { ...activity, slots }
+  })
 }
 
 export function getRegistrations(eventId?: string): Registration[] {
