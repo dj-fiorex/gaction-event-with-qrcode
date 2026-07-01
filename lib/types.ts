@@ -174,6 +174,15 @@ export type ActionResult<T = undefined> =
   | { success: true; data: T }
   | { success: false; error: string }
 
+/** Persona registrata con il QR (data URL) pronto da mostrare/stampare. */
+export interface RegisteredPerson {
+  name: string
+  category: PersonCategory
+  age: number | null
+  ticketCode: string
+  qrDataUrl: string
+}
+
 export type CheckInMode = 'event' | 'activity'
 
 export type CheckInStatus =
