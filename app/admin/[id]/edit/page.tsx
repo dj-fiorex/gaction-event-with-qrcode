@@ -43,7 +43,7 @@ export default async function EditEventPage({ params }: { params: Promise<{ id: 
     redirect('/admin/login')
   }
   if (role !== 'admin') {
-    redirect('/admin/validazione')
+    redirect('/staff')
   }
 
   const { id } = await params
