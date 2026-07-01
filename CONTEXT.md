@@ -55,11 +55,14 @@ Impostazione a livello di Evento che determina chi può operare la scansione:
 ### Associazione Assistente–Evento
 Per gli Eventi in modalità `private`, l'admin sceglie quali account Assistente sono abilitati a operare la scansione di quello specifico Evento. Un admin può sempre operare qualsiasi Evento.
 
-### qrToken
-Stringa opaca random associata a ogni Persona, indicizzata in Convex, che identifica il QR. Disaccoppiata dall'`_id` interno del documento e rigenerabile. Il lookup alla scansione avviene tramite indice `by_qrToken`.
+### ticketCode (QR token)
+Stringa opaca e univoca associata a ogni Persona (`TCK-...`), indicizzata in Convex (`by_ticketCode`), che rappresenta il contenuto del QR. Disaccoppiata dall'`_id` interno del documento; il lookup alla scansione avviene per indice, O(1). È al contempo il codice leggibile mostrato sul biglietto e il token scansionato.
+
+### scanUnlockToken
+Token opaco random per-Evento (solo modalità `password`). Restituito al client quando la password dell'Evento viene verificata con successo; il client lo conserva e lo invia con ogni check-in per provare l'autorizzazione, senza esporre l'hash della password. Ruota al cambio password.
 
 ### Esito check-in
-Valore di ritorno delle mutation di check-in, gestito dalla UI: `ok` | `gia_registrato` (Persona già passata) | `slot_pieno` (capacità Slot raggiunta) | `fuori_orario` (fuori dalla Tolleranza) | `non_autorizzato`. Le mutation Convex sono transazionali: lo stato viene ri-letto dentro la transazione per evitare doppi check-in e overbooking.
+Valore di ritorno delle mutation di check-in, mappato dalla UI sugli stati esistenti (`event-valid`, `event-already`, `activity-valid`, `activity-already`, `not-registered-activity`, `too-early`, `too-late`, `wrong-event`, `not-found`). Le mutation Convex sono transazionali: lo stato viene ri-letto dentro la transazione per evitare doppi check-in e overbooking.
 
 ### Check-in
 Atto di scansionare il QR di una Persona. Avviene:
