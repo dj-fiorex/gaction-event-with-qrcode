@@ -6,7 +6,7 @@ import { CheckCircle2, Download, Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
-import type { RegisteredPerson } from '@/lib/actions'
+import type { RegisteredPerson } from '@/lib/types'
 import type { TicketPdfEvent } from '@/lib/pdf/ticket-document'
 import { downloadAllTickets, downloadPersonTicket } from '@/lib/pdf/download-tickets'
 

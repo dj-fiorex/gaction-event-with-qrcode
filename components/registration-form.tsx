@@ -15,12 +15,15 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { registerForEvent, type RegisteredPerson } from '@/lib/actions'
+import { useAction, useMutation } from 'convex/react'
+import { api } from '@/convex/_generated/api'
+import type { Id } from '@/convex/_generated/dataModel'
 import { registrationSchema, type RegistrationInput } from '@/lib/schemas'
 import { typedZodResolver } from '@/lib/zod-resolver'
 import { formatTimeRange, formatDateRange } from '@/lib/format'
+import { generateQrDataUrl } from '@/lib/qr-client'
 import { intervalsOverlap } from '@/lib/slots'
-import type { EventWithStats, SlotWithAvailability } from '@/lib/types'
+import type { EventWithStats, RegisteredPerson, SlotWithAvailability } from '@/lib/types'
 import { TicketResult } from './ticket-result'
 
 const NONE = '__none__'
@@ -32,6 +35,8 @@ const POLICY_HINT: Record<EventWithStats['activityPolicy'], (min: number) => str
 }
 
 export function RegistrationForm({ event }: { event: EventWithStats }) {
+  const registerMutation = useMutation(api.registrations.register)
+  const sendTickets = useAction(api.emails.sendTickets)
   const [tickets, setTickets] = useState<RegisteredPerson[] | null>(null)
   const [submitting, setSubmitting] = useState(false)
   const [slotByActivity, setSlotByActivity] = useState<Record<string, string>>({})
@@ -110,14 +115,42 @@ export function RegistrationForm({ event }: { event: EventWithStats }) {
     }
 
     setSubmitting(true)
-    const result = await registerForEvent({ ...values, selections })
-    setSubmitting(false)
+    try {
+      const result = await registerMutation({
+        eventId: event.id as Id<'events'>,
+        userName: values.userName,
+        contactEmail: values.contactEmail,
+        children: values.children ?? [],
+        companions: values.companions ?? [],
+        selections: selections.map((s) => ({
+          activityId: s.activityId as Id<'activities'>,
+          slotId: s.slotId as Id<'slots'>,
+        })),
+      })
 
-    if (result.success) {
-      setTickets(result.data.persons)
+      const registeredPersons: RegisteredPerson[] = await Promise.all(
+        result.persons.map(async (p): Promise<RegisteredPerson> => ({
+          name: p.name,
+          category: p.category,
+          age: p.age,
+          ticketCode: p.ticketCode,
+          qrDataUrl: await generateQrDataUrl(p.ticketCode),
+        })),
+      )
+
+      setTickets(registeredPersons)
       toast.success('Registrazione completata')
-    } else {
-      toast.error(result.error)
+
+      void sendTickets({
+        eventTitle: result.eventTitle,
+        eventLocation: result.eventLocation,
+        contactEmail: result.contactEmail,
+        persons: registeredPersons,
+      }).catch(() => undefined)
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Registrazione non riuscita')
+    } finally {
+      setSubmitting(false)
     }
   })
 

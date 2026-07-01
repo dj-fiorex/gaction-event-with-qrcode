@@ -127,6 +127,7 @@ export interface EventWithStatsDTO {
   location: string
   imageUrl: string
   createdAt: string
+  activities: ActivityWithAvailabilityDTO[]
   activityPolicy: 'all' | 'min' | 'free'
   minActivities: number
   allowOverlap: boolean
@@ -237,6 +238,7 @@ export async function loadEventWithStats(
     location: event.location,
     imageUrl: event.imageUrl,
     createdAt: new Date(event._creationTime).toISOString(),
+    activities: activityDTOs,
     activityPolicy: event.activityPolicy,
     minActivities: event.minActivities,
     allowOverlap: event.allowOverlap,

@@ -1,32 +1,67 @@
-import { notFound, redirect } from 'next/navigation'
+'use client'
+
+import { useEffect, useState } from 'react'
+import { notFound, useParams, useRouter } from 'next/navigation'
+import { useQuery } from 'convex/react'
 import { CalendarClock, MapPin, ScanLine } from 'lucide-react'
+import { api } from '@/convex/_generated/api'
 import { TicketValidator } from '@/components/admin/ticket-validator'
 import { ScanPasswordGate } from '@/components/scan/scan-password-gate'
-import { getRole, hasScanSession } from '@/lib/auth'
+import { Skeleton } from '@/components/ui/skeleton'
+import { useCurrentUser } from '@/lib/use-current-user'
 import { formatDateRange } from '@/lib/format'
-import { getEventByScanToken } from '@/lib/queries'
 
-export default async function ScanPage({ params }: { params: Promise<{ token: string }> }) {
-  const { token } = await params
-  const event = getEventByScanToken(token)
-  if (!event) {
-    notFound()
+function unlockStorageKey(token: string) {
+  return `scan-unlock:${token}`
+}
+
+export default function ScanPage() {
+  const { token } = useParams<{ token: string }>()
+  const router = useRouter()
+  const event = useQuery(api.events.getByScanToken, { token })
+  const { user, isLoading: userLoading } = useCurrentUser()
+  const [unlockToken, setUnlockToken] = useState<string | null>(null)
+
+  useEffect(() => {
+    setUnlockToken(sessionStorage.getItem(unlockStorageKey(token)))
+  }, [token])
+
+  const isPrivate = event?.checkInAccess === 'private'
+
+  useEffect(() => {
+    if (event === undefined || userLoading) return
+    if (event && isPrivate && !user) {
+      router.replace(`/admin/login?redirect=/scan/${token}`)
+    }
+  }, [event, isPrivate, user, userLoading, router, token])
+
+  if (event === null) notFound()
+
+  if (event === undefined || userLoading) {
+    return (
+      <main className="mx-auto flex max-w-lg flex-col gap-6 px-4 py-12">
+        <Skeleton className="h-8 w-2/3" />
+        <Skeleton className="h-64 w-full rounded-xl" />
+      </main>
+    )
   }
 
-  const role = await getRole()
-
-  // Eventi privati: accessibili solo con una sessione admin/staff valida.
-  if (event.checkInAccess === 'private' && !role) {
-    redirect('/admin/login')
+  if (isPrivate && !user) {
+    return null
   }
 
-  // Eventi password-protected: mostra il gate se non c'è né sessione staff né
-  // una sessione di scansione valida per questo token.
-  const unlocked = role !== null || (await hasScanSession(token))
+  const unlocked = user !== null || unlockToken !== null
   if (event.checkInAccess === 'password' && !unlocked) {
     return (
       <main className="flex min-h-svh items-center justify-center bg-muted/40 p-4">
-        <ScanPasswordGate token={token} eventTitle={event.title} />
+        <ScanPasswordGate
+          scanToken={event.scanToken}
+          eventTitle={event.title}
+          onUnlocked={(newToken) => {
+            sessionStorage.setItem(unlockStorageKey(token), newToken)
+            setUnlockToken(newToken)
+          }}
+        />
       </main>
     )
   }
@@ -59,7 +94,7 @@ export default async function ScanPage({ params }: { params: Promise<{ token: st
             all&apos;evento oppure l&apos;accesso a una singola attività.
           </p>
         </div>
-        <TicketValidator event={event} />
+        <TicketValidator event={event} unlockToken={unlockToken} />
       </main>
     </div>
   )

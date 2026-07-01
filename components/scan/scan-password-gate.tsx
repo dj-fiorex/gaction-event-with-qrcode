@@ -1,23 +1,44 @@
 'use client'
 
-import { useActionState } from 'react'
+import { useState, type FormEvent } from 'react'
+import { useMutation } from 'convex/react'
 import { Lock } from 'lucide-react'
+import { api } from '@/convex/_generated/api'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Checkbox } from '@/components/ui/checkbox'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { unlockScanAction, type ScanUnlockState } from '@/lib/actions'
-
-const initialState: ScanUnlockState = {}
 
 interface ScanPasswordGateProps {
-  token: string
+  scanToken: string
   eventTitle: string
+  onUnlocked: (unlockToken: string) => void
 }
 
-export function ScanPasswordGate({ token, eventTitle }: ScanPasswordGateProps) {
-  const [state, formAction, pending] = useActionState(unlockScanAction, initialState)
+export function ScanPasswordGate({ scanToken, eventTitle, onUnlocked }: ScanPasswordGateProps) {
+  const unlockScan = useMutation(api.checkins.unlockScan)
+  const [error, setError] = useState<string | null>(null)
+  const [pending, setPending] = useState(false)
+
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    setError(null)
+    setPending(true)
+
+    const password = String(new FormData(event.currentTarget).get('password') ?? '')
+    try {
+      const result = await unlockScan({ scanToken, password })
+      if (result.ok && result.unlockToken) {
+        onUnlocked(result.unlockToken)
+      } else {
+        setError('Password non corretta. Riprova.')
+        setPending(false)
+      }
+    } catch {
+      setError('Verifica non riuscita. Riprova.')
+      setPending(false)
+    }
+  }
 
   return (
     <Card className="w-full max-w-sm">
@@ -31,8 +52,7 @@ export function ScanPasswordGate({ token, eventTitle }: ScanPasswordGateProps) {
         </CardDescription>
       </CardHeader>
       <CardContent>
-        <form action={formAction} className="flex flex-col gap-4">
-          <input type="hidden" name="token" value={token} />
+        <form onSubmit={handleSubmit} className="flex flex-col gap-4">
           <div className="grid gap-2">
             <Label htmlFor="scan-password">Password</Label>
             <Input
@@ -44,13 +64,7 @@ export function ScanPasswordGate({ token, eventTitle }: ScanPasswordGateProps) {
               required
             />
           </div>
-          <div className="flex items-center gap-2">
-            <Checkbox id="remember" name="remember" />
-            <Label htmlFor="remember" className="font-normal">
-              Ricordami su questo dispositivo (12 ore)
-            </Label>
-          </div>
-          {state.error && <p className="text-sm text-destructive">{state.error}</p>}
+          {error && <p className="text-sm text-destructive">{error}</p>}
           <Button type="submit" disabled={pending} className="w-full">
             {pending ? 'Verifica in corso…' : 'Accedi al check-in'}
           </Button>

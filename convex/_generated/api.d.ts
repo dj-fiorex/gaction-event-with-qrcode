@@ -12,6 +12,7 @@ import type * as accounts from "../accounts.js";
 import type * as attendance from "../attendance.js";
 import type * as auth from "../auth.js";
 import type * as checkins from "../checkins.js";
+import type * as emails from "../emails.js";
 import type * as eventStaff from "../eventStaff.js";
 import type * as events from "../events.js";
 import type * as http from "../http.js";
@@ -30,6 +31,7 @@ declare const fullApi: ApiFromModules<{
   attendance: typeof attendance;
   auth: typeof auth;
   checkins: typeof checkins;
+  emails: typeof emails;
   eventStaff: typeof eventStaff;
   events: typeof events;
   http: typeof http;

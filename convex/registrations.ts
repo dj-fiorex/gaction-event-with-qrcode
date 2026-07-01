@@ -120,7 +120,12 @@ export const register = mutation({
       ...companions.map((c) => ({ name: c.name, category: 'companion' as const, age: null })),
     ]
 
-    const createdPersons: Array<{ name: string; category: string; age: number | null; ticketCode: string }> = []
+    const createdPersons: Array<{
+    name: string
+    category: 'user' | 'child' | 'companion'
+    age: number | null
+    ticketCode: string
+  }> = []
     for (const p of personsInput) {
       const ticketCode = generateTicketCode()
       await ctx.db.insert('persons', {

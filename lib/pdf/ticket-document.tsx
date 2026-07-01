@@ -1,5 +1,5 @@
 import { Document, Page, View, Text, Image, StyleSheet } from '@react-pdf/renderer'
-import type { RegisteredPerson } from '@/lib/actions'
+import type { RegisteredPerson } from '@/lib/types'
 
 /** Dati dell'Evento mostrati nell'header di ogni pagina biglietto. */
 export interface TicketPdfEvent {

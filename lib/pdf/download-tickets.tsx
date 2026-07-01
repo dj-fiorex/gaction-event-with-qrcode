@@ -2,7 +2,7 @@
 
 import { pdf } from '@react-pdf/renderer'
 import { TicketsDocument, type TicketPdfEvent } from './ticket-document'
-import type { RegisteredPerson } from '@/lib/actions'
+import type { RegisteredPerson } from '@/lib/types'
 
 /** Rende un testo sicuro per un nome file: solo alfanumerici e trattini. */
 function slugify(value: string): string {
