@@ -212,7 +212,15 @@ export function EventForm() {
             control={control}
             name="activityPolicy"
             render={({ field }) => (
-              <Select value={field.value} onValueChange={field.onChange}>
+              <Select
+                items={[
+                  { value: 'free', label: 'Libera' },
+                  { value: 'min', label: 'Minimo N attività' },
+                  { value: 'all', label: 'Tutte obbligatorie' },
+                ]}
+                value={field.value}
+                onValueChange={field.onChange}
+              >
                 <SelectTrigger id="activityPolicy" className="w-full">
                   <SelectValue />
                 </SelectTrigger>

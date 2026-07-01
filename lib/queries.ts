@@ -30,16 +30,27 @@ export function computeStats(event: Event): EventWithStats {
   const starts = event.activities.map((a) => new Date(a.start).getTime())
   const ends = event.activities.map((a) => new Date(a.end).getTime())
 
+  const activities = event.activities.map((activity) => ({
+    ...activity,
+    slots: activity.slots.map((slot) => withSlotAvailability(event.id, slot)),
+  }))
+
+  const allSlots = activities.flatMap((a) => a.slots)
+  const totalCapacity = allSlots.reduce((sum, s) => sum + s.capacity, 0)
+  const totalTaken = allSlots.reduce((sum, s) => sum + s.taken, 0)
+  const totalAvailable = allSlots.reduce((sum, s) => sum + s.available, 0)
+
   return {
     ...event,
-    activities: event.activities.map((activity) => ({
-      ...activity,
-      slots: activity.slots.map((slot) => withSlotAvailability(event.id, slot)),
-    })),
+    activities,
     registrationsCount: regs.length,
     personsCount,
     startsAt: starts.length ? new Date(Math.min(...starts)).toISOString() : null,
     endsAt: ends.length ? new Date(Math.max(...ends)).toISOString() : null,
+    totalCapacity,
+    totalTaken,
+    totalAvailable,
+    soldOut: allSlots.length > 0 && totalAvailable <= 0,
   }
 }
 

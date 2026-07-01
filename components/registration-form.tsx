@@ -216,12 +216,24 @@ export function RegistrationForm({ event }: { event: EventWithStats }) {
 
             {event.activities.map((activity) => {
               const selected = slotByActivity[activity.id] ?? ''
+              const items = [
+                ...(event.activityPolicy !== 'all'
+                  ? [{ value: NONE, label: 'Non partecipo' }]
+                  : []),
+                ...activity.slots.map((slot) => ({
+                  value: slot.id,
+                  label: `${formatTimeRange(slot.start, slot.end)} · ${
+                    slot.available < personsNeeded ? 'posti insufficienti' : `${slot.available} posti`
+                  }`,
+                })),
+              ]
               return (
                 <div key={activity.id} className="grid gap-2">
                   <Label htmlFor={`slot-${activity.id}`}>{activity.title}</Label>
                   <Select
+                    items={items}
                     value={selected}
-                    onValueChange={(value) => setSlot(activity.id, value)}
+                    onValueChange={(value) => setSlot(activity.id, value ?? '')}
                   >
                     <SelectTrigger id={`slot-${activity.id}`} className="w-full">
                       <SelectValue placeholder="Seleziona una fascia oraria" />

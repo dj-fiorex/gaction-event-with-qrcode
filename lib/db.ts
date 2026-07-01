@@ -19,7 +19,7 @@ interface Store {
 }
 
 const globalForDb = globalThis as unknown as {
-  __eventStore?: Store
+  __eventStoreV2?: Store
 }
 
 function buildActivity(
@@ -142,10 +142,10 @@ function seed(): Store {
 }
 
 function getStore(): Store {
-  if (!globalForDb.__eventStore) {
-    globalForDb.__eventStore = seed()
+  if (!globalForDb.__eventStoreV2) {
+    globalForDb.__eventStoreV2 = seed()
   }
-  return globalForDb.__eventStore
+  return globalForDb.__eventStoreV2
 }
 
 export const db = {

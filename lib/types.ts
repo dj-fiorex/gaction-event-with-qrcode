@@ -104,6 +104,14 @@ export interface EventWithStats extends Omit<Event, 'activities'> {
   startsAt: string | null
   /** Fine dell'ultima Attività, se presente. */
   endsAt: string | null
+  /** Somma dei posti di tutti gli Slot dell'Evento. */
+  totalCapacity: number
+  /** Somma dei posti occupati su tutti gli Slot. */
+  totalTaken: number
+  /** Posti ancora disponibili complessivi (somma sugli Slot). */
+  totalAvailable: number
+  /** true se esistono Slot e sono tutti pieni. */
+  soldOut: boolean
 }
 
 export type ActionResult<T = undefined> =

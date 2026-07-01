@@ -8,7 +8,7 @@ import { formatEventDate } from '@/lib/format'
 import type { EventWithStats } from '@/lib/types'
 
 export function EventCard({ event }: { event: EventWithStats }) {
-  const soldOut = event.seatsAvailable <= 0
+  const soldOut = event.soldOut
   return (
     <Card className="flex flex-col overflow-hidden pt-0">
       <div className="relative aspect-[16/9] w-full">
@@ -21,7 +21,7 @@ export function EventCard({ event }: { event: EventWithStats }) {
         />
         <div className="absolute right-3 top-3">
           <Badge variant={soldOut ? 'destructive' : 'secondary'}>
-            {soldOut ? 'Esaurito' : `${event.seatsAvailable} posti liberi`}
+            {soldOut ? 'Esaurito' : `${event.totalAvailable} posti liberi`}
           </Badge>
         </div>
       </div>
@@ -30,7 +30,7 @@ export function EventCard({ event }: { event: EventWithStats }) {
         <div className="flex flex-col gap-1.5 text-sm text-muted-foreground">
           <span className="flex items-center gap-2">
             <CalendarDays className="h-4 w-4 shrink-0" aria-hidden="true" />
-            {formatEventDate(event.date)}
+            {event.startsAt ? formatEventDate(event.startsAt) : 'Date da definire'}
           </span>
           <span className="flex items-center gap-2">
             <MapPin className="h-4 w-4 shrink-0" aria-hidden="true" />
@@ -38,7 +38,7 @@ export function EventCard({ event }: { event: EventWithStats }) {
           </span>
           <span className="flex items-center gap-2">
             <Users className="h-4 w-4 shrink-0" aria-hidden="true" />
-            {event.seatsTaken} / {event.capacity} posti occupati
+            {event.totalTaken} / {event.totalCapacity} posti occupati
           </span>
         </div>
       </CardContent>
