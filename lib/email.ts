@@ -1,4 +1,5 @@
 import { Resend } from 'resend'
+import { renderTicketsPdf, toTicketPdfEvent } from './pdf/render-tickets'
 import type { Event, PersonCategory, Registration } from './types'
 
 const FROM_ADDRESS = process.env.RESEND_FROM_EMAIL ?? 'Eventi <onboarding@resend.dev>'
@@ -23,6 +24,17 @@ const CATEGORY_LABEL: Record<PersonCategory, string> = {
   companion: 'Accompagnatore',
 }
 
+function slugify(value: string): string {
+  return (
+    value
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/[^a-zA-Z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '')
+      .toLowerCase() || 'evento'
+  )
+}
+
 function personBlock(person: EmailPerson, index: number): string {
   const ageLabel = person.category === 'child' && person.age != null ? ` · ${person.age} anni` : ''
   return `
@@ -45,6 +57,7 @@ function buildHtml({ event, persons }: SendTicketsArgs): string {
       <h2 style="margin:0 0 8px;font-size:18px;color:#0f172a;">${event.title}</h2>
       <p style="margin:4px 0;color:#475569;"><strong>Dove:</strong> ${event.location}</p>
       <p style="margin:12px 0;color:#475569;">Ogni persona ha un proprio QR code. Presentatelo all'ingresso e a ogni attività prenotata.</p>
+      <p style="margin:12px 0;color:#475569;">In allegato trovate anche il <strong>PDF con tutti i biglietti</strong> (una pagina per persona), pronto da stampare.</p>
       ${persons.map(personBlock).join('')}
     </div>
   </div>`
@@ -69,16 +82,23 @@ export async function sendTicketsEmail(
 
   try {
     const resend = new Resend(apiKey)
+    const ticketsPdf = await renderTicketsPdf(args.persons, toTicketPdfEvent(args.event))
     await resend.emails.send({
       from: FROM_ADDRESS,
       to: args.registration.contactEmail,
       subject: `Ticket per ${args.event.title}`,
       html: buildHtml(args),
-      attachments: args.persons.map((p, index) => ({
-        filename: `qr-${index + 1}.png`,
-        content: p.qrDataUrl.split(',')[1] ?? '',
-        contentId: `qr-${index}`,
-      })),
+      attachments: [
+        {
+          filename: `${slugify(args.event.title)}-biglietti.pdf`,
+          content: ticketsPdf,
+        },
+        ...args.persons.map((p, index) => ({
+          filename: `qr-${index + 1}.png`,
+          content: p.qrDataUrl.split(',')[1] ?? '',
+          contentId: `qr-${index}`,
+        })),
+      ],
     })
     return { delivered: true, simulated: false }
   } catch (error) {
