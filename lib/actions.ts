@@ -14,7 +14,7 @@ import {
 import { sendTicketsEmail } from './email'
 import { generateQrDataUrl, generateTicketCode } from './qr'
 import { computeStats, findActivity, findPersonByTicket, findSlot, slotTaken } from './queries'
-import { eventSchema, loginSchema, registrationSchema } from './schemas'
+import { eventSchema, loginSchema, registrationSchema, type EventInput } from './schemas'
 import { generateSlots, intervalsOverlap } from './slots'
 import type {
   ActionResult,
@@ -219,6 +219,51 @@ export async function logoutAction(): Promise<void> {
 /* Gestione eventi (admin)                                             */
 /* ------------------------------------------------------------------ */
 
+/**
+ * Costruisce le Attività (con Slot generati) a partire dall'input validato.
+ * In modifica, `existingActivityIds` viene riusato per indice così da preservare
+ * gli id di Attività/Slot già referenziati dalle Prenotazioni esistenti.
+ */
+function buildActivities(
+  eventId: string,
+  input: EventInput,
+  existingActivityIds: string[] = [],
+): Activity[] {
+  return input.activities.map((a, index) => {
+    const activityId = existingActivityIds[index] ?? `${eventId}-act-${index}`
+    const start = new Date(a.start).toISOString()
+    const end = new Date(a.end).toISOString()
+    const slots = generateSlots(activityId, start, end, a.slotDurationMinutes, a.capacityPerSlot)
+    return {
+      id: activityId,
+      eventId,
+      title: a.title,
+      start,
+      end,
+      slotDurationMinutes: a.slotDurationMinutes,
+      capacityPerSlot: a.capacityPerSlot,
+      slots,
+    }
+  })
+}
+
+/** Estrae i campi di configurazione dell'Evento dall'input validato. */
+function eventSettingsFromInput(input: EventInput) {
+  return {
+    title: input.title,
+    description: input.description,
+    location: input.location,
+    activityPolicy: input.activityPolicy,
+    minActivities: input.activityPolicy === 'min' ? input.minActivities : 0,
+    allowOverlap: input.allowOverlap,
+    checkInToleranceMinutes: input.checkInToleranceMinutes,
+    allowChildren: input.allowChildren,
+    maxChildrenPerRegistration: input.allowChildren ? input.maxChildrenPerRegistration : 0,
+    allowCompanions: input.allowCompanions,
+    maxCompanionsPerRegistration: input.allowCompanions ? input.maxCompanionsPerRegistration : 0,
+  }
+}
+
 export async function createEvent(input: unknown): Promise<ActionResult<{ id: string }>> {
   await requireAdmin()
   const parsed = eventSchema.safeParse(input)
@@ -228,23 +273,7 @@ export async function createEvent(input: unknown): Promise<ActionResult<{ id: st
   const d = parsed.data
   const id = `evt-${randomUUID().slice(0, 8)}`
 
-  const activities: Activity[] = d.activities.map((a, index) => {
-    const activityId = `${id}-act-${index}`
-    const start = new Date(a.start).toISOString()
-    const end = new Date(a.end).toISOString()
-    const slots = generateSlots(activityId, start, end, a.slotDurationMinutes, a.capacityPerSlot)
-    return {
-      id: activityId,
-      eventId: id,
-      title: a.title,
-      start,
-      end,
-      slotDurationMinutes: a.slotDurationMinutes,
-      capacityPerSlot: a.capacityPerSlot,
-      slots,
-    }
-  })
-
+  const activities = buildActivities(id, d)
   if (activities.some((a) => a.slots.length === 0)) {
     return {
       success: false,
@@ -254,24 +283,50 @@ export async function createEvent(input: unknown): Promise<ActionResult<{ id: st
 
   db.events.push({
     id,
-    title: d.title,
-    description: d.description,
-    location: d.location,
+    ...eventSettingsFromInput(d),
     imageUrl: '/events/generic-event.png',
     createdAt: new Date().toISOString(),
-    activityPolicy: d.activityPolicy,
-    minActivities: d.activityPolicy === 'min' ? d.minActivities : 0,
-    allowOverlap: d.allowOverlap,
-    checkInToleranceMinutes: d.checkInToleranceMinutes,
-    allowChildren: d.allowChildren,
-    maxChildrenPerRegistration: d.allowChildren ? d.maxChildrenPerRegistration : 0,
-    allowCompanions: d.allowCompanions,
-    maxCompanionsPerRegistration: d.allowCompanions ? d.maxCompanionsPerRegistration : 0,
     activities,
   })
 
   revalidatePath('/')
   revalidatePath('/admin')
+  return { success: true, data: { id } }
+}
+
+export async function updateEvent(
+  id: string,
+  input: unknown,
+): Promise<ActionResult<{ id: string }>> {
+  await requireAdmin()
+  const parsed = eventSchema.safeParse(input)
+  if (!parsed.success) {
+    return { success: false, error: parsed.error.issues[0]?.message ?? 'Dati non validi' }
+  }
+  const index = db.events.findIndex((e) => e.id === id)
+  if (index === -1) {
+    return { success: false, error: 'Evento non trovato' }
+  }
+  const d = parsed.data
+  const existing = db.events[index]
+
+  const activities = buildActivities(id, d, existing.activities.map((a) => a.id))
+  if (activities.some((a) => a.slots.length === 0)) {
+    return {
+      success: false,
+      error: 'Un\u2019attività non genera slot: controlla finestra oraria e durata',
+    }
+  }
+
+  db.events[index] = {
+    ...existing,
+    ...eventSettingsFromInput(d),
+    activities,
+  }
+
+  revalidatePath('/')
+  revalidatePath('/admin')
+  revalidatePath(`/eventi/${id}`)
   return { success: true, data: { id } }
 }
 
