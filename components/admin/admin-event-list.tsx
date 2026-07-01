@@ -3,7 +3,7 @@
 import { useState, useTransition } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { CalendarClock, Layers, MapPin, Pencil, Trash2, Users } from 'lucide-react'
+import { CalendarClock, Eye, Layers, MapPin, Pencil, Trash2, Users } from 'lucide-react'
 import { toast } from 'sonner'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -84,10 +84,19 @@ export function AdminEventList({ events }: AdminEventListProps) {
           </div>
           <div className="flex items-center gap-2">
             <Button
-              variant="outline"
+              variant="secondary"
               size="sm"
               nativeButton={false}
               render={<Link href={`/admin/${event.id}`} />}
+            >
+              <Eye className="h-4 w-4" aria-hidden="true" />
+              Dettagli
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              nativeButton={false}
+              render={<Link href={`/admin/${event.id}/edit`} />}
             >
               <Pencil className="h-4 w-4" aria-hidden="true" />
               Modifica

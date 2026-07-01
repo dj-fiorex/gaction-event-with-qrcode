@@ -1,40 +1,63 @@
 import Link from 'next/link'
 import { notFound, redirect } from 'next/navigation'
-import { ArrowLeft } from 'lucide-react'
+import {
+  ArrowLeft,
+  CalendarClock,
+  CheckCircle2,
+  Layers,
+  MapPin,
+  Pencil,
+  Ticket,
+  Users,
+} from 'lucide-react'
 import { AdminHeader } from '@/components/admin/admin-header'
-import { EventForm } from '@/components/admin/event-form'
+import { EventActivityMonitor } from '@/components/admin/event-activity-monitor'
+import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { getRole } from '@/lib/auth'
-import { toDatetimeLocalValue } from '@/lib/format'
+import { formatDateRange } from '@/lib/format'
 import { getEvent } from '@/lib/queries'
-import type { EventInput } from '@/lib/schemas'
 import type { EventWithStats } from '@/lib/types'
 
-function toEventInput(event: EventWithStats): EventInput {
-  return {
-    title: event.title,
-    description: event.description,
-    location: event.location,
-    activityPolicy: event.activityPolicy,
-    minActivities: event.activityPolicy === 'min' ? event.minActivities : 1,
-    allowOverlap: event.allowOverlap,
-    checkInToleranceMinutes: event.checkInToleranceMinutes,
-    allowChildren: event.allowChildren,
-    maxChildrenPerRegistration: event.maxChildrenPerRegistration || 2,
-    allowCompanions: event.allowCompanions,
-    maxCompanionsPerRegistration: event.maxCompanionsPerRegistration || 1,
-    activities: event.activities.map((activity) => ({
-      title: activity.title,
-      start: toDatetimeLocalValue(activity.start),
-      end: toDatetimeLocalValue(activity.end),
-      slotDurationMinutes: activity.slotDurationMinutes,
-      capacityPerSlot: activity.capacityPerSlot,
-    })),
-  }
+const POLICY_LABEL: Record<EventWithStats['activityPolicy'], string> = {
+  all: 'Tutte le attività obbligatorie',
+  min: 'Numero minimo di attività',
+  free: 'Selezione libera',
 }
 
-export default async function EditEventPage({ params }: { params: Promise<{ id: string }> }) {
+interface StatCardProps {
+  label: string
+  value: string | number
+  icon: React.ReactNode
+}
+
+function StatCard({ label, value, icon }: StatCardProps) {
+  return (
+    <Card>
+      <CardContent className="flex items-center gap-3 py-4">
+        <span className="flex h-10 w-10 items-center justify-center rounded-md bg-accent text-accent-foreground">
+          {icon}
+        </span>
+        <div>
+          <p className="text-2xl font-semibold leading-none tabular-nums">{value}</p>
+          <p className="text-sm text-muted-foreground">{label}</p>
+        </div>
+      </CardContent>
+    </Card>
+  )
+}
+
+function InfoRow({ label, value }: { label: string; value: React.ReactNode }) {
+  return (
+    <div className="flex flex-col gap-0.5">
+      <dt className="text-sm text-muted-foreground">{label}</dt>
+      <dd className="text-sm font-medium">{value}</dd>
+    </div>
+  )
+}
+
+export default async function EventDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const role = await getRole()
   if (!role) {
     redirect('/admin/login')
@@ -49,10 +72,15 @@ export default async function EditEventPage({ params }: { params: Promise<{ id: 
     notFound()
   }
 
+  const policyDescription =
+    event.activityPolicy === 'min'
+      ? `${POLICY_LABEL.min} (min ${event.minActivities})`
+      : POLICY_LABEL[event.activityPolicy]
+
   return (
     <div className="min-h-svh bg-muted/40">
       <AdminHeader role="admin" />
-      <main className="mx-auto flex max-w-3xl flex-col gap-6 px-4 py-8">
+      <main className="mx-auto flex max-w-5xl flex-col gap-6 px-4 py-8">
         <div className="flex flex-col gap-3">
           <Button
             variant="ghost"
@@ -64,23 +92,107 @@ export default async function EditEventPage({ params }: { params: Promise<{ id: 
             <ArrowLeft className="h-4 w-4" aria-hidden="true" />
             Torna alla dashboard
           </Button>
-          <div>
-            <h1 className="text-2xl font-semibold tracking-tight">Modifica evento</h1>
-            <p className="text-muted-foreground">{event.title}</p>
+          <div className="flex flex-wrap items-start justify-between gap-4">
+            <div className="flex flex-col gap-2">
+              <div className="flex flex-wrap items-center gap-2">
+                <h1 className="text-2xl font-semibold tracking-tight text-balance">
+                  {event.title}
+                </h1>
+                <Badge variant="secondary">{POLICY_LABEL[event.activityPolicy]}</Badge>
+                {event.soldOut && <Badge variant="destructive">Esaurito</Badge>}
+              </div>
+              <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-muted-foreground">
+                <span className="flex items-center gap-1">
+                  <CalendarClock className="h-4 w-4" aria-hidden="true" />
+                  {formatDateRange(event.startsAt, event.endsAt)}
+                </span>
+                <span className="flex items-center gap-1">
+                  <MapPin className="h-4 w-4" aria-hidden="true" />
+                  {event.location}
+                </span>
+              </div>
+            </div>
+            <Button nativeButton={false} render={<Link href={`/admin/${event.id}/edit`} />}>
+              <Pencil className="h-4 w-4" aria-hidden="true" />
+              Modifica evento
+            </Button>
           </div>
+        </div>
+
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <StatCard
+            label="Persone totali dentro"
+            value={event.personsCount}
+            icon={<Users className="h-5 w-5" aria-hidden="true" />}
+          />
+          <StatCard
+            label="Registrazioni"
+            value={event.registrationsCount}
+            icon={<Ticket className="h-5 w-5" aria-hidden="true" />}
+          />
+          <StatCard
+            label="Attività"
+            value={event.activities.length}
+            icon={<Layers className="h-5 w-5" aria-hidden="true" />}
+          />
+          <StatCard
+            label="Posti liberi / totali"
+            value={`${event.totalAvailable}/${event.totalCapacity}`}
+            icon={<CheckCircle2 className="h-5 w-5" aria-hidden="true" />}
+          />
         </div>
 
         <Card>
           <CardHeader>
-            <CardTitle>Dettagli evento</CardTitle>
-            <CardDescription>
-              Salvando, gli slot delle attività vengono rigenerati in base ai nuovi orari.
-            </CardDescription>
+            <CardTitle>Informazioni base</CardTitle>
+            {event.description && <CardDescription>{event.description}</CardDescription>}
           </CardHeader>
           <CardContent>
-            <EventForm mode="edit" eventId={event.id} initialValues={toEventInput(event)} />
+            <dl className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              <InfoRow label="Luogo" value={event.location} />
+              <InfoRow label="Data e orario" value={formatDateRange(event.startsAt, event.endsAt)} />
+              <InfoRow label="Politica attività" value={policyDescription} />
+              <InfoRow
+                label="Sovrapposizione slot"
+                value={event.allowOverlap ? 'Consentita' : 'Non consentita'}
+              />
+              <InfoRow
+                label="Tolleranza check-in"
+                value={`${event.checkInToleranceMinutes} min`}
+              />
+              <InfoRow
+                label="Bambini"
+                value={
+                  event.allowChildren
+                    ? `Fino a ${event.maxChildrenPerRegistration} per registrazione`
+                    : 'Non ammessi'
+                }
+              />
+              <InfoRow
+                label="Accompagnatori"
+                value={
+                  event.allowCompanions
+                    ? `Fino a ${event.maxCompanionsPerRegistration} per registrazione`
+                    : 'Non ammessi'
+                }
+              />
+              <InfoRow
+                label="Posti occupati"
+                value={`${event.totalTaken}/${event.totalCapacity}`}
+              />
+            </dl>
           </CardContent>
         </Card>
+
+        <section className="flex flex-col gap-3">
+          <div>
+            <h2 className="text-lg font-semibold tracking-tight">Attività e slot</h2>
+            <p className="text-sm text-muted-foreground">
+              Presenze per attività e slot attualmente in corso.
+            </p>
+          </div>
+          <EventActivityMonitor activities={event.activities} />
+        </section>
       </main>
     </div>
   )
