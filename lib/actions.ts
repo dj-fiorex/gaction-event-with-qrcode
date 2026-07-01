@@ -5,15 +5,19 @@ import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 import { db } from './db'
 import {
+  createScanSession,
   createSession,
   destroySession,
+  hasScanSession,
+  hashCheckInPassword,
   isAdmin,
   isAuthenticated,
+  verifyCheckInPassword,
   verifyCredentials,
 } from './auth'
 import { sendTicketsEmail } from './email'
-import { generateQrDataUrl, generateTicketCode } from './qr'
-import { computeStats, findActivity, findPersonByTicket, findSlot, slotTaken } from './queries'
+import { generateQrDataUrl, generateScanToken, generateTicketCode } from './qr'
+import { findActivity, findPersonByTicket, findSlot, slotTaken } from './queries'
 import { eventSchema, loginSchema, registrationSchema, type EventInput } from './schemas'
 import { generateSlots, intervalsOverlap } from './slots'
 import type {
@@ -209,7 +213,7 @@ export async function loginAction(_prev: LoginState, formData: FormData): Promis
     return { error: 'Credenziali non valide' }
   }
   await createSession(role)
-  redirect(role === 'admin' ? '/admin' : '/admin/validazione')
+  redirect(role === 'admin' ? '/admin' : '/staff')
 }
 
 export async function logoutAction(): Promise<void> {
@@ -264,7 +268,25 @@ function eventSettingsFromInput(input: EventInput) {
     maxChildrenPerRegistration: input.allowChildren ? input.maxChildrenPerRegistration : 0,
     allowCompanions: input.allowCompanions,
     maxCompanionsPerRegistration: input.allowCompanions ? input.maxCompanionsPerRegistration : 0,
+    checkInAccess: input.checkInAccess,
   }
+}
+
+/**
+ * Determina l'hash della password di check-in da persistere.
+ * - Modalità "private": nessuna password (null).
+ * - Modalità "password": se l'input contiene una nuova password la si applica,
+ *   altrimenti si mantiene l'hash esistente (utile in modifica).
+ */
+function resolveCheckInPasswordHash(
+  input: EventInput,
+  existingHash: string | null,
+): string | null {
+  if (input.checkInAccess !== 'password') return null
+  if (input.checkInPassword && input.checkInPassword.length > 0) {
+    return hashCheckInPassword(input.checkInPassword)
+  }
+  return existingHash
 }
 
 export async function createEvent(input: unknown): Promise<ActionResult<{ id: string }>> {
@@ -284,9 +306,19 @@ export async function createEvent(input: unknown): Promise<ActionResult<{ id: st
     }
   }
 
+  const checkInPasswordHash = resolveCheckInPasswordHash(d, null)
+  if (d.checkInAccess === 'password' && !checkInPasswordHash) {
+    return {
+      success: false,
+      error: 'Imposta una password per l\u2019accesso protetto al check-in',
+    }
+  }
+
   db.events.push({
     id,
     ...eventSettingsFromInput(d),
+    scanToken: generateScanToken(),
+    checkInPasswordHash,
     imageUrl: '/events/generic-event.png',
     createdAt: new Date().toISOString(),
     activities,
@@ -321,14 +353,24 @@ export async function updateEvent(
     }
   }
 
+  const checkInPasswordHash = resolveCheckInPasswordHash(d, existing.checkInPasswordHash)
+  if (d.checkInAccess === 'password' && !checkInPasswordHash) {
+    return {
+      success: false,
+      error: 'Imposta una password per l\u2019accesso protetto al check-in',
+    }
+  }
+
   db.events[index] = {
     ...existing,
     ...eventSettingsFromInput(d),
+    checkInPasswordHash,
     activities,
   }
 
   revalidatePath('/')
   revalidatePath('/admin')
+  revalidatePath(`/admin/${id}`)
   revalidatePath(`/eventi/${id}`)
   return { success: true, data: { id } }
 }
@@ -351,21 +393,124 @@ export async function deleteEvent(id: string): Promise<ActionResult> {
 }
 
 /* ------------------------------------------------------------------ */
-/* Check-in (staff o admin)                                            */
+/* Accesso al check-in (link, token, password) — admin                 */
 /* ------------------------------------------------------------------ */
 
+/** Rigenera il token del link di scansione, invalidando quello precedente. */
+export async function rotateScanToken(
+  eventId: string,
+): Promise<ActionResult<{ scanToken: string }>> {
+  await requireAdmin()
+  const event = db.events.find((e) => e.id === eventId)
+  if (!event) {
+    return { success: false, error: 'Evento non trovato' }
+  }
+  event.scanToken = generateScanToken()
+  revalidatePath(`/admin/${eventId}`)
+  return { success: true, data: { scanToken: event.scanToken } }
+}
+
+/**
+ * Imposta o aggiorna la password di check-in di un Evento password-protected.
+ * La password viene sempre persistita solo come hash.
+ */
+export async function updateCheckInPassword(
+  eventId: string,
+  password: string,
+): Promise<ActionResult> {
+  await requireAdmin()
+  const event = db.events.find((e) => e.id === eventId)
+  if (!event) {
+    return { success: false, error: 'Evento non trovato' }
+  }
+  const trimmed = password.trim()
+  if (trimmed.length < 4) {
+    return { success: false, error: 'La password deve avere almeno 4 caratteri' }
+  }
+  event.checkInPasswordHash = hashCheckInPassword(trimmed)
+  revalidatePath(`/admin/${eventId}`)
+  return { success: true, data: undefined }
+}
+
+/* ------------------------------------------------------------------ */
+/* Accesso alla scansione tramite password — pubblico                  */
+/* ------------------------------------------------------------------ */
+
+export interface ScanUnlockState {
+  error?: string
+}
+
+/**
+ * Verifica la password per un Evento password-protected e, se corretta, crea
+ * la sessione di scansione (cookie di sessione o persistente 12h con "ricordami").
+ */
+export async function unlockScanAction(
+  _prev: ScanUnlockState,
+  formData: FormData,
+): Promise<ScanUnlockState> {
+  const token = String(formData.get('token') ?? '')
+  const password = String(formData.get('password') ?? '')
+  const remember = formData.get('remember') === 'on'
+
+  const event = db.events.find((e) => e.scanToken === token)
+  if (!event || event.checkInAccess !== 'password') {
+    return { error: 'Link non valido.' }
+  }
+  if (!verifyCheckInPassword(password, event.checkInPasswordHash)) {
+    return { error: 'Password non corretta.' }
+  }
+  await createScanSession(token, remember)
+  redirect(`/scan/${token}`)
+}
+
+/* ------------------------------------------------------------------ */
+/* Check-in (staff, admin o accesso via password)                     */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Autorizza il check-in su uno specifico Evento in base alla sua modalità.
+ * - "private": richiede una sessione admin/staff.
+ * - "password": richiede la sessione di scansione del token, oppure una
+ *   sessione admin/staff (che può sempre operare).
+ */
+async function isCheckInAuthorized(event: Event): Promise<boolean> {
+  if (await isAuthenticated()) return true
+  if (event.checkInAccess === 'password') {
+    return hasScanSession(event.scanToken)
+  }
+  return false
+}
+
 export async function checkInPerson(args: {
+  eventId: string
   code: string
   mode: CheckInMode
   activityId?: string
 }): Promise<CheckInResult> {
-  if (!(await isAuthenticated())) {
+  const targetEvent = db.events.find((e) => e.id === args.eventId)
+  if (!targetEvent) {
+    return { status: 'not-found', message: 'Evento non trovato.' }
+  }
+  if (!(await isCheckInAuthorized(targetEvent))) {
     throw new Error('Accesso non autorizzato')
   }
 
   const lookup = findPersonByTicket(args.code)
   if (!lookup) {
     return { status: 'not-found', message: 'QR non riconosciuto.' }
+  }
+  if (lookup.event.id !== targetEvent.id) {
+    return {
+      status: 'wrong-event',
+      message: 'Questo QR appartiene a un altro evento.',
+      person: {
+        name: lookup.person.name,
+        category: lookup.person.category,
+        age: lookup.person.age,
+        ticketCode: lookup.person.ticketCode,
+      },
+      eventTitle: targetEvent.title,
+    }
   }
 
   const { person, registration, event } = lookup

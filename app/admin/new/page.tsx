@@ -13,7 +13,7 @@ export default async function NewEventPage() {
     redirect('/admin/login')
   }
   if (role !== 'admin') {
-    redirect('/admin/validazione')
+    redirect('/staff')
   }
 
   return (

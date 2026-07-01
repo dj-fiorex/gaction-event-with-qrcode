@@ -25,6 +25,8 @@ function toEventInput(event: EventWithStats): EventInput {
     maxChildrenPerRegistration: event.maxChildrenPerRegistration || 2,
     allowCompanions: event.allowCompanions,
     maxCompanionsPerRegistration: event.maxCompanionsPerRegistration || 1,
+    checkInAccess: event.checkInAccess,
+    checkInPassword: '',
     activities: event.activities.map((activity) => ({
       title: activity.title,
       start: toDatetimeLocalValue(activity.start),
@@ -41,7 +43,7 @@ export default async function EditEventPage({ params }: { params: Promise<{ id: 
     redirect('/admin/login')
   }
   if (role !== 'admin') {
-    redirect('/admin/validazione')
+    redirect('/staff')
   }
 
   const { id } = await params
@@ -79,7 +81,12 @@ export default async function EditEventPage({ params }: { params: Promise<{ id: 
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <EventForm mode="edit" eventId={event.id} initialValues={toEventInput(event)} />
+            <EventForm
+              mode="edit"
+              eventId={event.id}
+              initialValues={toEventInput(event)}
+              hasCheckInPassword={event.hasCheckInPassword}
+            />
           </CardContent>
         </Card>
       </main>

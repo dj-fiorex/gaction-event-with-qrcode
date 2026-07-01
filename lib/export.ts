@@ -4,7 +4,7 @@ import * as XLSX from 'xlsx'
 import { isAdmin } from './auth'
 import { getEvents, getRegistrations } from './queries'
 import { formatDateTime } from './format'
-import type { ActionResult, Event, PersonCategory } from './types'
+import type { ActionResult, PersonCategory } from './types'
 
 const CATEGORY_LABEL: Record<PersonCategory, string> = {
   user: 'Iscritto',
@@ -25,7 +25,10 @@ interface ExportRow {
   'Registrato il': string
 }
 
-function activitiesLabel(event: Event | undefined, selections: { activityId: string }[]): string {
+function activitiesLabel(
+  event: { activities: { id: string; title: string }[] } | undefined,
+  selections: { activityId: string }[],
+): string {
   if (!event) return '-'
   return selections
     .map((s) => event.activities.find((a) => a.id === s.activityId)?.title ?? s.activityId)
