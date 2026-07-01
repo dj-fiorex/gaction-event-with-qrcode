@@ -15,13 +15,19 @@ Un partecipante fisico all'Evento. Occupa un posto e riceve **1 QR code**. NON �
 Un raduno a cui gli Utenti si iscrivono. Genera **1 QR code per ogni Persona** (non per Attività). L'admin configura per ogni Evento se sono ammessi Figli (con max) e se sono ammessi Accompagnatori (con max).
 
 ### Attività
-Un segmento di un Evento con un **orario di inizio e fine** e un **numero di posti limitato proprio** (indipendente dagli altri). Ogni Persona può essere iscritta a specifiche Attività; i posti si contano per singola Attività.
+Un segmento di un Evento con un **orario di inizio e fine** e un **numero di posti limitato proprio** (indipendente dagli altri). I posti si contano per singola Attività.
+
+### Prenotazione
+L'insieme delle Persone iscritte insieme da un Utente in un'unica operazione. La **selezione di Attività è unica per Prenotazione**: tutte le Persone della stessa Prenotazione partecipano allo stesso set di Attività. Ogni Persona occupa comunque 1 posto in ciascuna Attività selezionata.
 
 ### Policy di selezione Attività
-Impostazione a livello di Evento decisa dall'admin in fase di creazione. Determina come ogni Persona viene associata alle Attività:
-- **Tutte obbligatorie** — ogni Persona partecipa a tutte le Attività.
-- **Minimo N** — ogni Persona deve scegliere almeno N Attività.
-- **Libera** — ogni Persona sceglie liberamente quali Attività fare in fase di Registrazione.
+Impostazione a livello di Evento decisa dall'admin in fase di creazione. Determina come la Prenotazione viene associata alle Attività:
+- **Tutte obbligatorie** — la Prenotazione include tutte le Attività.
+- **Minimo N** — la Prenotazione deve includere almeno N Attività.
+- **Libera** — l'Utente sceglie liberamente quali Attività includere in fase di Registrazione.
+
+### Regola di capacità (atomica)
+Una Registrazione è **atomica**: se anche una sola Attività selezionata non ha posti liberi sufficienti per **tutte** le Persone della Prenotazione, l'intera Registrazione fallisce. Nessuna iscrizione parziale, nessuna famiglia divisa.
 
 ### QR code
 Un codice univoco generato **1 per ogni Persona** (non per Attività). Vale come pass per tutte le Attività a cui quella Persona è iscritta.
