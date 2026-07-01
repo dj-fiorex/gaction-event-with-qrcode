@@ -18,7 +18,7 @@ import {
 import { registerForEvent, type RegisteredPerson } from '@/lib/actions'
 import { registrationSchema, type RegistrationInput } from '@/lib/schemas'
 import { typedZodResolver } from '@/lib/zod-resolver'
-import { formatTimeRange } from '@/lib/format'
+import { formatTimeRange, formatDateRange } from '@/lib/format'
 import { intervalsOverlap } from '@/lib/slots'
 import type { EventWithStats, SlotWithAvailability } from '@/lib/types'
 import { TicketResult } from './ticket-result'
@@ -125,7 +125,11 @@ export function RegistrationForm({ event }: { event: EventWithStats }) {
     return (
       <TicketResult
         persons={tickets}
-        eventTitle={event.title}
+        event={{
+          title: event.title,
+          location: event.location,
+          dateRange: formatDateRange(event.startsAt, event.endsAt),
+        }}
         onReset={() => {
           reset()
           setSlotByActivity({})
