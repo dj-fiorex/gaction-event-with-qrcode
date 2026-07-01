@@ -7,6 +7,8 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { Badge } from '@/components/ui/badge'
+import { PdfDownloadButton } from '@/components/admin/pdf-download-button'
+import { exportRegistrationTicketsPdf } from '@/lib/pdf/tickets-actions'
 import { formatDateTime } from '@/lib/format'
 import type { EventWithStats, Registration } from '@/lib/types'
 
@@ -37,6 +39,7 @@ export function RegistrationsTable({ registrations, events }: RegistrationsTable
             <TableHead>Attività</TableHead>
             <TableHead className="text-center">Ingressi</TableHead>
             <TableHead>Registrato il</TableHead>
+            <TableHead className="text-right">Biglietti</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -81,6 +84,14 @@ export function RegistrationsTable({ registrations, events }: RegistrationsTable
                 </TableCell>
                 <TableCell className="text-muted-foreground">
                   {formatDateTime(r.createdAt)}
+                </TableCell>
+                <TableCell className="text-right">
+                  <PdfDownloadButton
+                    action={exportRegistrationTicketsPdf.bind(null, r.id)}
+                    label={`Scarica biglietti di ${r.contactEmail}`}
+                    successMessage="Biglietti pronti"
+                    iconOnly
+                  />
                 </TableCell>
               </TableRow>
             )

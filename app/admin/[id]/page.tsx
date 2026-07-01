@@ -13,6 +13,8 @@ import {
 import { AdminHeader } from '@/components/admin/admin-header'
 import { CheckInAccessCard } from '@/components/admin/check-in-access-card'
 import { EventActivityMonitor } from '@/components/admin/event-activity-monitor'
+import { PdfDownloadButton } from '@/components/admin/pdf-download-button'
+import { exportEventTicketsPdf } from '@/lib/pdf/tickets-actions'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -115,10 +117,18 @@ export default async function EventDetailPage({ params }: { params: Promise<{ id
                 </span>
               </div>
             </div>
-            <Button nativeButton={false} render={<Link href={`/admin/${event.id}/edit`} />}>
-              <Pencil className="h-4 w-4" aria-hidden="true" />
-              Modifica evento
-            </Button>
+            <div className="flex flex-wrap items-center gap-2">
+              <PdfDownloadButton
+                action={exportEventTicketsPdf.bind(null, event.id)}
+                label="Scarica biglietti (PDF)"
+                successMessage="Biglietti dell'evento pronti"
+                disabled={event.registrationsCount === 0}
+              />
+              <Button nativeButton={false} render={<Link href={`/admin/${event.id}/edit`} />}>
+                <Pencil className="h-4 w-4" aria-hidden="true" />
+                Modifica evento
+              </Button>
+            </div>
           </div>
         </div>
 
