@@ -27,7 +27,10 @@ Fascia oraria prenotabile all'interno di un'Attività, generata automaticamente 
 Margine in minuti, **configurabile dall'admin**, entro cui è consentito il check-in di uno Slot rispetto al suo orario. Fuori da questo margine il check-in è bloccato.
 
 ### Prenotazione
-L'insieme delle Persone iscritte insieme da un Utente in un'unica operazione. La **selezione di Attività è unica per Prenotazione**: tutte le Persone della stessa Prenotazione partecipano allo stesso set di Attività. Ogni Persona occupa comunque 1 posto in ciascuna Attività selezionata.
+L'insieme delle Persone iscritte insieme da un Utente in un'unica operazione. La **selezione è unica per Prenotazione**: per ogni Attività scelta si seleziona **uno Slot specifico**, e tutte le Persone della Prenotazione occupano quello stesso Slot. Ogni Persona occupa 1 posto in ciascuno Slot selezionato.
+
+### Permetti sovrapposizioni
+Booleano a livello di Evento impostato dall'admin. Se falso, il sistema impedisce a una Prenotazione di selezionare Slot che si sovrappongono nel tempo. Se vero, gli Slot sovrapposti sono consentiti.
 
 ### Policy di selezione Attività
 Impostazione a livello di Evento decisa dall'admin in fase di creazione. Determina come la Prenotazione viene associata alle Attività:
@@ -36,7 +39,7 @@ Impostazione a livello di Evento decisa dall'admin in fase di creazione. Determi
 - **Libera** — l'Utente sceglie liberamente quali Attività includere in fase di Registrazione.
 
 ### Regola di capacità (atomica)
-Una Registrazione è **atomica**: se anche una sola Attività selezionata non ha posti liberi sufficienti per **tutte** le Persone della Prenotazione, l'intera Registrazione fallisce. Nessuna iscrizione parziale, nessuna famiglia divisa.
+Una Registrazione è **atomica**: se anche un solo Slot selezionato non ha posti liberi sufficienti per **tutte** le Persone della Prenotazione, l'intera Registrazione fallisce. Nessuna iscrizione parziale, nessuna famiglia divisa.
 
 ### QR code
 Un codice univoco generato **1 per ogni Persona** (non per Attività). Vale come pass per tutte le Attività a cui quella Persona è iscritta.
