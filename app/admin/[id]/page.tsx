@@ -17,7 +17,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { getRole } from '@/lib/auth'
 import { formatDateRange } from '@/lib/format'
-import { getEvent } from '@/lib/queries'
+import { getActivityAttendance, getEvent } from '@/lib/queries'
 import type { EventWithStats } from '@/lib/types'
 
 const POLICY_LABEL: Record<EventWithStats['activityPolicy'], string> = {
@@ -71,6 +71,8 @@ export default async function EventDetailPage({ params }: { params: Promise<{ id
   if (!event) {
     notFound()
   }
+
+  const activities = getActivityAttendance(id)
 
   const policyDescription =
     event.activityPolicy === 'min'
@@ -191,7 +193,7 @@ export default async function EventDetailPage({ params }: { params: Promise<{ id
               Presenze per attività e slot attualmente in corso.
             </p>
           </div>
-          <EventActivityMonitor activities={event.activities} />
+          <EventActivityMonitor activities={activities} />
         </section>
       </main>
     </div>
