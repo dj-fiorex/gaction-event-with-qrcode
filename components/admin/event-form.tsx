@@ -17,7 +17,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { createEvent } from '@/lib/actions'
+import { createEvent, updateEvent } from '@/lib/actions'
 import { eventSchema, type EventInput } from '@/lib/schemas'
 import { typedZodResolver } from '@/lib/zod-resolver'
 
@@ -49,7 +49,15 @@ function FieldError({ message }: { message?: string }) {
   return <p className="text-sm text-destructive">{message}</p>
 }
 
-export function EventForm() {
+interface EventFormProps {
+  mode: 'create' | 'edit'
+  /** Obbligatorio in modalità "edit": id dell'Evento da aggiornare. */
+  eventId?: string
+  /** Valori iniziali del form (in "edit" derivano dall'Evento esistente). */
+  initialValues?: EventInput
+}
+
+export function EventForm({ mode, eventId, initialValues }: EventFormProps) {
   const router = useRouter()
   const [submitting, setSubmitting] = useState(false)
 
@@ -58,11 +66,10 @@ export function EventForm() {
     handleSubmit,
     control,
     watch,
-    reset,
     formState: { errors },
   } = useForm<EventInput>({
     resolver: typedZodResolver(eventSchema),
-    defaultValues,
+    defaultValues: initialValues ?? defaultValues,
   })
 
   const { fields, append, remove } = useFieldArray({ control, name: 'activities' })
@@ -74,16 +81,19 @@ export function EventForm() {
   const onSubmit = handleSubmit(async (values) => {
     setSubmitting(true)
     try {
-      const result = await createEvent(values)
+      const result =
+        mode === 'edit' && eventId
+          ? await updateEvent(eventId, values)
+          : await createEvent(values)
       if (!result.success) {
         toast.error(result.error)
         return
       }
-      toast.success('Evento creato')
-      reset(defaultValues)
+      toast.success(mode === 'edit' ? 'Evento aggiornato' : 'Evento creato')
+      router.push('/admin')
       router.refresh()
     } catch {
-      toast.error('Errore durante la creazione')
+      toast.error(mode === 'edit' ? 'Errore durante il salvataggio' : 'Errore durante la creazione')
     } finally {
       setSubmitting(false)
     }
@@ -337,10 +347,24 @@ export function EventForm() {
         )}
       </div>
 
-      <div>
+      <div className="flex items-center gap-2">
+        <Button
+          type="button"
+          variant="outline"
+          onClick={() => router.push('/admin')}
+          disabled={submitting}
+        >
+          Annulla
+        </Button>
         <Button type="submit" disabled={submitting}>
           <Plus className="h-4 w-4" aria-hidden="true" />
-          {submitting ? 'Creazione…' : 'Crea evento'}
+          {submitting
+            ? mode === 'edit'
+              ? 'Salvataggio…'
+              : 'Creazione…'
+            : mode === 'edit'
+              ? 'Salva modifiche'
+              : 'Crea evento'}
         </Button>
       </div>
     </form>

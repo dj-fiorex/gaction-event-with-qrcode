@@ -1,10 +1,11 @@
+import Link from 'next/link'
 import { redirect } from 'next/navigation'
-import { CalendarDays, Ticket, Users } from 'lucide-react'
+import { CalendarDays, Plus, Ticket, Users } from 'lucide-react'
 import { AdminHeader } from '@/components/admin/admin-header'
 import { AdminEventList } from '@/components/admin/admin-event-list'
-import { EventForm } from '@/components/admin/event-form'
 import { ExportButton } from '@/components/admin/export-button'
 import { RegistrationsTable } from '@/components/admin/registrations-table'
+import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { getRole } from '@/lib/auth'
@@ -97,18 +98,15 @@ export default async function AdminPage() {
 
           <TabsContent value="events" className="mt-4 flex flex-col gap-6">
             <Card>
-              <CardHeader>
-                <CardTitle>Nuovo evento</CardTitle>
-                <CardDescription>Crea un evento e rendilo disponibile alle registrazioni.</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <EventForm />
-              </CardContent>
-            </Card>
-            <Card>
-              <CardHeader>
-                <CardTitle>Eventi esistenti</CardTitle>
-                <CardDescription>Consulta disponibilità e gestisci gli eventi.</CardDescription>
+              <CardHeader className="flex-row items-center justify-between gap-4">
+                <div>
+                  <CardTitle>Eventi esistenti</CardTitle>
+                  <CardDescription>Consulta disponibilità e gestisci gli eventi.</CardDescription>
+                </div>
+                <Button nativeButton={false} size="sm" render={<Link href="/admin/new" />}>
+                  <Plus className="h-4 w-4" aria-hidden="true" />
+                  Nuovo evento
+                </Button>
               </CardHeader>
               <CardContent>
                 <AdminEventList events={events} />

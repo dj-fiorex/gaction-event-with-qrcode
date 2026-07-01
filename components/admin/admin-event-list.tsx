@@ -1,8 +1,9 @@
 'use client'
 
 import { useState, useTransition } from 'react'
+import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { CalendarClock, Layers, MapPin, Trash2, Users } from 'lucide-react'
+import { CalendarClock, Layers, MapPin, Pencil, Trash2, Users } from 'lucide-react'
 import { toast } from 'sonner'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -81,15 +82,26 @@ export function AdminEventList({ events }: AdminEventListProps) {
               </span>
             </div>
           </div>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => handleDelete(event.id, event.title)}
-            disabled={pending && deletingId === event.id}
-          >
-            <Trash2 className="h-4 w-4" aria-hidden="true" />
-            Elimina
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              nativeButton={false}
+              render={<Link href={`/admin/${event.id}`} />}
+            >
+              <Pencil className="h-4 w-4" aria-hidden="true" />
+              Modifica
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => handleDelete(event.id, event.title)}
+              disabled={pending && deletingId === event.id}
+            >
+              <Trash2 className="h-4 w-4" aria-hidden="true" />
+              Elimina
+            </Button>
+          </div>
         </li>
       ))}
     </ul>
