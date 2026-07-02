@@ -1,5 +1,6 @@
 'use client'
 
+import Image from 'next/image'
 import Link from 'next/link'
 import { useParams } from 'next/navigation'
 import { useQuery } from 'convex/react'
@@ -135,11 +136,23 @@ function EventDetailContent() {
             Torna alla dashboard
           </Button>
           <div className="flex flex-wrap items-start justify-between gap-4">
-            <div className="flex flex-col gap-2">
-              <div className="flex flex-wrap items-center gap-2">
-                <h1 className="text-2xl font-semibold tracking-tight text-balance">
-                  {event.title}
-                </h1>
+            <div className="flex items-start gap-4">
+              {event.imageUrl && (
+                <div className="relative aspect-[16/9] w-32 shrink-0 overflow-hidden rounded-md border border-border sm:w-40">
+                  <Image
+                    src={event.imageUrl}
+                    alt={`Immagine di copertina di ${event.title}`}
+                    fill
+                    sizes="160px"
+                    className="object-cover"
+                  />
+                </div>
+              )}
+              <div className="flex flex-col gap-2">
+                <div className="flex flex-wrap items-center gap-2">
+                  <h1 className="text-2xl font-semibold tracking-tight text-balance">
+                    {event.title}
+                  </h1>
                 <Badge variant="secondary">{POLICY_LABEL[event.activityPolicy]}</Badge>
                 {event.soldOut && <Badge variant="destructive">Esaurito</Badge>}
               </div>
@@ -152,6 +165,7 @@ function EventDetailContent() {
                   <MapPin className="h-4 w-4" aria-hidden="true" />
                   {event.location}
                 </span>
+              </div>
               </div>
             </div>
             <div className="flex flex-wrap items-center gap-2">
