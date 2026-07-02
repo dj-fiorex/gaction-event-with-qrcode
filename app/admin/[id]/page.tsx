@@ -20,6 +20,7 @@ import { AdminHeader } from '@/components/admin/admin-header'
 import { CheckInAccessCard } from '@/components/admin/check-in-access-card'
 import { EmbedCard } from '@/components/admin/embed-card'
 import { EventActivityMonitor } from '@/components/admin/event-activity-monitor'
+import { ExportButton } from '@/components/admin/export-button'
 import { PdfDownloadButton } from '@/components/admin/pdf-download-button'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -154,6 +155,12 @@ function EventDetailContent() {
               </div>
             </div>
             <div className="flex flex-wrap items-center gap-2">
+              <ExportButton
+                registrations={registrations ?? []}
+                events={[event]}
+                eventId={event.id}
+                disabled={registrations === undefined || event.registrationsCount === 0}
+              />
               <PdfDownloadButton
                 onDownload={async () => {
                   const persons = (registrations ?? []).flatMap((r) => r.persons)
