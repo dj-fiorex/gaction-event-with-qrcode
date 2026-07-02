@@ -16,6 +16,9 @@ export type CheckInAccess = 'private' | 'password'
 /** Categoria di una Persona. L'Utente iscritto è sempre una Persona di categoria "user". */
 export type PersonCategory = 'user' | 'child' | 'companion'
 
+/** Ruolo di un account operatore autenticato via Convex Auth. */
+export type Role = 'admin' | 'staff'
+
 /** Fascia oraria prenotabile dentro un'Attività, generata dalla Durata. */
 export interface Slot {
   id: string
@@ -173,6 +176,15 @@ export interface EventWithStats extends Omit<Event, 'activities' | 'checkInPassw
 export type ActionResult<T = undefined> =
   | { success: true; data: T }
   | { success: false; error: string }
+
+/** Persona registrata con il QR (data URL) pronto da mostrare/stampare. */
+export interface RegisteredPerson {
+  name: string
+  category: PersonCategory
+  age: number | null
+  ticketCode: string
+  qrDataUrl: string
+}
 
 export type CheckInMode = 'event' | 'activity'
 

@@ -1,5 +1,8 @@
+'use client'
+
 import Link from 'next/link'
-import { notFound, redirect } from 'next/navigation'
+import { useParams } from 'next/navigation'
+import { useQuery } from 'convex/react'
 import {
   ArrowLeft,
   CalendarClock,
@@ -10,17 +13,20 @@ import {
   Ticket,
   Users,
 } from 'lucide-react'
+import { api } from '@/convex/_generated/api'
+import type { Id } from '@/convex/_generated/dataModel'
+import { AuthGate } from '@/components/auth/auth-gate'
 import { AdminHeader } from '@/components/admin/admin-header'
 import { CheckInAccessCard } from '@/components/admin/check-in-access-card'
 import { EventActivityMonitor } from '@/components/admin/event-activity-monitor'
 import { PdfDownloadButton } from '@/components/admin/pdf-download-button'
-import { exportEventTicketsPdf } from '@/lib/pdf/tickets-actions'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { getRole } from '@/lib/auth'
+import { Skeleton } from '@/components/ui/skeleton'
 import { formatDateRange } from '@/lib/format'
-import { getActivityAttendance, getEvent } from '@/lib/queries'
+import { downloadAllTickets } from '@/lib/pdf/download-tickets'
+import { toRegisteredPersons } from '@/lib/qr-client'
 import type { EventWithStats } from '@/lib/types'
 
 const POLICY_LABEL: Record<EventWithStats['activityPolicy'], string> = {
@@ -60,22 +66,51 @@ function InfoRow({ label, value }: { label: string; value: React.ReactNode }) {
   )
 }
 
-export default async function EventDetailPage({ params }: { params: Promise<{ id: string }> }) {
-  const role = await getRole()
-  if (!role) {
-    redirect('/admin/login')
-  }
-  if (role !== 'admin') {
-    redirect('/staff')
+function EventDetailContent() {
+  const params = useParams<{ id: string }>()
+  const eventId = params.id as Id<'events'>
+  const event = useQuery(api.events.getForAdmin, { eventId })
+  const activities = useQuery(api.attendance.getActivityAttendance, { eventId })
+  const registrations = useQuery(api.registrations.listAll, { eventId })
+
+  if (event === undefined) {
+    return (
+      <div className="min-h-svh bg-muted/40">
+        <AdminHeader role="admin" />
+        <main className="mx-auto flex max-w-5xl flex-col gap-6 px-4 py-8">
+          <Skeleton className="h-8 w-48" />
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            <Skeleton className="h-20" />
+            <Skeleton className="h-20" />
+            <Skeleton className="h-20" />
+            <Skeleton className="h-20" />
+          </div>
+          <Skeleton className="h-64" />
+        </main>
+      </div>
+    )
   }
 
-  const { id } = await params
-  const event = getEvent(id)
-  if (!event) {
-    notFound()
+  if (event === null) {
+    return (
+      <div className="min-h-svh bg-muted/40">
+        <AdminHeader role="admin" />
+        <main className="mx-auto flex max-w-5xl flex-col gap-6 px-4 py-8">
+          <Button
+            variant="ghost"
+            size="sm"
+            nativeButton={false}
+            className="w-fit"
+            render={<Link href="/admin" />}
+          >
+            <ArrowLeft className="h-4 w-4" aria-hidden="true" />
+            Torna alla dashboard
+          </Button>
+          <p className="text-muted-foreground">Evento non trovato.</p>
+        </main>
+      </div>
+    )
   }
-
-  const activities = getActivityAttendance(id)
 
   const policyDescription =
     event.activityPolicy === 'min'
@@ -119,7 +154,16 @@ export default async function EventDetailPage({ params }: { params: Promise<{ id
             </div>
             <div className="flex flex-wrap items-center gap-2">
               <PdfDownloadButton
-                action={exportEventTicketsPdf.bind(null, event.id)}
+                onDownload={async () => {
+                  const persons = (registrations ?? []).flatMap((r) => r.persons)
+                  if (persons.length === 0) throw new Error('Nessun biglietto da generare')
+                  const registeredPersons = await toRegisteredPersons(persons)
+                  await downloadAllTickets(registeredPersons, {
+                    title: event.title,
+                    location: event.location,
+                    dateRange: formatDateRange(event.startsAt, event.endsAt),
+                  })
+                }}
                 label="Scarica biglietti (PDF)"
                 successMessage="Biglietti dell'evento pronti"
                 disabled={event.registrationsCount === 0}
@@ -211,9 +255,17 @@ export default async function EventDetailPage({ params }: { params: Promise<{ id
               Presenze per attività e slot attualmente in corso.
             </p>
           </div>
-          <EventActivityMonitor activities={activities} />
+          <EventActivityMonitor activities={activities ?? []} />
         </section>
       </main>
     </div>
+  )
+}
+
+export default function EventDetailPage() {
+  return (
+    <AuthGate require="admin">
+      {() => <EventDetailContent />}
+    </AuthGate>
   )
 }

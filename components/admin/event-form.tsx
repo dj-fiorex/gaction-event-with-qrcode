@@ -17,7 +17,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { createEvent, updateEvent } from '@/lib/actions'
+import { useMutation } from 'convex/react'
+import { api } from '@/convex/_generated/api'
+import type { Id } from '@/convex/_generated/dataModel'
 import { eventSchema, type EventInput } from '@/lib/schemas'
 import { typedZodResolver } from '@/lib/zod-resolver'
 
@@ -64,6 +66,8 @@ interface EventFormProps {
 
 export function EventForm({ mode, eventId, initialValues, hasCheckInPassword }: EventFormProps) {
   const router = useRouter()
+  const createEvent = useMutation(api.events.create)
+  const updateEvent = useMutation(api.events.update)
   const [submitting, setSubmitting] = useState(false)
 
   const {
@@ -87,19 +91,17 @@ export function EventForm({ mode, eventId, initialValues, hasCheckInPassword }: 
   const onSubmit = handleSubmit(async (values) => {
     setSubmitting(true)
     try {
-      const result =
-        mode === 'edit' && eventId
-          ? await updateEvent(eventId, values)
-          : await createEvent(values)
-      if (!result.success) {
-        toast.error(result.error)
-        return
+      if (mode === 'edit' && eventId) {
+        await updateEvent({ eventId: eventId as Id<'events'>, ...values })
+      } else {
+        await createEvent(values)
       }
       toast.success(mode === 'edit' ? 'Evento aggiornato' : 'Evento creato')
       router.push('/admin')
-      router.refresh()
-    } catch {
-      toast.error(mode === 'edit' ? 'Errore durante il salvataggio' : 'Errore durante la creazione')
+    } catch (error) {
+      const fallback =
+        mode === 'edit' ? 'Errore durante il salvataggio' : 'Errore durante la creazione'
+      toast.error(error instanceof Error ? error.message : fallback)
     } finally {
       setSubmitting(false)
     }

@@ -1,10 +1,6 @@
-'use server'
-
 import * as XLSX from 'xlsx'
-import { isAdmin } from './auth'
-import { getEvents, getRegistrations } from './queries'
 import { formatDateTime } from './format'
-import type { ActionResult, PersonCategory } from './types'
+import type { EventWithStats, PersonCategory, Registration } from './types'
 
 const CATEGORY_LABEL: Record<PersonCategory, string> = {
   user: 'Iscritto',
@@ -26,7 +22,7 @@ interface ExportRow {
 }
 
 function activitiesLabel(
-  event: { activities: { id: string; title: string }[] } | undefined,
+  event: EventWithStats | undefined,
   selections: { activityId: string }[],
 ): string {
   if (!event) return '-'
@@ -35,23 +31,20 @@ function activitiesLabel(
     .join(', ')
 }
 
-export async function exportRegistrationsXlsx(
+/**
+ * Costruisce e scarica un file XLSX delle registrazioni lato client,
+ * usando i dati già caricati via Convex (nessuna round-trip al server).
+ */
+export function downloadRegistrationsXlsx(
+  registrations: Registration[],
+  events: EventWithStats[],
   eventId?: string,
-): Promise<ActionResult<{ base64: string; filename: string }>> {
-  if (!(await isAdmin())) {
-    return { success: false, error: 'Accesso non autorizzato' }
-  }
-
-  const events = getEvents()
+): void {
   const eventById = new Map(events.map((e) => [e.id, e]))
-  const registrations = getRegistrations(eventId)
-
-  if (registrations.length === 0) {
-    return { success: false, error: 'Nessuna registrazione da esportare' }
-  }
+  const scoped = eventId ? registrations.filter((r) => r.eventId === eventId) : registrations
 
   const rows: ExportRow[] = []
-  for (const r of registrations) {
+  for (const r of scoped) {
     const event = eventById.get(r.eventId)
     const activities = activitiesLabel(event, r.selections)
     for (const p of r.persons) {
@@ -87,12 +80,11 @@ export async function exportRegistrationsXlsx(
   const workbook = XLSX.utils.book_new()
   XLSX.utils.book_append_sheet(workbook, worksheet, 'Persone')
 
-  const base64 = XLSX.write(workbook, { type: 'base64', bookType: 'xlsx' }) as string
   const suffix = eventId ? eventById.get(eventId)?.title ?? eventId : 'tutti-gli-eventi'
   const filename = `registrazioni-${suffix}`
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/(^-|-$)/g, '')
 
-  return { success: true, data: { base64, filename: `${filename}.xlsx` } }
+  XLSX.writeFile(workbook, `${filename}.xlsx`)
 }

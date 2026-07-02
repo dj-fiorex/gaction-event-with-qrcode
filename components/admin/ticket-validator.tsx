@@ -1,8 +1,11 @@
 'use client'
 
-import { useMemo, useState, useTransition } from 'react'
+import { useMemo, useState } from 'react'
+import { useMutation } from 'convex/react'
 import { Scanner, type IDetectedBarcode } from '@yudiel/react-qr-scanner'
 import { CheckCircle2, Clock, Keyboard, Repeat, ScanLine, XCircle } from 'lucide-react'
+import { api } from '@/convex/_generated/api'
+import type { Id } from '@/convex/_generated/dataModel'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -16,7 +19,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { checkInPerson } from '@/lib/actions'
 import { formatDateTime, formatTimeRange } from '@/lib/format'
 import type { CheckInMode, CheckInResult, EventWithStats } from '@/lib/types'
 
@@ -31,14 +33,20 @@ const CATEGORY_LABEL: Record<'user' | 'child' | 'companion', string> = {
   companion: 'Accompagnatore',
 }
 
-export function TicketValidator({ event }: { event: EventWithStats }) {
+interface TicketValidatorProps {
+  event: EventWithStats
+  unlockToken?: string | null
+}
+
+export function TicketValidator({ event, unlockToken }: TicketValidatorProps) {
+  const checkIn = useMutation(api.checkins.checkIn)
   const [checkMode, setCheckMode] = useState<CheckInMode>('event')
   const [activityId, setActivityId] = useState<string>('')
   const [inputMode, setInputMode] = useState<InputMode>('camera')
   const [scanning, setScanning] = useState(true)
   const [manualCode, setManualCode] = useState('')
   const [result, setResult] = useState<CheckInResult | null>(null)
-  const [pending, startTransition] = useTransition()
+  const [pending, setPending] = useState(false)
 
   const activityItems = useMemo(
     () =>
@@ -51,18 +59,28 @@ export function TicketValidator({ event }: { event: EventWithStats }) {
 
   const contextReady = checkMode === 'event' || activityId.length > 0
 
-  function runCheckIn(code: string) {
+  async function runCheckIn(code: string) {
     const trimmed = code.trim()
-    if (!trimmed || !contextReady) return
-    startTransition(async () => {
-      const res = await checkInPerson({
-        eventId: event.id,
+    if (!trimmed || !contextReady || pending) return
+    setPending(true)
+    try {
+      const res = await checkIn({
+        eventId: event.id as Id<'events'>,
         code: trimmed,
         mode: checkMode,
-        activityId: checkMode === 'activity' ? activityId : undefined,
+        activityId:
+          checkMode === 'activity' ? (activityId as Id<'activities'>) : undefined,
+        unlockToken: unlockToken ?? undefined,
       })
       setResult(res)
-    })
+    } catch {
+      setResult({
+        status: 'not-found',
+        message: 'Verifica non riuscita. Riprova.',
+      })
+    } finally {
+      setPending(false)
+    }
   }
 
   function handleScan(codes: IDetectedBarcode[]) {

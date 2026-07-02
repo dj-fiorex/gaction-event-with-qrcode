@@ -110,3 +110,12 @@ export const loginSchema = z.object({
 })
 
 export type LoginInput = z.infer<typeof loginSchema>
+
+export const staffAccountSchema = z.object({
+  name: z.string().trim().min(2, 'Inserisci il nome'),
+  email: z.string().trim().email('Email non valida'),
+  password: z.string().min(8, 'La password deve avere almeno 8 caratteri'),
+  role: z.enum(['admin', 'staff']),
+})
+
+export type StaffAccountInput = z.infer<typeof staffAccountSchema>

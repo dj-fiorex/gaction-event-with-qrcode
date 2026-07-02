@@ -1,21 +1,20 @@
+'use client'
+
 import Link from 'next/link'
-import { redirect } from 'next/navigation'
+import { useQuery } from 'convex/react'
 import { CalendarClock, Lock, MapPin, ScanLine } from 'lucide-react'
+import { api } from '@/convex/_generated/api'
+import { AuthGate } from '@/components/auth/auth-gate'
 import { AdminHeader } from '@/components/admin/admin-header'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { getRole } from '@/lib/auth'
+import { Skeleton } from '@/components/ui/skeleton'
 import { formatDateRange } from '@/lib/format'
-import { getEvents } from '@/lib/queries'
+import type { Role } from '@/lib/types'
 
-export default async function StaffPage() {
-  const role = await getRole()
-  if (!role) {
-    redirect('/admin/login')
-  }
-
-  const events = getEvents()
+function StaffContent({ role }: { role: Role }) {
+  const events = useQuery(api.events.listOperable)
 
   return (
     <div className="min-h-svh bg-muted/40">
@@ -28,7 +27,12 @@ export default async function StaffPage() {
           </p>
         </div>
 
-        {events.length === 0 ? (
+        {events === undefined ? (
+          <div className="flex flex-col gap-3">
+            <Skeleton className="h-32" />
+            <Skeleton className="h-32" />
+          </div>
+        ) : events.length === 0 ? (
           <Card>
             <CardContent className="py-10 text-center text-muted-foreground">
               Nessun evento disponibile.
@@ -81,5 +85,13 @@ export default async function StaffPage() {
         )}
       </main>
     </div>
+  )
+}
+
+export default function StaffPage() {
+  return (
+    <AuthGate require="staff">
+      {({ role }) => <StaffContent role={role} />}
+    </AuthGate>
   )
 }
