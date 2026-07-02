@@ -44,7 +44,8 @@ function toEventInput(event: EventWithStats): EventInput {
 
 function EditEventContent() {
   const params = useParams<{ id: string }>()
-  const event = useQuery(api.events.getForAdmin, { eventId: params.id as Id<'events'> })
+  const eventId = params.id as Id<'events'>
+  const event = useQuery(api.events.getForAdmin, { eventId })
 
   return (
     <div className="min-h-svh bg-muted/40">
