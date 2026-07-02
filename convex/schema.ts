@@ -45,7 +45,8 @@ export default defineSchema({
     title: v.string(),
     description: v.string(),
     location: v.string(),
-    imageUrl: v.string(),
+    /** Immagine di copertina opzionale (16:9). Byte su Convex file storage. */
+    imageStorageId: v.optional(v.id('_storage')),
     activityPolicy,
     minActivities: v.number(),
     allowOverlap: v.boolean(),

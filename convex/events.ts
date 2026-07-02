@@ -27,6 +27,7 @@ const eventInput = {
   title: v.string(),
   description: v.string(),
   location: v.string(),
+  imageStorageId: v.optional(v.id('_storage')),
   activityPolicy,
   minActivities: v.number(),
   allowOverlap: v.boolean(),
@@ -228,7 +229,7 @@ export const create = mutation({
       title: args.title,
       description: args.description,
       location: args.location,
-      imageUrl: '/events/generic-event.png',
+      imageStorageId: args.imageStorageId,
       activityPolicy: args.activityPolicy,
       minActivities: normalizeMinActivities(args.activityPolicy, args.minActivities, args.activities.length),
       allowOverlap: args.allowOverlap,
@@ -280,10 +281,16 @@ export const update = mutation({
       }
     }
 
+    // Rimuove il file precedente se l'immagine è cambiata o è stata tolta.
+    if (existing.imageStorageId && existing.imageStorageId !== args.imageStorageId) {
+      await ctx.storage.delete(existing.imageStorageId)
+    }
+
     await ctx.db.patch(eventId, {
       title: args.title,
       description: args.description,
       location: args.location,
+      imageStorageId: args.imageStorageId,
       activityPolicy: args.activityPolicy,
       minActivities: normalizeMinActivities(args.activityPolicy, args.minActivities, args.activities.length),
       allowOverlap: args.allowOverlap,
@@ -344,8 +351,22 @@ export const remove = mutation({
       .collect()
     for (const s of staff) await ctx.db.delete(s._id)
 
+    if (event.imageStorageId) await ctx.storage.delete(event.imageStorageId)
+
     await ctx.db.delete(eventId)
     return { success: true }
+  },
+})
+
+/**
+ * URL monouso per caricare l'immagine dell'Evento su Convex file storage.
+ * Il client fa POST del blob ritagliato e riceve lo storageId da salvare.
+ */
+export const generateUploadUrl = mutation({
+  args: {},
+  handler: async (ctx) => {
+    await requireAdmin(ctx)
+    return await ctx.storage.generateUploadUrl()
   },
 })
 

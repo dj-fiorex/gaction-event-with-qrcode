@@ -21,6 +21,7 @@ function toEventInput(event: EventWithStats): EventInput {
     title: event.title,
     description: event.description,
     location: event.location,
+    imageStorageId: event.imageStorageId ?? undefined,
     activityPolicy: event.activityPolicy,
     minActivities: event.activityPolicy === 'min' ? event.minActivities : 1,
     allowOverlap: event.allowOverlap,
@@ -89,6 +90,7 @@ function EditEventContent() {
                 mode="edit"
                 eventId={event.id}
                 initialValues={toEventInput(event)}
+                initialImageUrl={event.imageUrl}
                 hasCheckInPassword={event.hasCheckInPassword}
               />
             )}

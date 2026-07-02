@@ -90,7 +90,6 @@ export const populateDemo = internalMutation({
       description:
         'Una giornata dedicata ai dipendenti e alle loro famiglie con laboratori creativi e spettacoli dal vivo.',
       location: 'Parco delle Cascine, Firenze',
-      imageUrl: '/events/family-day.png',
       activityPolicy: 'free',
       minActivities: 0,
       allowOverlap: false,
@@ -174,7 +173,6 @@ export const populateDemo = internalMutation({
       description:
         'Conferenza tecnica con keynote e sessioni parallele. Accesso al check-in protetto da password condivisa con lo staff.',
       location: 'MiCo, Milano',
-      imageUrl: '/events/generic-event.png',
       activityPolicy: 'all',
       minActivities: 0,
       allowOverlap: true,
