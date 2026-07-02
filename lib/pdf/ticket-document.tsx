@@ -39,11 +39,12 @@ const styles = StyleSheet.create({
     flexDirection: 'column',
   },
   cover: {
-    width: '100%',
-    height: 150,
+    width: 320,
+    height: 180,
     objectFit: 'cover',
     borderRadius: 6,
     marginBottom: 20,
+    alignSelf: 'center',
   },
   header: {
     marginBottom: 28,
