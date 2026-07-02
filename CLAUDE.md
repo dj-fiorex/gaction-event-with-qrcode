@@ -11,3 +11,11 @@ Convex agent skills for common tasks can be installed by running
 `npx convex ai-files install`.
 
 <!-- convex-ai-end -->
+
+<!-- BEGIN:nextjs-agent-rules -->
+ 
+# Next.js: ALWAYS read docs before coding
+ 
+Before any Next.js work, find and read the relevant doc in `node_modules/next/dist/docs/`. Your training data is outdated — the docs are the source of truth.
+ 
+<!-- END:nextjs-agent-rules -->
