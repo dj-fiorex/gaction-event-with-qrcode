@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import Image from 'next/image'
 import { notFound, useParams, useRouter } from 'next/navigation'
 import { useQuery } from 'convex/react'
 import { CalendarClock, MapPin, ScanLine } from 'lucide-react'
@@ -76,9 +77,21 @@ export default function ScanPage() {
           <span>Check-in</span>
         </div>
       </header>
-      <main className="mx-auto flex max-w-lg flex-col gap-6 px-4 py-8">
-        <div className="flex flex-col gap-2">
-          <h1 className="text-2xl font-semibold tracking-tight text-balance">{event.title}</h1>
+        <main className="mx-auto flex max-w-lg flex-col gap-6 px-4 py-8">
+          <div className="flex items-start gap-4">
+            {event.imageUrl && (
+              <div className="relative aspect-[16/9] w-28 shrink-0 overflow-hidden rounded-md border border-border sm:w-32">
+                <Image
+                  src={event.imageUrl}
+                  alt={`Immagine di copertina di ${event.title}`}
+                  fill
+                  sizes="128px"
+                  className="object-cover"
+                />
+              </div>
+            )}
+            <div className="flex flex-col gap-2">
+              <h1 className="text-2xl font-semibold tracking-tight text-balance">{event.title}</h1>
           <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-muted-foreground">
             <span className="flex items-center gap-1">
               <CalendarClock className="h-4 w-4" aria-hidden="true" />
@@ -93,8 +106,9 @@ export default function ScanPage() {
             Scansiona o inserisci il codice del QR. Scegli se registrare l&apos;ingresso
             all&apos;evento oppure l&apos;accesso a una singola attività.
           </p>
-        </div>
-        <TicketValidator event={event} unlockToken={unlockToken} />
+          </div>
+          </div>
+          <TicketValidator event={event} unlockToken={unlockToken} />
       </main>
     </div>
   )
