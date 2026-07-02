@@ -45,7 +45,10 @@ export interface Event {
   title: string
   description: string
   location: string
-  imageUrl: string
+  /** URL dell'immagine di copertina risolto dal backend, null se assente. */
+  imageUrl: string | null
+  /** storageId dell'immagine (solo operatori; null lato pubblico). */
+  imageStorageId: string | null
   createdAt: string
   activityPolicy: ActivityPolicy
   /** Numero minimo di Attività da selezionare quando activityPolicy = "min". */

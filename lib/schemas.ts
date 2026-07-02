@@ -28,6 +28,8 @@ export const eventSchema = z
     title: z.string().trim().min(3, 'Titolo troppo corto'),
     description: z.string().trim().min(10, 'Descrizione troppo corta'),
     location: z.string().trim().min(2, 'Inserisci il luogo'),
+    /** storageId Convex dell'immagine di copertina (opzionale). */
+    imageStorageId: z.string().optional(),
     activityPolicy: z.enum(['all', 'min', 'free']),
     minActivities: z.coerce.number().int().min(0).default(0),
     allowOverlap: z.boolean().default(false),

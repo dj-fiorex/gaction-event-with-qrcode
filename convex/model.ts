@@ -140,7 +140,10 @@ export interface EventWithStatsDTO {
   title: string
   description: string
   location: string
-  imageUrl: string
+  /** URL risolto dell'immagine di copertina, o null se non impostata. */
+  imageUrl: string | null
+  /** storageId grezzo, esposto solo agli operatori (includeScanToken). */
+  imageStorageId: string | null
   createdAt: string
   activities: ActivityWithAvailabilityDTO[]
   activityPolicy: 'all' | 'min' | 'free'
@@ -243,6 +246,10 @@ export async function loadEventWithStats(
     .withIndex('by_event', (q) => q.eq('eventId', event._id))
     .collect()
 
+  const imageUrl = event.imageStorageId
+    ? await ctx.storage.getUrl(event.imageStorageId)
+    : null
+
   const starts = activities.map((a) => new Date(a.start).getTime())
   const ends = activities.map((a) => new Date(a.end).getTime())
   const allSlots = activityDTOs.flatMap((a) => a.slots)
@@ -255,7 +262,8 @@ export async function loadEventWithStats(
     title: event.title,
     description: event.description,
     location: event.location,
-    imageUrl: event.imageUrl,
+    imageUrl,
+    imageStorageId: opts.includeScanToken ? (event.imageStorageId ?? null) : null,
     createdAt: new Date(event._creationTime).toISOString(),
     activities: activityDTOs,
     activityPolicy: event.activityPolicy,

@@ -22,6 +22,7 @@ import { api } from '@/convex/_generated/api'
 import type { Id } from '@/convex/_generated/dataModel'
 import { eventSchema, type EventInput } from '@/lib/schemas'
 import { typedZodResolver } from '@/lib/zod-resolver'
+import { EventImageField } from '@/components/admin/event-image-field'
 
 const emptyActivity = {
   title: '',
@@ -35,6 +36,7 @@ const defaultValues: EventInput = {
   title: '',
   description: '',
   location: '',
+  imageStorageId: undefined,
   activityPolicy: 'free',
   minActivities: 1,
   allowOverlap: false,
@@ -60,11 +62,19 @@ interface EventFormProps {
   eventId?: string
   /** Valori iniziali del form (in "edit" derivano dall'Evento esistente). */
   initialValues?: EventInput
+  /** In "edit": URL dell'immagine già salvata, per l'anteprima. */
+  initialImageUrl?: string | null
   /** In "edit": indica se l'Evento ha già una password di check-in impostata. */
   hasCheckInPassword?: boolean
 }
 
-export function EventForm({ mode, eventId, initialValues, hasCheckInPassword }: EventFormProps) {
+export function EventForm({
+  mode,
+  eventId,
+  initialValues,
+  initialImageUrl,
+  hasCheckInPassword,
+}: EventFormProps) {
   const router = useRouter()
   const createEvent = useMutation(api.events.create)
   const updateEvent = useMutation(api.events.update)
@@ -91,10 +101,16 @@ export function EventForm({ mode, eventId, initialValues, hasCheckInPassword }: 
   const onSubmit = handleSubmit(async (values) => {
     setSubmitting(true)
     try {
+      const payload = {
+        ...values,
+        imageStorageId: values.imageStorageId
+          ? (values.imageStorageId as Id<'_storage'>)
+          : undefined,
+      }
       if (mode === 'edit' && eventId) {
-        await updateEvent({ eventId: eventId as Id<'events'>, ...values })
+        await updateEvent({ eventId: eventId as Id<'events'>, ...payload })
       } else {
-        await createEvent(values)
+        await createEvent(payload)
       }
       toast.success(mode === 'edit' ? 'Evento aggiornato' : 'Evento creato')
       router.push('/admin')
@@ -126,6 +142,19 @@ export function EventForm({ mode, eventId, initialValues, hasCheckInPassword }: 
         <Input id="location" {...register('location')} aria-invalid={!!errors.location} />
         <FieldError message={errors.location?.message} />
       </div>
+
+      <Controller
+        control={control}
+        name="imageStorageId"
+        render={({ field }) => (
+          <EventImageField
+            value={field.value}
+            initialImageUrl={initialImageUrl}
+            onChange={field.onChange}
+            disabled={submitting}
+          />
+        )}
+      />
 
       {/* Attività */}
       <fieldset className="flex flex-col gap-3 rounded-lg border border-border p-4">

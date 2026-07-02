@@ -25,6 +25,7 @@
     "qrcode": "^1.5.4",
     "react": "^19",
     "react-dom": "^19",
+    "react-easy-crop": "^6.0.2",
     "react-hook-form": "^7.80.0",
     "resend": "^6.16.0",
     "server-only": "^0.0.1",

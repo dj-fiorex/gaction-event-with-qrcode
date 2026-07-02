@@ -7,6 +7,13 @@ export interface TicketPdfEvent {
   location: string
   /** Data/intervallo già formattato per la visualizzazione (es. output di formatDateRange). */
   dateRange: string
+  /** URL remoto dell'immagine di copertina (input); risolto in coverDataUrl prima del render. */
+  imageUrl?: string | null
+  /**
+   * Immagine di copertina come data URL base64. react-pdf carica le immagini via XHR e
+   * richiede header CORS, quindi la copertina va incorporata come data URL, non come URL remoto.
+   */
+  coverDataUrl?: string
 }
 
 const CATEGORY_LABEL: Record<RegisteredPerson['category'], string> = {
@@ -31,8 +38,16 @@ const styles = StyleSheet.create({
     fontFamily: 'Helvetica',
     flexDirection: 'column',
   },
+  cover: {
+    width: 320,
+    height: 180,
+    objectFit: 'cover',
+    borderRadius: 6,
+    marginBottom: 20,
+    alignSelf: 'center',
+  },
   header: {
-    marginBottom: 40,
+    marginBottom: 28,
   },
   eventTitle: {
     fontFamily: 'Helvetica-Bold',
@@ -59,8 +74,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   qr: {
-    width: 240,
-    height: 240,
+    width: 200,
+    height: 200,
   },
   personName: {
     marginTop: 28,
@@ -89,7 +104,7 @@ const styles = StyleSheet.create({
     letterSpacing: 4,
   },
   footer: {
-    marginTop: 40,
+    marginTop: 32,
     textAlign: 'center',
     fontSize: 10,
     color: palette.muted,
@@ -106,7 +121,8 @@ function personSubtitle(person: RegisteredPerson): string {
 
 function TicketPage({ person, event }: { person: RegisteredPerson; event: TicketPdfEvent }) {
   return (
-    <Page size="A4" style={styles.page}>
+    <Page size="A4" wrap={false} style={styles.page}>
+      {event.coverDataUrl ? <Image style={styles.cover} src={event.coverDataUrl} /> : null}
       <View style={styles.header}>
         <Text style={styles.eventTitle}>{event.title}</Text>
         <View style={styles.rule} />
