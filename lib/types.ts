@@ -157,6 +157,10 @@ export interface EventWithStats extends Omit<Event, 'activities' | 'checkInPassw
   activities: ActivityWithAvailability[]
   /** true se è impostata una password di check-in (l'hash non viene esposto). */
   hasCheckInPassword: boolean
+  /** true se l'incorporamento del form su siti terzi è abilitato. */
+  embedEnabled: boolean
+  /** Origini autorizzate a incorporare (solo per operatori; vuoto lato pubblico). */
+  allowedOrigins: string[]
   registrationsCount: number
   personsCount: number
   /** Inizio della prima Attività, se presente. */

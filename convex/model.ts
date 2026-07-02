@@ -95,6 +95,21 @@ export async function canOperateEvent(
   return false
 }
 
+/**
+ * Richiede che l'utente corrente possa operare sull'Evento (admin o staff
+ * associato). Lancia se non autenticato o non autorizzato.
+ */
+export async function requireCanOperate(
+  ctx: QueryCtx | MutationCtx,
+  event: Doc<'events'>,
+): Promise<Doc<'users'>> {
+  const user = await requireUser(ctx)
+  if (!(await canOperateEvent(ctx, event))) {
+    throw new Error('Non sei autorizzato a gestire questo evento')
+  }
+  return user
+}
+
 /* ------------------------------------------------------------------ */
 /* Composizione statistiche Evento (shape compatibile col frontend)    */
 /* ------------------------------------------------------------------ */
@@ -140,6 +155,10 @@ export interface EventWithStatsDTO {
   checkInAccess: 'private' | 'password'
   scanToken: string
   hasCheckInPassword: boolean
+  /** Incorporamento del form abilitato per questo Evento. */
+  embedEnabled: boolean
+  /** Origini autorizzate a incorporare. Popolate solo per operatori (includeScanToken). */
+  allowedOrigins: string[]
   registrationsCount: number
   personsCount: number
   startsAt: string | null
@@ -251,6 +270,8 @@ export async function loadEventWithStats(
     checkInAccess: event.checkInAccess,
     scanToken: opts.includeScanToken ? event.scanToken : '',
     hasCheckInPassword: event.checkInPasswordHash !== null,
+    embedEnabled: event.embedEnabled ?? false,
+    allowedOrigins: opts.includeScanToken ? (event.allowedOrigins ?? []) : [],
     registrationsCount: registrations.length,
     personsCount: persons.length,
     startsAt: starts.length ? new Date(Math.min(...starts)).toISOString() : null,

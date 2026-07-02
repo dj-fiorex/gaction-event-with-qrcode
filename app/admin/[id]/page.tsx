@@ -18,6 +18,7 @@ import type { Id } from '@/convex/_generated/dataModel'
 import { AuthGate } from '@/components/auth/auth-gate'
 import { AdminHeader } from '@/components/admin/admin-header'
 import { CheckInAccessCard } from '@/components/admin/check-in-access-card'
+import { EmbedCard } from '@/components/admin/embed-card'
 import { EventActivityMonitor } from '@/components/admin/event-activity-monitor'
 import { PdfDownloadButton } from '@/components/admin/pdf-download-button'
 import { Badge } from '@/components/ui/badge'
@@ -246,6 +247,12 @@ function EventDetailContent() {
           scanToken={event.scanToken}
           checkInAccess={event.checkInAccess}
           hasCheckInPassword={event.hasCheckInPassword}
+        />
+
+        <EmbedCard
+          eventId={event.id}
+          embedEnabled={event.embedEnabled}
+          allowedOrigins={event.allowedOrigins}
         />
 
         <section className="flex flex-col gap-3">

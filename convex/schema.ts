@@ -61,6 +61,14 @@ export default defineSchema({
     checkInPasswordHash: v.union(v.string(), v.null()),
     /** Token opaco restituito dopo l'unlock via password. Ruota col cambio password. */
     scanUnlockToken: v.union(v.string(), v.null()),
+    /** Abilita l'incorporamento del form di registrazione su siti terzi via iframe. */
+    embedEnabled: v.optional(v.boolean()),
+    /**
+     * Origini autorizzate a incorporare il form (CSP frame-ancestors).
+     * Ogni voce è un'origine esatta (https://www.partner.com) o un wildcard di
+     * sottodominio (https://*.partner.com). Vuoto = nessun sito autorizzato.
+     */
+    allowedOrigins: v.optional(v.array(v.string())),
   }).index('by_scanToken', ['scanToken']),
 
   activities: defineTable({
