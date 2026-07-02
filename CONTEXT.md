@@ -14,6 +14,9 @@ Un partecipante fisico all'Evento. Occupa un posto e riceve **1 QR code**. NON �
 ### Evento
 Un raduno a cui gli Utenti si iscrivono. Genera **1 QR code per ogni Persona** (non per Attività). L'admin configura per ogni Evento se sono ammessi Figli (con max) e se sono ammessi Accompagnatori (con max).
 
+### Immagine dell'Evento
+Immagine **opzionale** di copertina dell'Evento, mostrata come hero nella pagina pubblica e come copertina nella `EventCard`, sempre in frame **16:9**. L'admin la carica ritagliandola client-side (react-easy-crop, aspect 16:9); i byte vivono su **Convex file storage** e sono referenziati da `imageStorageId` (`v.optional(v.id("_storage"))`). Il DTO risolve lo storageId in un URL esposto come `imageUrl` (`string | null`); quando assente si usa il fallback statico. Vedi ADR `0002`.
+
 ### Attività
 Un segmento di un Evento con un **orario di inizio e fine** e una **Durata** (definita dall'admin). Dalla finestra inizio-fine e dalla Durata l'app **genera automaticamente gli Slot**. I posti limitati si contano per singolo Slot.
 
