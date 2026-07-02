@@ -23,10 +23,16 @@ export const register = mutation({
     children: v.array(childInput),
     companions: v.array(companionInput),
     selections: v.array(selectionInput),
+    /** true quando la registrazione arriva dal form incorporato su un sito terzo. */
+    embed: v.optional(v.boolean()),
   },
   handler: async (ctx, args) => {
     const event = await ctx.db.get(args.eventId)
     if (!event) throw new Error('Evento non trovato')
+
+    if (args.embed && !event.embedEnabled) {
+      throw new Error('L\u2019incorporamento non è abilitato per questo evento')
+    }
 
     const children = event.allowChildren ? args.children : []
     const companions = event.allowCompanions ? args.companions : []

@@ -34,7 +34,14 @@ const POLICY_HINT: Record<EventWithStats['activityPolicy'], (min: number) => str
   free: () => 'Seleziona le attività a cui vuoi partecipare.',
 }
 
-export function RegistrationForm({ event }: { event: EventWithStats }) {
+export function RegistrationForm({
+  event,
+  embed = false,
+}: {
+  event: EventWithStats
+  /** true quando il form è servito dentro l'iframe di incorporamento. */
+  embed?: boolean
+}) {
   const registerMutation = useMutation(api.registrations.register)
   const sendTickets = useAction(api.emails.sendTickets)
   const [tickets, setTickets] = useState<RegisteredPerson[] | null>(null)
@@ -126,6 +133,7 @@ export function RegistrationForm({ event }: { event: EventWithStats }) {
           activityId: s.activityId as Id<'activities'>,
           slotId: s.slotId as Id<'slots'>,
         })),
+        embed,
       })
 
       const registeredPersons: RegisteredPerson[] = await Promise.all(

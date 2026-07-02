@@ -1,5 +1,5 @@
 import { v } from 'convex/values'
-import { mutation, query } from './_generated/server'
+import { internalQuery, mutation, query } from './_generated/server'
 import type { MutationCtx } from './_generated/server'
 import type { Id } from './_generated/dataModel'
 import { activityPolicy, checkInAccess } from './schema'
@@ -10,8 +10,10 @@ import {
   loadEventWithStats,
   randomToken,
   requireAdmin,
+  requireCanOperate,
 } from './model'
 import { generateSlots } from '../lib/slots'
+import { parseAllowedOrigins } from '../lib/embed'
 
 const activityInput = v.object({
   title: v.string(),
@@ -356,6 +358,54 @@ export const rotateScanToken = mutation({
     const scanToken = randomToken()
     await ctx.db.patch(eventId, { scanToken })
     return { scanToken }
+  },
+})
+
+/**
+ * Aggiorna le impostazioni di incorporamento di un Evento.
+ * Autorizzato a ogni operatore dell'Evento (admin o staff associato).
+ */
+export const setEmbedSettings = mutation({
+  args: {
+    eventId: v.id('events'),
+    embedEnabled: v.boolean(),
+    allowedOrigins: v.array(v.string()),
+  },
+  handler: async (ctx, { eventId, embedEnabled, allowedOrigins }) => {
+    const event = await ctx.db.get(eventId)
+    if (!event) throw new Error('Evento non trovato')
+    await requireCanOperate(ctx, event)
+
+    const { valid, invalid } = parseAllowedOrigins(allowedOrigins)
+    if (invalid.length > 0) {
+      throw new Error(
+        `Origini non valide: ${invalid.join(', ')}. Usa il formato https://sito.com o https://*.sito.com`,
+      )
+    }
+    if (embedEnabled && valid.length === 0) {
+      throw new Error('Aggiungi almeno un dominio autorizzato per abilitare l\u2019incorporamento')
+    }
+
+    await ctx.db.patch(eventId, { embedEnabled, allowedOrigins: valid })
+    return { embedEnabled, allowedOrigins: valid }
+  },
+})
+
+/**
+ * Configurazione di incorporamento per l'endpoint HTTP consumato dal proxy
+ * Next.js per impostare la CSP `frame-ancestors`. Interno: non esposto ai client.
+ */
+export const getEmbedConfig = internalQuery({
+  args: { eventId: v.string() },
+  handler: async (ctx, { eventId }) => {
+    const normalizedId = ctx.db.normalizeId('events', eventId)
+    if (!normalizedId) return { embedEnabled: false, allowedOrigins: [] }
+    const event = await ctx.db.get(normalizedId)
+    if (!event) return { embedEnabled: false, allowedOrigins: [] }
+    return {
+      embedEnabled: event.embedEnabled ?? false,
+      allowedOrigins: event.allowedOrigins ?? [],
+    }
   },
 })
 
