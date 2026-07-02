@@ -184,6 +184,7 @@ function EventDetailContent() {
                     title: event.title,
                     location: event.location,
                     dateRange: formatDateRange(event.startsAt, event.endsAt),
+                    imageUrl: event.imageUrl,
                   })
                 }}
                 label="Scarica biglietti (PDF)"

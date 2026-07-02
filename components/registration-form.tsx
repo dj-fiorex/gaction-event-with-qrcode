@@ -170,6 +170,7 @@ export function RegistrationForm({
           title: event.title,
           location: event.location,
           dateRange: formatDateRange(event.startsAt, event.endsAt),
+          imageUrl: event.imageUrl,
         }}
         onReset={() => {
           reset()

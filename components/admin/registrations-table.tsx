@@ -97,6 +97,7 @@ export function RegistrationsTable({ registrations, events }: RegistrationsTable
                         title: event.title,
                         location: event.location,
                         dateRange: formatDateRange(event.startsAt, event.endsAt),
+                        imageUrl: event.imageUrl,
                       })
                     }}
                     label={`Scarica biglietti di ${r.contactEmail}`}
