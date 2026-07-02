@@ -4,7 +4,11 @@ import { ConvexAuthProvider } from '@convex-dev/auth/react'
 import { ConvexReactClient } from 'convex/react'
 import type { ReactNode } from 'react'
 
-const convexUrl = process.env.NEXT_PUBLIC_CONVEX_URL
+// Trim trailing slashes: Convex derives the realtime WebSocket URL by string
+// concatenation (`${origin}/api/${version}/sync`), so a trailing slash in the
+// env var produces a double slash (`//api/.../sync`) that the server rejects
+// with WebSocket code 1006, leaving every query stuck loading.
+const convexUrl = process.env.NEXT_PUBLIC_CONVEX_URL?.replace(/\/+$/, '')
 
 const convex = convexUrl ? new ConvexReactClient(convexUrl) : null
 
