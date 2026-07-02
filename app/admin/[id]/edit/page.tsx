@@ -9,7 +9,6 @@ import type { Id } from '@/convex/_generated/dataModel'
 import { AuthGate } from '@/components/auth/auth-gate'
 import { AdminHeader } from '@/components/admin/admin-header'
 import { EventForm } from '@/components/admin/event-form'
-import { ExportButton } from '@/components/admin/export-button'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -47,7 +46,6 @@ function EditEventContent() {
   const params = useParams<{ id: string }>()
   const eventId = params.id as Id<'events'>
   const event = useQuery(api.events.getForAdmin, { eventId })
-  const registrations = useQuery(api.registrations.listAll, { eventId })
 
   return (
     <div className="min-h-svh bg-muted/40">
@@ -64,19 +62,9 @@ function EditEventContent() {
             <ArrowLeft className="h-4 w-4" aria-hidden="true" />
             Torna al dettaglio evento
           </Button>
-          <div className="flex flex-wrap items-start justify-between gap-4">
-            <div>
-              <h1 className="text-2xl font-semibold tracking-tight">Modifica evento</h1>
-              <p className="text-muted-foreground">{event?.title ?? '...'}</p>
-            </div>
-            {event && (
-              <ExportButton
-                registrations={registrations ?? []}
-                events={[event]}
-                eventId={event.id}
-                disabled={registrations === undefined || event.registrationsCount === 0}
-              />
-            )}
+          <div>
+            <h1 className="text-2xl font-semibold tracking-tight">Modifica evento</h1>
+            <p className="text-muted-foreground">{event?.title ?? '...'}</p>
           </div>
         </div>
 
