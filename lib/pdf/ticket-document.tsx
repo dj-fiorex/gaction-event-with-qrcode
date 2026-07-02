@@ -40,13 +40,13 @@ const styles = StyleSheet.create({
   },
   cover: {
     width: '100%',
-    height: 272,
+    height: 150,
     objectFit: 'cover',
     borderRadius: 6,
-    marginBottom: 28,
+    marginBottom: 20,
   },
   header: {
-    marginBottom: 40,
+    marginBottom: 28,
   },
   eventTitle: {
     fontFamily: 'Helvetica-Bold',
@@ -73,8 +73,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   qr: {
-    width: 240,
-    height: 240,
+    width: 200,
+    height: 200,
   },
   personName: {
     marginTop: 28,
@@ -103,7 +103,7 @@ const styles = StyleSheet.create({
     letterSpacing: 4,
   },
   footer: {
-    marginTop: 40,
+    marginTop: 32,
     textAlign: 'center',
     fontSize: 10,
     color: palette.muted,
@@ -120,7 +120,7 @@ function personSubtitle(person: RegisteredPerson): string {
 
 function TicketPage({ person, event }: { person: RegisteredPerson; event: TicketPdfEvent }) {
   return (
-    <Page size="A4" style={styles.page}>
+    <Page size="A4" wrap={false} style={styles.page}>
       {event.coverDataUrl ? <Image style={styles.cover} src={event.coverDataUrl} /> : null}
       <View style={styles.header}>
         <Text style={styles.eventTitle}>{event.title}</Text>

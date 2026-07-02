@@ -16,23 +16,42 @@ function slugify(value: string): string {
   )
 }
 
+function loadImageFromBlob(blob: Blob): Promise<HTMLImageElement> {
+  return new Promise((resolve, reject) => {
+    const objectUrl = URL.createObjectURL(blob)
+    const img = new Image()
+    img.onload = () => {
+      URL.revokeObjectURL(objectUrl)
+      resolve(img)
+    }
+    img.onerror = () => {
+      URL.revokeObjectURL(objectUrl)
+      reject(new Error('Immagine di copertina non valida'))
+    }
+    img.src = objectUrl
+  })
+}
+
 /**
- * Scarica un'immagine remota e la converte in data URL base64.
- * react-pdf carica le immagini via XHR e richiede header CORS: incorporare la
- * copertina come data URL evita che sparisca silenziosamente dal PDF.
- * Best-effort: se il fetch fallisce si restituisce undefined (PDF senza copertina).
+ * Scarica la copertina remota e la ricodifica in un data URL JPEG.
+ * react-pdf carica le immagini via XHR (serve CORS) e sa decodificare solo
+ * JPEG/PNG: la copertina è salvata in WebP, che nel PDF risulterebbe invisibile.
+ * Decodifichiamo quindi via canvas e riesportiamo in JPEG, così il formato
+ * sorgente (WebP/PNG/JPEG) è indifferente.
+ * Best-effort: in caso di errore si restituisce undefined (PDF senza copertina).
  */
-async function fetchImageAsDataUrl(url: string): Promise<string | undefined> {
+async function fetchCoverAsJpegDataUrl(url: string): Promise<string | undefined> {
   try {
     const response = await fetch(url)
     if (!response.ok) return undefined
-    const blob = await response.blob()
-    return await new Promise<string>((resolve, reject) => {
-      const reader = new FileReader()
-      reader.onloadend = () => resolve(reader.result as string)
-      reader.onerror = () => reject(reader.error)
-      reader.readAsDataURL(blob)
-    })
+    const image = await loadImageFromBlob(await response.blob())
+    const canvas = document.createElement('canvas')
+    canvas.width = image.naturalWidth
+    canvas.height = image.naturalHeight
+    const ctx = canvas.getContext('2d')
+    if (!ctx) return undefined
+    ctx.drawImage(image, 0, 0)
+    return canvas.toDataURL('image/jpeg', 0.85)
   } catch {
     return undefined
   }
@@ -44,7 +63,7 @@ async function triggerPdfDownload(
   fileName: string,
 ): Promise<void> {
   const coverDataUrl = event.imageUrl
-    ? await fetchImageAsDataUrl(event.imageUrl)
+    ? await fetchCoverAsJpegDataUrl(event.imageUrl)
     : undefined
   const resolvedEvent: TicketPdfEvent = { ...event, coverDataUrl }
   const blob = await pdf(
