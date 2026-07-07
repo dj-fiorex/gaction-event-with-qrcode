@@ -8,7 +8,7 @@ const accountValidator = v.object({
   id: v.id('users'),
   name: v.union(v.string(), v.null()),
   email: v.union(v.string(), v.null()),
-  role: v.union(v.literal('admin'), v.literal('staff')),
+  role: v.union(v.literal('admin'), v.literal('staff'), v.literal('member')),
 })
 
 /** Elenco account (solo admin). */
@@ -35,7 +35,7 @@ export const me = query({
       id: v.id('users'),
       name: v.union(v.string(), v.null()),
       email: v.union(v.string(), v.null()),
-      role: v.union(v.literal('admin'), v.literal('staff')),
+      role: v.union(v.literal('admin'), v.literal('staff'), v.literal('member')),
     }),
     v.null(),
   ),

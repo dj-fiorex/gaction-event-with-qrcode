@@ -3,7 +3,7 @@
 import { useConvexAuth, useQuery } from 'convex/react'
 import { api } from '@/convex/_generated/api'
 
-export type Role = 'admin' | 'staff'
+export type Role = 'admin' | 'staff' | 'member'
 
 export interface CurrentUser {
   id: string
