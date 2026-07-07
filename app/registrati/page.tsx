@@ -107,7 +107,7 @@ function RegistrationForm() {
           </Button>
           <p className="text-center text-sm text-muted-foreground">
             Hai già un account?{' '}
-            <Link href="/admin/login" className="underline underline-offset-4 hover:text-foreground">
+            <Link href="/accedi" className="underline underline-offset-4 hover:text-foreground">
               Accedi
             </Link>
           </p>

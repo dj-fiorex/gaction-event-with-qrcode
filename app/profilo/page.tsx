@@ -232,7 +232,7 @@ export default function ProfiloPage() {
   useEffect(() => {
     if (isLoading) return
     if (!isAuthenticated) {
-      router.replace('/admin/login')
+      router.replace('/accedi')
     }
   }, [isLoading, isAuthenticated, router])
 

@@ -86,7 +86,7 @@ export function RegistrationForm({
 
   useEffect(() => {
     if (!isMember) return
-    if (user.name && !userName) {
+    if (user.name && userName.trim() === '') {
       setValue('userName', user.name)
     }
     if (lockedContactEmail) {
@@ -235,7 +235,7 @@ export function RegistrationForm({
           <Button
             nativeButton={false}
             className="flex-1"
-            render={<Link href={`/admin/login?redirect=${encodeURIComponent(redirectPath)}`} />}
+            render={<Link href={`/accedi?redirect=${encodeURIComponent(redirectPath)}`} />}
           >
             Accedi
           </Button>
