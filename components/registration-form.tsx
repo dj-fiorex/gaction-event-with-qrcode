@@ -304,7 +304,7 @@ export function RegistrationForm({
             )}
             {contactEmailLocked && (
               <p className="text-sm text-muted-foreground">
-                I biglietti verranno inviati all&apos;email del tuo account Membro.
+                I biglietti verranno inviati all'email del tuo account Membro.
               </p>
             )}
           </div>
