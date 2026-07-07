@@ -1,7 +1,7 @@
 import { v } from 'convex/values'
 import { mutation, query } from './_generated/server'
 import type { Doc, Id } from './_generated/dataModel'
-import { requireAdmin, generateTicketCode } from './model'
+import { requireAdmin, generateTicketCode, getCurrentUser } from './model'
 import { intervalsOverlap } from '../lib/slots'
 
 const childInput = v.object({ name: v.string(), age: v.number() })
@@ -10,6 +10,15 @@ const selectionInput = v.object({
   activityId: v.id('activities'),
   slotId: v.id('slots'),
 })
+
+const REQUIRE_ACCOUNT_LOGIN_ERROR =
+  'Per registrarti a questo evento devi accedere con un account Membro verificato'
+const REQUIRE_ACCOUNT_ROLE_ERROR =
+  'Solo i Membri verificati possono registrarsi a questo evento'
+const REQUIRE_ACCOUNT_VERIFICATION_ERROR =
+  'Verifica la tua email prima di registrarti a questo evento'
+const REQUIRE_ACCOUNT_EMBED_ERROR =
+  'Questo evento richiede un account Membro verificato: completa la registrazione dal sito principale'
 
 /* ------------------------------------------------------------------ */
 /* Registrazione pubblica                                              */
@@ -30,9 +39,29 @@ export const register = mutation({
     const event = await ctx.db.get(args.eventId)
     if (!event) throw new Error('Evento non trovato')
 
+    const caller = await getCurrentUser(ctx)
+
+    if (event.requireAccount && args.embed) {
+      throw new Error(REQUIRE_ACCOUNT_EMBED_ERROR)
+    }
+
     if (args.embed && !event.embedEnabled) {
       throw new Error('L\u2019incorporamento non è abilitato per questo evento')
     }
+
+    if (event.requireAccount) {
+      if (!caller) throw new Error(REQUIRE_ACCOUNT_LOGIN_ERROR)
+      if (caller.role !== 'member') throw new Error(REQUIRE_ACCOUNT_ROLE_ERROR)
+      if (caller.emailVerificationTime === undefined || !caller.email) {
+        throw new Error(REQUIRE_ACCOUNT_VERIFICATION_ERROR)
+      }
+    }
+
+    const registrationUserId = caller?._id
+    const persistedContactEmail =
+      caller?.role === 'member' && caller.email
+        ? caller.email.trim().toLowerCase()
+        : args.contactEmail
 
     const children = event.allowChildren ? args.children : []
     const companions = event.allowCompanions ? args.companions : []
@@ -117,7 +146,8 @@ export const register = mutation({
     // Persiste registrazione, persone e selezioni.
     const registrationId = await ctx.db.insert('registrations', {
       eventId: event._id,
-      contactEmail: args.contactEmail,
+      contactEmail: persistedContactEmail,
+      ...(registrationUserId ? { userId: registrationUserId } : {}),
     })
 
     const personsInput: Array<{ name: string; category: 'user' | 'child' | 'companion'; age: number | null }> = [
@@ -161,7 +191,7 @@ export const register = mutation({
       registrationId,
       eventTitle: event.title,
       eventLocation: event.location,
-      contactEmail: args.contactEmail,
+      contactEmail: persistedContactEmail,
       persons: createdPersons,
     }
   },
