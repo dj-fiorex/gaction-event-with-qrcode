@@ -3,16 +3,16 @@
 import { useEffect, useState, type FormEvent } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAuthActions } from '@convex-dev/auth/react'
-import { useMutation } from 'convex/react'
-import { CalendarDays, LogOut, Pencil, User, X } from 'lucide-react'
+import { useAction, useMutation } from 'convex/react'
+import { BadgeCheck, CalendarDays, Loader2, LogOut, MailWarning, Pencil, User, X } from 'lucide-react'
 import Link from 'next/link'
 import { api } from '@/convex/_generated/api'
 import { useCurrentUser } from '@/lib/use-current-user'
+import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Loader2 } from 'lucide-react'
 
 function FullPageLoader({ label }: { label: string }) {
   return (
@@ -30,11 +30,14 @@ function ProfiloContent() {
   const { signOut } = useAuthActions()
   const router = useRouter()
   const updateName = useMutation(api.accounts.updateName)
+  const resendVerification = useAction(api.emailVerification.resend)
 
   const [editing, setEditing] = useState(false)
   const [nameInput, setNameInput] = useState('')
   const [pending, setPending] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [resendPending, setResendPending] = useState(false)
+  const [resendFeedback, setResendFeedback] = useState<string | null>(null)
 
   async function handleSignOut() {
     await signOut()
@@ -50,6 +53,19 @@ function ProfiloContent() {
   function cancelEditing() {
     setEditing(false)
     setError(null)
+  }
+
+  async function handleResendVerification() {
+    setResendFeedback(null)
+    setResendPending(true)
+    try {
+      await resendVerification({})
+      setResendFeedback('Abbiamo inviato un nuovo link di verifica alla tua email.')
+    } catch (err) {
+      setResendFeedback(err instanceof Error ? err.message : 'Invio non riuscito.')
+    } finally {
+      setResendPending(false)
+    }
   }
 
   async function handleSubmit(e: FormEvent<HTMLFormElement>) {
@@ -90,6 +106,33 @@ function ProfiloContent() {
           <h1 className="text-2xl font-semibold tracking-tight">Il mio profilo</h1>
           <p className="text-muted-foreground">Gestisci il tuo account.</p>
         </div>
+
+        {!user.emailVerified && user.role === 'member' && (
+          <Card className="mb-6 border-amber-300/70 bg-amber-50/60">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-amber-950">
+                <MailWarning className="h-5 w-5" aria-hidden="true" />
+                Email da verificare
+              </CardTitle>
+              <CardDescription className="text-amber-900/80">
+                Prima di prenotare gli eventi che richiedono un account devi confermare il link
+                ricevuto via email.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="flex flex-col gap-3">
+              <p className="text-sm text-amber-950">
+                Controlla la casella di <strong>{user.email ?? 'posta elettronica'}</strong> e,
+                se non trovi il messaggio, richiedi un nuovo invio.
+              </p>
+              <div className="flex flex-wrap items-center gap-3">
+                <Button variant="outline" onClick={handleResendVerification} disabled={resendPending}>
+                  {resendPending ? 'Invio in corso…' : 'Reinvia email di verifica'}
+                </Button>
+                {resendFeedback && <p className="text-sm text-amber-950">{resendFeedback}</p>}
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
         <Card>
           <CardHeader>
@@ -153,7 +196,19 @@ function ProfiloContent() {
               )}
             </div>
             <div>
-              <p className="text-sm font-medium text-muted-foreground">Email verificata</p>
+              <div className="flex items-center gap-2">
+                <p className="text-sm font-medium text-muted-foreground">Email</p>
+                <Badge variant={user.emailVerified ? 'secondary' : 'outline'}>
+                  {user.emailVerified ? (
+                    <>
+                      <BadgeCheck className="h-3 w-3" aria-hidden="true" />
+                      Verificata
+                    </>
+                  ) : (
+                    'Da verificare'
+                  )}
+                </Badge>
+              </div>
               <p className="text-sm">{user.email ?? '—'}</p>
             </div>
           </CardContent>

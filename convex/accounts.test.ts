@@ -2,7 +2,7 @@
 
 import { convexTest } from 'convex-test'
 import { expect, test } from 'vitest'
-import { api } from './_generated/api'
+import { api, internal } from './_generated/api'
 import type { Id } from './_generated/dataModel'
 import schema from './schema'
 
@@ -29,6 +29,7 @@ test('accounts.me returns member for an explicit member account', async () => {
     email: 'member@example.com',
     name: 'Mario Rossi',
     role: 'member',
+    emailVerified: false,
   })
 })
 
@@ -46,6 +47,7 @@ test('accounts.me falls back to staff when the role is absent', async () => {
   expect(me).toMatchObject({
     id: userId,
     role: 'staff',
+    emailVerified: true,
   })
 })
 
@@ -95,6 +97,11 @@ test('accounts.signUpMember always creates a member account', async () => {
   expect(user?.role).toBe('member')
   expect(user?.email).toBe('new@example.com')
   expect(user?.name).toBe('Nuovo Membro')
+  expect(user?.emailVerificationTime).toBeUndefined()
+
+  const verificationCodes = await t.run((ctx) => ctx.db.query('authVerificationCodes').collect())
+  expect(verificationCodes).toHaveLength(1)
+  expect(verificationCodes[0]?.emailVerified).toBe('new@example.com')
 })
 
 test('accounts.signUpMember rejects duplicate email', async () => {
@@ -112,6 +119,81 @@ test('accounts.signUpMember rejects duplicate email', async () => {
       name: 'Secondo',
     }),
   ).rejects.toThrow('Esiste già un account con questa email')
+})
+
+test('email verification completion marks the member as verified', async () => {
+  const t = convexTest(schema, modules)
+  const { userId } = await t.action(api.accounts.signUpMember, {
+    email: 'verifyme@example.com',
+    password: 'password123',
+    name: 'Verifica Me',
+  })
+
+  const account = await t.run((ctx) =>
+    ctx.db
+      .query('authAccounts')
+      .withIndex('providerAndAccountId', (q) =>
+        q.eq('provider', 'password').eq('providerAccountId', 'verifyme@example.com'),
+      )
+      .unique(),
+  )
+  expect(account?._id).toBeTruthy()
+
+  const verificationCode = await t.mutation(internal.emailVerification.issueCodeInternal, {
+    accountId: account!._id,
+    email: 'verifyme@example.com',
+  })
+
+  await t.action(api.emailVerification.complete, { code: verificationCode.code })
+
+  const user = await t.run((ctx) => ctx.db.get(userId as Id<'users'>))
+  const updatedAccount = await t.run((ctx) =>
+    ctx.db
+      .query('authAccounts')
+      .withIndex('providerAndAccountId', (q) => q.eq('provider', 'password').eq('providerAccountId', 'verifyme@example.com'))
+      .unique(),
+  )
+
+  expect(user?.emailVerificationTime).toEqual(expect.any(Number))
+  expect(updatedAccount?.emailVerified).toBe('verifyme@example.com')
+})
+
+test('seedFirstAdmin creates a trusted admin account', async () => {
+  const t = convexTest(schema, modules)
+  const { userId } = await t.action(api.accounts.seedFirstAdmin, {
+    email: 'admin@example.com',
+    password: 'password123',
+    name: 'Admin',
+  })
+
+  const user = await t.run((ctx) => ctx.db.get(userId as Id<'users'>))
+  expect(user?.role).toBe('admin')
+  expect(user?.emailVerificationTime).toEqual(expect.any(Number))
+})
+
+test('createStaffAccount creates staff as already trusted', async () => {
+  const t = convexTest(schema, modules)
+  const adminId = await t.run((ctx) =>
+    ctx.db.insert('users', {
+      email: 'admin@example.com',
+      name: 'Admin',
+      role: 'admin',
+      emailVerificationTime: Date.now(),
+    }),
+  )
+
+  const { userId } = await t
+    .withIdentity({ subject: subjectFor(adminId) })
+    .action(api.accounts.createStaffAccount, {
+      email: 'staff@example.com',
+      password: 'password123',
+      name: 'Assistente',
+      role: 'staff',
+    })
+
+  const user = await t.run((ctx) => ctx.db.get(userId as Id<'users'>))
+  expect(user?.role).toBe('staff')
+  expect(user?.emailVerificationTime).toEqual(expect.any(Number))
 })
 
 test('accounts.updateName persists the new name for the caller', async () => {
