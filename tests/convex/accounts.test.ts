@@ -2,11 +2,11 @@
 
 import { convexTest } from 'convex-test'
 import { expect, test } from 'vitest'
-import { api, internal } from './_generated/api'
-import type { Id } from './_generated/dataModel'
-import schema from './schema'
+import { api, internal } from '../../convex/_generated/api'
+import type { Id } from '../../convex/_generated/dataModel'
+import schema from '../../convex/schema'
 
-const modules = import.meta.glob('./**/*.ts')
+const modules = import.meta.glob('../../convex/**/*.ts')
 
 function subjectFor(userId: Id<'users'>) {
   return `${userId}|test-session`
