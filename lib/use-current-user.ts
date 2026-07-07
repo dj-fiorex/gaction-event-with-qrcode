@@ -10,6 +10,7 @@ export interface CurrentUser {
   name: string | null
   email: string | null
   role: Role
+  emailVerified: boolean
 }
 
 interface CurrentUserState {

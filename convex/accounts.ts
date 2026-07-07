@@ -1,14 +1,25 @@
 import { action, mutation, query, internalQuery, internalMutation } from './_generated/server'
 import { v } from 'convex/values'
 import { getAuthUserId, createAccount } from '@convex-dev/auth/server'
+import type { GenericActionCtxWithAuthConfig } from '@convex-dev/auth/server'
+import type { DataModel } from './_generated/dataModel'
 import { internal } from './_generated/api'
 import { requireAdmin } from './model'
+import { requestMemberEmailVerification } from './memberEmailVerification'
+
+function isUserEmailVerified(user: {
+  role?: 'admin' | 'staff' | 'member'
+  emailVerificationTime?: number
+}) {
+  return (user.role ?? 'staff') !== 'member' || user.emailVerificationTime !== undefined
+}
 
 const accountValidator = v.object({
   id: v.id('users'),
   name: v.union(v.string(), v.null()),
   email: v.union(v.string(), v.null()),
   role: v.union(v.literal('admin'), v.literal('staff'), v.literal('member')),
+  emailVerified: v.boolean(),
 })
 
 /** Validator for staff/admin accounts only (members excluded). */
@@ -46,6 +57,7 @@ export const me = query({
       name: v.union(v.string(), v.null()),
       email: v.union(v.string(), v.null()),
       role: v.union(v.literal('admin'), v.literal('staff'), v.literal('member')),
+      emailVerified: v.boolean(),
     }),
     v.null(),
   ),
@@ -59,6 +71,7 @@ export const me = query({
       name: u.name ?? null,
       email: u.email ?? null,
       role: u.role ?? ('staff' as const),
+      emailVerified: isUserEmailVerified(u),
     }
   },
 })
@@ -96,6 +109,29 @@ export const hasAnyUser = internalQuery({
   },
 })
 
+export const getVerificationStateInternal = internalQuery({
+  args: { userId: v.union(v.id('users'), v.null()) },
+  returns: v.union(
+    v.object({
+      email: v.union(v.string(), v.null()),
+      role: v.union(v.literal('admin'), v.literal('staff'), v.literal('member')),
+      emailVerified: v.boolean(),
+    }),
+    v.null(),
+  ),
+  handler: async (ctx, args) => {
+    if (!args.userId) return null
+    const user = await ctx.db.get(args.userId)
+    if (!user) return null
+    const role = (user.role ?? 'staff') as 'admin' | 'staff' | 'member'
+    return {
+      email: user.email ?? null,
+      role,
+      emailVerified: isUserEmailVerified(user),
+    }
+  },
+})
+
 /** True quando non esiste ancora alcun account: la UI mostra il setup iniziale. */
 export const needsBootstrap = query({
   args: {},
@@ -126,6 +162,11 @@ export const seedFirstAdmin = action({
       provider: 'password',
       account: { id: email, secret: args.password },
       profile: { email, name: args.name.trim(), role: 'admin' },
+    })
+    await ctx.runMutation(internal.accounts.markEmailTrustedInternal, {
+      userId: result.user._id,
+      accountId: result.account._id,
+      email,
     })
     return { userId: result.user._id }
   },
@@ -161,6 +202,11 @@ export const createStaffAccount = action({
       provider: 'password',
       account: { id: email, secret: args.password },
       profile: { email, name: args.name.trim(), role: args.role },
+    })
+    await ctx.runMutation(internal.accounts.markEmailTrustedInternal, {
+      userId: result.user._id,
+      accountId: result.account._id,
+      email,
     })
     return { userId: result.user._id }
   },
@@ -247,6 +293,20 @@ export const bootstrapFirstAdmin = internalMutation({
   },
 })
 
+export const markEmailTrustedInternal = internalMutation({
+  args: {
+    userId: v.id('users'),
+    accountId: v.id('authAccounts'),
+    email: v.string(),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    await ctx.db.patch(args.userId, { emailVerificationTime: Date.now() })
+    await ctx.db.patch(args.accountId, { emailVerified: args.email })
+    return null
+  },
+})
+
 /**
  * Registrazione pubblica di un Membro.
  * Il ruolo è sempre 'member': nessun input del client può produrre
@@ -274,6 +334,10 @@ export const signUpMember = action({
       account: { id: email, secret: args.password },
       // Role is ALWAYS 'member' — cannot be overridden by client input.
       profile: { email, name: args.name.trim(), role: 'member' },
+    })
+    await requestMemberEmailVerification(ctx as unknown as GenericActionCtxWithAuthConfig<DataModel>, {
+      email,
+      accountId: result.account._id,
     })
     return { userId: result.user._id }
   },
