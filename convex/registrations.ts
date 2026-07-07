@@ -3,6 +3,7 @@ import { mutation, query } from './_generated/server'
 import type { Doc, Id } from './_generated/dataModel'
 import { requireAdmin, generateTicketCode, getCurrentUser } from './model'
 import { intervalsOverlap } from '../lib/slots'
+import { getAuthUserId } from '@convex-dev/auth/server'
 
 const childInput = v.object({ name: v.string(), age: v.number() })
 const companionInput = v.object({ name: v.string() })
@@ -263,6 +264,69 @@ export const listAll = query({
 
     const dtos = await Promise.all(registrations.map((r) => buildRegistrationDTO(ctx, r)))
     return dtos.sort(
+      (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+    )
+  },
+})
+
+/* ------------------------------------------------------------------ */
+/* Query membro: storico prenotazioni del chiamante                    */
+/* ------------------------------------------------------------------ */
+
+export const myRegistrations = query({
+  args: {},
+  handler: async (ctx) => {
+    const userId = await getAuthUserId(ctx)
+    if (!userId) return []
+
+    const registrations = await ctx.db
+      .query('registrations')
+      .withIndex('by_user', (q) => q.eq('userId', userId))
+      .collect()
+
+    const result = []
+    for (const registration of registrations) {
+      const event = await ctx.db.get(registration.eventId)
+      if (!event) continue
+
+      const persons = await ctx.db
+        .query('persons')
+        .withIndex('by_registration', (q) => q.eq('registrationId', registration._id))
+        .collect()
+
+      const personDTOs = []
+      for (const person of persons) {
+        const checkIns = await ctx.db
+          .query('activityCheckIns')
+          .withIndex('by_person', (q) => q.eq('personId', person._id))
+          .collect()
+        personDTOs.push({
+          id: person._id,
+          name: person.name,
+          category: person.category,
+          age: person.age,
+          ticketCode: person.ticketCode,
+          eventCheckInAt: person.eventCheckInAt,
+          eventCheckInCount: person.eventCheckInCount,
+          activityCheckIns: checkIns.map((c) => ({
+            activityId: c.activityId,
+            slotId: c.slotId,
+            at: c.at,
+          })),
+        })
+      }
+
+      result.push({
+        id: registration._id,
+        eventId: registration.eventId,
+        eventTitle: event.title,
+        eventLocation: event.location,
+        createdAt: new Date(registration._creationTime).toISOString(),
+        persons: personDTOs,
+      })
+    }
+
+    return result.sort(
       (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
     )
   },

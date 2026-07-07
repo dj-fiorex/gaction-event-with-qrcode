@@ -3,8 +3,8 @@
 import { useEffect, useState, type FormEvent } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAuthActions } from '@convex-dev/auth/react'
-import { useAction, useMutation } from 'convex/react'
-import { BadgeCheck, CalendarDays, Loader2, LogOut, MailWarning, Pencil, User, X } from 'lucide-react'
+import { useAction, useMutation, useQuery } from 'convex/react'
+import { BadgeCheck, CalendarDays, CheckCircle2, Clock, Loader2, LogOut, MailWarning, MapPin, Pencil, Ticket, User, X, XCircle } from 'lucide-react'
 import Link from 'next/link'
 import { api } from '@/convex/_generated/api'
 import { useCurrentUser } from '@/lib/use-current-user'
@@ -13,6 +13,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Separator } from '@/components/ui/separator'
 
 function FullPageLoader({ label }: { label: string }) {
   return (
@@ -21,6 +22,101 @@ function FullPageLoader({ label }: { label: string }) {
         <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
         {label}
       </span>
+    </div>
+  )
+}
+
+function CheckInStatusBadge({ checkedIn }: { checkedIn: boolean }) {
+  return checkedIn ? (
+    <Badge variant="secondary" className="gap-1 text-green-700 bg-green-100 border-green-200">
+      <CheckCircle2 className="h-3 w-3" aria-hidden="true" />
+      Presente
+    </Badge>
+  ) : (
+    <Badge variant="outline" className="gap-1 text-red-700 bg-red-50 border-red-200">
+      <XCircle className="h-3 w-3" aria-hidden="true" />
+      Assente
+    </Badge>
+  )
+}
+
+type MyRegistration = NonNullable<ReturnType<typeof useQuery<typeof api.registrations.myRegistrations>>>[number]
+
+function RegistrationHistoryCard({ registration }: { registration: MyRegistration }) {
+  const registeredAt = new Date(registration.createdAt).toLocaleDateString('it-IT', {
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+  })
+
+  const mainPerson = registration.persons.find((p) => p.category === 'user')
+  const otherPersons = registration.persons.filter((p) => p.category !== 'user')
+
+  return (
+    <div className="flex flex-col gap-3 rounded-lg border bg-card p-4 shadow-sm">
+      <div className="flex flex-col gap-1">
+        <p className="font-medium leading-tight">{registration.eventTitle}</p>
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
+          <span className="flex items-center gap-1">
+            <MapPin className="h-3 w-3" aria-hidden="true" />
+            {registration.eventLocation}
+          </span>
+          <span className="flex items-center gap-1">
+            <Clock className="h-3 w-3" aria-hidden="true" />
+            Prenotato il {registeredAt}
+          </span>
+        </div>
+      </div>
+      <Separator />
+      <div className="flex flex-col gap-2">
+        {mainPerson && (
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-sm">{mainPerson.name}</span>
+            <CheckInStatusBadge checkedIn={mainPerson.eventCheckInAt !== null} />
+          </div>
+        )}
+        {otherPersons.map((person) => (
+          <div key={person.id} className="flex items-center justify-between gap-2">
+            <span className="text-sm text-muted-foreground">
+              {person.name}
+              <span className="ml-1 text-xs">
+                ({person.category === 'child' ? 'figlio' : 'accompagnatore'})
+              </span>
+            </span>
+            <CheckInStatusBadge checkedIn={person.eventCheckInAt !== null} />
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+function RegistrationHistory() {
+  const registrations = useQuery(api.registrations.myRegistrations)
+
+  if (registrations === undefined) {
+    return (
+      <div className="flex items-center justify-center py-6 text-sm text-muted-foreground">
+        <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" />
+        Caricamento…
+      </div>
+    )
+  }
+
+  if (registrations.length === 0) {
+    return (
+      <div className="flex flex-col items-center gap-2 py-8 text-center text-muted-foreground">
+        <Ticket className="h-8 w-8 opacity-40" aria-hidden="true" />
+        <p className="text-sm">Non hai ancora prenotazioni collegate al tuo account.</p>
+      </div>
+    )
+  }
+
+  return (
+    <div className="flex flex-col gap-3">
+      {registrations.map((reg) => (
+        <RegistrationHistoryCard key={reg.id} registration={reg} />
+      ))}
     </div>
   )
 }
@@ -141,7 +237,7 @@ function ProfiloContent() {
           </Card>
         )}
 
-        <Card>
+        <Card className="mb-6">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <User className="h-5 w-5" aria-hidden="true" />
@@ -218,6 +314,21 @@ function ProfiloContent() {
               </div>
               <p className="text-sm">{user.email ?? '—'}</p>
             </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Ticket className="h-5 w-5" aria-hidden="true" />
+              Storico partecipazioni
+            </CardTitle>
+            <CardDescription>
+              Gli eventi che hai prenotato con il tuo account, con l&apos;esito reale del check-in.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <RegistrationHistory />
           </CardContent>
         </Card>
       </main>
