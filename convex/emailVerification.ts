@@ -70,7 +70,6 @@ export const completeCodeInternal = internalMutation({
       return false
     }
 
-    await ctx.db.delete(verificationCode._id)
     if (verificationCode.expirationTime < Date.now()) {
       return false
     }
@@ -78,6 +77,7 @@ export const completeCodeInternal = internalMutation({
     const account = await ctx.db.get(verificationCode.accountId)
     if (!account) return false
 
+    await ctx.db.delete(verificationCode._id)
     await ctx.db.patch(account._id, {
       emailVerified: verificationCode.emailVerified ?? account.providerAccountId,
     })
