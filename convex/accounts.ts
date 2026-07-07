@@ -3,7 +3,7 @@ import { v } from 'convex/values'
 import { getAuthUserId, createAccount } from '@convex-dev/auth/server'
 import type { GenericActionCtxWithAuthConfig } from '@convex-dev/auth/server'
 import type { DataModel } from './_generated/dataModel'
-import { internal } from './_generated/api'
+import { api, internal } from './_generated/api'
 import { requireAdmin } from './model'
 import { requestMemberEmailVerification } from './memberEmailVerification'
 
@@ -129,6 +129,20 @@ export const getVerificationStateInternal = internalQuery({
       role,
       emailVerified: isUserEmailVerified(user),
     }
+  },
+})
+
+export const getPasswordResetStateInternal = internalQuery({
+  args: { email: v.string() },
+  returns: v.object({
+    canReset: v.boolean(),
+  }),
+  handler: async (ctx, args) => {
+    const user = await ctx.db
+      .query('users')
+      .withIndex('email', (q) => q.eq('email', args.email))
+      .unique()
+    return { canReset: (user?.role ?? 'staff') === 'member' }
   },
 })
 
@@ -340,5 +354,56 @@ export const signUpMember = action({
       accountId: result.account._id,
     })
     return { userId: result.user._id }
+  },
+})
+
+export const requestPasswordReset = action({
+  args: { email: v.string() },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const email = args.email.trim().toLowerCase()
+    if (!email) throw new Error('Email obbligatoria')
+
+    const { canReset }: { canReset: boolean } = await ctx.runQuery(
+      internal.accounts.getPasswordResetStateInternal,
+      { email },
+    )
+    if (!canReset) return null
+
+    await ctx.runAction(api.auth.signIn, {
+      provider: 'password',
+      params: {
+        flow: 'reset',
+        email,
+        redirectTo: `/reimposta-password?email=${encodeURIComponent(email)}`,
+      },
+      calledBy: 'accounts.requestPasswordReset',
+    })
+    return null
+  },
+})
+
+export const completePasswordReset = action({
+  args: {
+    email: v.string(),
+    code: v.string(),
+    newPassword: v.string(),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const email = args.email.trim().toLowerCase()
+    if (!email) throw new Error('Email obbligatoria')
+
+    await ctx.runAction(api.auth.signIn, {
+      provider: 'password',
+      params: {
+        flow: 'reset-verification',
+        email,
+        code: args.code.trim(),
+        newPassword: args.newPassword,
+      },
+      calledBy: 'accounts.completePasswordReset',
+    })
+    return null
   },
 })

@@ -147,3 +147,60 @@ export const sendMemberVerificationEmail = internalAction({
     }
   },
 })
+
+export const sendMemberPasswordResetEmail = internalAction({
+  args: {
+    email: v.string(),
+    resetUrl: v.string(),
+    expiresAt: v.string(),
+  },
+  returns: v.object({
+    delivered: v.boolean(),
+    simulated: v.boolean(),
+  }),
+  handler: async (_ctx, args) => {
+    const apiKey = process.env.RESEND_API_KEY
+    if (!apiKey) {
+      console.log(`[v0] RESEND_API_KEY non configurata. Email reset simulata per ${args.email}.`)
+      return { delivered: false, simulated: true }
+    }
+
+    try {
+      const resend = new Resend(apiKey)
+      const html = `
+        <div style="font-family:Arial,Helvetica,sans-serif;max-width:520px;margin:0 auto;border:1px solid #e2e8f0;border-radius:12px;overflow:hidden;">
+          <div style="background:#1f3a8a;color:#ffffff;padding:20px 24px;">
+            <h1 style="margin:0;font-size:20px;">Reimposta la tua password</h1>
+          </div>
+          <div style="padding:24px;">
+            <p style="margin:0 0 12px;color:#475569;">
+              Abbiamo ricevuto una richiesta di reset per il tuo account Membro.
+            </p>
+            <p style="margin:0 0 20px;color:#475569;">
+              Il link resta valido fino al <strong>${args.expiresAt}</strong>.
+            </p>
+            <p style="margin:0 0 20px;">
+              <a href="${args.resetUrl}" style="display:inline-block;background:#1f3a8a;color:#ffffff;text-decoration:none;padding:12px 18px;border-radius:10px;font-weight:600;">
+                Reimposta password
+              </a>
+            </p>
+            <p style="margin:0;color:#64748b;font-size:13px;word-break:break-all;">
+              Se il pulsante non funziona, copia e apri questo link:<br />
+              <a href="${args.resetUrl}" style="color:#1d4ed8;">${args.resetUrl}</a>
+            </p>
+          </div>
+        </div>`
+
+      await resend.emails.send({
+        from: FROM_ADDRESS,
+        to: args.email,
+        subject: 'Reimposta la tua password',
+        html,
+      })
+      return { delivered: true, simulated: false }
+    } catch (error) {
+      console.log('[v0] Errore invio email reset Resend:', error)
+      return { delivered: false, simulated: false }
+    }
+  },
+})
