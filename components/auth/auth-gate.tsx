@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect } from 'react'
-import { useRouter, useSearchParams } from 'next/navigation'
+import { useRouter } from 'next/navigation'
 import { Loader2 } from 'lucide-react'
 import { useCurrentUser, type Role } from '@/lib/use-current-user'
 
@@ -35,7 +35,6 @@ interface AuthGateProps {
  */
 export function AuthGate({ require, children }: AuthGateProps) {
   const router = useRouter()
-  const searchParams = useSearchParams()
   const { role, isLoading, isAuthenticated } = useCurrentUser()
 
   useEffect(() => {
@@ -53,7 +52,7 @@ export function AuthGate({ require, children }: AuthGateProps) {
     if (require === 'admin' && role !== 'admin') {
       router.replace('/staff')
     }
-  }, [isLoading, isAuthenticated, role, require, router, searchParams])
+  }, [isLoading, isAuthenticated, role, require, router])
 
   if (isLoading) return <FullPageLoader label="Verifica accesso…" />
   if (!isAuthenticated) return <FullPageLoader label="Reindirizzamento…" />

@@ -85,7 +85,7 @@ function ProfiloContent() {
 }
 
 export default function ProfiloPage() {
-  const { isLoading, isAuthenticated, role } = useCurrentUser()
+  const { isLoading, isAuthenticated } = useCurrentUser()
   const router = useRouter()
 
   useEffect(() => {
@@ -97,7 +97,6 @@ export default function ProfiloPage() {
 
   if (isLoading) return <FullPageLoader label="Caricamento profilo…" />
   if (!isAuthenticated) return <FullPageLoader label="Reindirizzamento…" />
-  if (!role) return <FullPageLoader label="Caricamento profilo…" />
 
   return <ProfiloContent />
 }
