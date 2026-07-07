@@ -17,6 +17,7 @@ import type * as emails from "../emails.js";
 import type * as eventStaff from "../eventStaff.js";
 import type * as events from "../events.js";
 import type * as http from "../http.js";
+import type * as memberEmailVerification from "../memberEmailVerification.js";
 import type * as model from "../model.js";
 import type * as registrations from "../registrations.js";
 import type * as seed from "../seed.js";
@@ -37,6 +38,7 @@ declare const fullApi: ApiFromModules<{
   eventStaff: typeof eventStaff;
   events: typeof events;
   http: typeof http;
+  memberEmailVerification: typeof memberEmailVerification;
   model: typeof model;
   registrations: typeof registrations;
   seed: typeof seed;

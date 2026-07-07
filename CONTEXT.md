@@ -3,7 +3,10 @@
 ## Ubiquitous Language
 
 ### Utente
-Chi si iscrive a un Evento e gestisce la prenotazione. Un Utente è **sempre anche una Persona**: partecipa, occupa un posto e riceve un proprio QR code. Può portare altre Persone (Figli e Accompagnatori).
+Chi si iscrive a un Evento e gestisce la prenotazione. Un Utente è **sempre anche una Persona**: partecipa, occupa un posto e riceve un proprio QR code. Può portare altre Persone (Figli e Accompagnatori). Un Utente **può ora essere collegato a un [[Membro]]** (account personale) quando prenota da loggato; resta comunque possibile prenotare in modo anonimo.
+
+### Membro (Account personale)
+Identità autenticata **persistente** che una persona crea sul sito per prenotare gli Eventi senza reinserire i propri dati e per consultare il proprio **Storico partecipazioni**. Tecnicamente è una riga della tabella `users` (Convex Auth) con **`role: 'member'`** — lo **stesso** contenitore di admin/Assistenti, ma **non privilegiato**. L'auto-registrazione è **email + password** con **email verificata obbligatoria**. Un Membro possiede le proprie Prenotazioni (via `registrations.userId`) e, quando prenota, compare all'Evento come Utente-Persona. **Attenzione al confine di nomi:** la tabella `users` NON coincide con il termine di glossario «Utente»; ospita tre attori (admin, staff/Assistente, member).
 
 ### Persona
 Un partecipante fisico all'Evento. Occupa un posto e riceve **1 QR code**. NON è un account. Ha almeno un **nome**. Categorie di Persona:
@@ -32,6 +35,15 @@ Margine in minuti, **configurabile dall'admin**, entro cui è consentito il chec
 ### Prenotazione
 L'insieme delle Persone iscritte insieme da un Utente in un'unica operazione. La **selezione è unica per Prenotazione**: per ogni Attività scelta si seleziona **uno Slot specifico**, e tutte le Persone della Prenotazione occupano quello stesso Slot. Ogni Persona occupa 1 posto in ciascuno Slot selezionato.
 
+### Prenotazione riservata agli account (requireAccount)
+Booleano a livello di Evento impostato dall'admin. Se **true**, per prenotare quell'Evento bisogna essere un [[Membro]] **loggato e con email verificata**; la Prenotazione viene collegata al Membro. Se **false**, la prenotazione anonima funziona come oggi (nome + `contactEmail`, senza login). Interazione con l'embed: quando un Evento è sia `requireAccount` sia `embedEnabled`, **per ora vince `requireAccount`** — il form incorporato rifiuta la prenotazione anonima e rimanda al sito principale. La coesistenza embed↔account va progettata in una sessione dedicata.
+
+### Collegamento Prenotazione–Membro
+Una Prenotazione è collegata a un Membro **solo tramite FK esplicita** (`registrations.userId`), impostata quando il Membro è loggato al momento della prenotazione (sempre per gli Eventi `requireAccount`; anche per gli Eventi anonimi se per caso è loggato). **Mai** per corrispondenza su `contactEmail`: quest'ultima è testo non verificato e un match esporrebbe la Prenotazione di uno sconosciuto (e i nomi dei suoi Figli) nello Storico di chi digita la stessa email. Le Prenotazioni anonime non compaiono in alcuno Storico.
+
+### Storico partecipazioni
+Vista nella [[Membro|area personale]] (`/profilo`): l'elenco degli Eventi che il Membro ha **prenotato** (via `registrations.userId`), ciascuno annotato con lo **stato di check-in reale** della sua Persona (presente/assente all'Evento, ed eventualmente a quali Attività/Slot). «Partecipazione» = Prenotazione **più** esito del [[Check-in]]; include quindi anche i no-show, marcati come tali.
+
 ### Permetti sovrapposizioni
 Booleano a livello di Evento impostato dall'admin. Se falso, il sistema impedisce a una Prenotazione di selezionare Slot che si sovrappongono nel tempo. Se vero, gli Slot sovrapposti sono consentiti.
 
@@ -48,7 +60,7 @@ Una Registrazione è **atomica**: se anche un solo Slot selezionato non ha posti
 Un codice univoco generato **1 per ogni Persona** (non per Attività). Vale come pass per tutte le Attività a cui quella Persona è iscritta.
 
 ### Staff (Operatore / Assistente)
-Ruolo dedicato alla scansione dei QR, separato dall'Admin, con accesso limitato alla sola interfaccia di scansione/check-in. Con Convex Auth ogni Operatore ha un **account reale** (email + password) e un campo `role` (`admin` | `staff`). Sinonimo usato dall'admin: **Assistente**.
+Ruolo dedicato alla scansione dei QR, separato dall'Admin, con accesso limitato alla sola interfaccia di scansione/check-in. Con Convex Auth ogni Operatore ha un **account reale** (email + password) e un campo `role`. Il campo `role` ha ora **tre valori** — `admin` | `staff` | `member` — dove `member` è il [[Membro]] pubblico non privilegiato (vedi ADR `0003`); admin e staff restano creabili **solo** da un admin. Sinonimo usato dall'admin per lo staff: **Assistente**.
 
 ### Modalità di accesso all'Evento (checkInAccess)
 Impostazione a livello di Evento che determina chi può operare la scansione:
