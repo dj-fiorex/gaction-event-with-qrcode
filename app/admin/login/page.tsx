@@ -5,21 +5,27 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { LoginForm } from '@/components/admin/login-form'
 import { useCurrentUser } from '@/lib/use-current-user'
 
+function resolveRedirect(raw: string | null) {
+  if (!raw || !raw.startsWith('/') || raw.startsWith('//')) return null
+  return raw
+}
+
 function LoginRedirect() {
   const { user, isLoading } = useCurrentUser()
   const router = useRouter()
   const searchParams = useSearchParams()
+  const redirect = resolveRedirect(searchParams.get('redirect'))
 
   useEffect(() => {
     if (isLoading || !user) return
     if (user.role === 'member') {
-      router.replace('/profilo')
+      router.replace(redirect ?? '/profilo')
     } else if (user.role === 'admin') {
-      router.replace(searchParams.get('redirect') ?? '/admin')
+      router.replace(redirect ?? '/admin')
     } else {
       router.replace('/staff')
     }
-  }, [user, isLoading, router, searchParams])
+  }, [redirect, user, isLoading, router])
 
   return null
 }

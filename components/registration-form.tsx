@@ -238,7 +238,12 @@ export function RegistrationForm({
           >
             Accedi
           </Button>
-          <Button nativeButton={false} variant="outline" className="flex-1" render={<Link href="/registrati" />}>
+          <Button
+            nativeButton={false}
+            variant="outline"
+            className="flex-1"
+            render={<Link href={`/registrati?redirect=${encodeURIComponent(redirectPath)}`} />}
+          >
             Registrati
           </Button>
         </div>

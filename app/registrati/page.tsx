@@ -1,7 +1,7 @@
 'use client'
 
 import { Suspense, useEffect, useState, type FormEvent } from 'react'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { useAuthActions } from '@convex-dev/auth/react'
 import { useAction } from 'convex/react'
 import { UserPlus } from 'lucide-react'
@@ -14,16 +14,23 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 
 /** Reindirizza automaticamente se l'utente è già autenticato. */
+function resolveRedirect(raw: string | null) {
+  if (!raw || !raw.startsWith('/') || raw.startsWith('//')) return null
+  return raw
+}
+
 function RegistrationRedirect() {
   const { user, isLoading } = useCurrentUser()
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const redirect = resolveRedirect(searchParams.get('redirect'))
 
   useEffect(() => {
     if (isLoading || !user) return
-    if (user.role === 'member') router.replace('/profilo')
+    if (user.role === 'member') router.replace(redirect ?? '/profilo')
     else if (user.role === 'admin') router.replace('/admin')
     else router.replace('/staff')
-  }, [user, isLoading, router])
+  }, [redirect, user, isLoading, router])
 
   return null
 }
@@ -32,6 +39,7 @@ function RegistrationForm() {
   const { signIn } = useAuthActions()
   const signUpMember = useAction(api.accounts.signUpMember)
   const router = useRouter()
+  const searchParams = useSearchParams()
   const [error, setError] = useState<string | null>(null)
   const [pending, setPending] = useState(false)
 
@@ -44,6 +52,7 @@ function RegistrationForm() {
     const name = String(formData.get('name') ?? '').trim()
     const email = String(formData.get('email') ?? '').trim()
     const password = String(formData.get('password') ?? '')
+    const redirect = resolveRedirect(searchParams.get('redirect'))
 
     try {
       // 1. Create member account (role is always 'member', never from client input).
@@ -56,7 +65,7 @@ function RegistrationForm() {
       signInData.set('password', password)
       await signIn('password', signInData)
 
-      router.replace('/profilo')
+      router.replace(redirect ?? '/profilo')
     } catch (submitError) {
       setError(
         submitError instanceof Error ? submitError.message : 'Registrazione non riuscita.',
