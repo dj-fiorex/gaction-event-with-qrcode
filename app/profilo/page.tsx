@@ -40,7 +40,9 @@ function CheckInStatusBadge({ checkedIn }: { checkedIn: boolean }) {
   )
 }
 
-type MyRegistration = NonNullable<ReturnType<typeof useQuery<typeof api.registrations.myRegistrations>>>[number]
+type MyRegistration = NonNullable<
+  ReturnType<typeof useQuery<typeof api.registrations.myRegistrations>>
+>[number]
 
 function RegistrationHistoryCard({ registration }: { registration: MyRegistration }) {
   const registeredAt = new Date(registration.createdAt).toLocaleDateString('it-IT', {
@@ -49,6 +51,8 @@ function RegistrationHistoryCard({ registration }: { registration: MyRegistratio
     year: 'numeric',
   })
 
+  // Each registration always has exactly one 'user' person (the main registrant);
+  // children and companions are additional persons with other categories.
   const mainPerson = registration.persons.find((p) => p.category === 'user')
   const otherPersons = registration.persons.filter((p) => p.category !== 'user')
 

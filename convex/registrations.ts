@@ -287,6 +287,8 @@ export const myRegistrations = query({
     const result = []
     for (const registration of registrations) {
       const event = await ctx.db.get(registration.eventId)
+      // Events are never deleted in this schema, so a missing event indicates
+      // an orphaned registration (e.g. from development/seed data). Skip silently.
       if (!event) continue
 
       const persons = await ctx.db
