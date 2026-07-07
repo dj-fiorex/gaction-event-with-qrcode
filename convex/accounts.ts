@@ -7,6 +7,13 @@ import { internal } from './_generated/api'
 import { requireAdmin } from './model'
 import { requestMemberEmailVerification } from './memberEmailVerification'
 
+function isUserEmailVerified(user: {
+  role?: 'admin' | 'staff' | 'member'
+  emailVerificationTime?: number
+}) {
+  return (user.role ?? 'staff') !== 'member' || user.emailVerificationTime !== undefined
+}
+
 const accountValidator = v.object({
   id: v.id('users'),
   name: v.union(v.string(), v.null()),
@@ -64,7 +71,7 @@ export const me = query({
       name: u.name ?? null,
       email: u.email ?? null,
       role: u.role ?? ('staff' as const),
-      emailVerified: (u.role ?? 'staff') !== 'member' || u.emailVerificationTime !== undefined,
+      emailVerified: isUserEmailVerified(u),
     }
   },
 })
@@ -120,7 +127,7 @@ export const getVerificationStateInternal = internalQuery({
     return {
       email: user.email ?? null,
       role,
-      emailVerified: role !== 'member' || user.emailVerificationTime !== undefined,
+      emailVerified: isUserEmailVerified(user),
     }
   },
 })

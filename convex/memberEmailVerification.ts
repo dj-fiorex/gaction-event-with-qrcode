@@ -1,11 +1,16 @@
 import { Email } from '@convex-dev/auth/providers/Email'
-import { retrieveAccount, signInViaProvider, type GenericActionCtxWithAuthConfig } from '@convex-dev/auth/server'
+import {
+  retrieveAccount,
+  signInViaProvider,
+  type EmailConfig,
+  type GenericActionCtxWithAuthConfig,
+} from '@convex-dev/auth/server'
 import type { Id, DataModel } from './_generated/dataModel'
 import { internal } from './_generated/api'
 
 const EMAIL_VERIFICATION_REDIRECT = '/verifica-email'
 
-export const MemberVerificationProvider: any = {
+export const MemberVerificationProvider = {
   ...Email<DataModel>({ sendVerificationRequest: async () => {} }),
   id: 'member-email-verification',
   authorize: undefined,
@@ -29,7 +34,7 @@ export const MemberVerificationProvider: any = {
       throw new Error("Invio dell'email di verifica non riuscito")
     }
   },
-}
+} as unknown as EmailConfig<DataModel>
 
 export async function requestMemberEmailVerification(
   ctx: GenericActionCtxWithAuthConfig<DataModel>,
@@ -68,13 +73,13 @@ export async function requestMemberEmailVerification(
   const result: { delivered: boolean; simulated: boolean } = await ctx.runAction(
     internal.emails.sendMemberVerificationEmail,
     {
-    email: args.email,
-    verificationUrl: `${baseUrl}${EMAIL_VERIFICATION_REDIRECT}?code=${encodeURIComponent(issued.code)}`,
-    expiresAt: new Date(issued.expiresAt).toLocaleString('it-IT', {
-      dateStyle: 'short',
-      timeStyle: 'short',
-      timeZone: 'Europe/Rome',
-    }),
+      email: args.email,
+      verificationUrl: `${baseUrl}${EMAIL_VERIFICATION_REDIRECT}?code=${encodeURIComponent(issued.code)}`,
+      expiresAt: new Date(issued.expiresAt).toLocaleString('it-IT', {
+        dateStyle: 'short',
+        timeStyle: 'short',
+        timeZone: 'Europe/Rome',
+      }),
     },
   )
   if (!result.delivered && !result.simulated) {

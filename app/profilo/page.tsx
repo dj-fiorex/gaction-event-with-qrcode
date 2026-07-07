@@ -120,10 +120,17 @@ function ProfiloContent() {
               </CardDescription>
             </CardHeader>
             <CardContent className="flex flex-col gap-3">
-              <p className="text-sm text-amber-950">
-                Controlla la casella di <strong>{user.email ?? 'posta elettronica'}</strong> e,
-                se non trovi il messaggio, richiedi un nuovo invio.
-              </p>
+              {user.email ? (
+                <p className="text-sm text-amber-950">
+                  Controlla la casella di <strong>{user.email}</strong> e, se non trovi il
+                  messaggio, richiedi un nuovo invio.
+                </p>
+              ) : (
+                <p className="text-sm text-amber-950">
+                  Controlla la tua casella email e, se non trovi il messaggio, richiedi un nuovo
+                  invio.
+                </p>
+              )}
               <div className="flex flex-wrap items-center gap-3">
                 <Button variant="outline" onClick={handleResendVerification} disabled={resendPending}>
                   {resendPending ? 'Invio in corso…' : 'Reinvia email di verifica'}

@@ -10,6 +10,7 @@ import {
 } from './memberEmailVerification'
 
 const VERIFICATION_PROVIDER = 'member-email-verification'
+const VERIFICATION_CODE_EXPIRY_MS = 1000 * 60 * 60 * 24
 
 function randomCode(length: number) {
   const alphabet = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz'
@@ -43,7 +44,7 @@ export const issueCodeInternal = internalMutation({
     }
 
     const code = randomCode(32)
-    const expiresAt = Date.now() + 1000 * 60 * 60 * 24
+    const expiresAt = Date.now() + VERIFICATION_CODE_EXPIRY_MS
     await ctx.db.insert('authVerificationCodes', {
       accountId: args.accountId,
       provider: VERIFICATION_PROVIDER,
