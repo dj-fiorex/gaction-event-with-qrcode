@@ -63,6 +63,8 @@ export interface Event {
    * incrementa il contatore degli ingressi.
    */
   allowQrReuse: boolean
+  /** Se true, la Prenotazione è riservata ai Membri autenticati e verificati. */
+  requireAccount: boolean
   allowChildren: boolean
   maxChildrenPerRegistration: number
   allowCompanions: boolean

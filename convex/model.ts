@@ -151,6 +151,7 @@ export interface EventWithStatsDTO {
   allowOverlap: boolean
   checkInToleranceMinutes: number
   allowQrReuse: boolean
+  requireAccount: boolean
   allowChildren: boolean
   maxChildrenPerRegistration: number
   allowCompanions: boolean
@@ -271,6 +272,7 @@ export async function loadEventWithStats(
     allowOverlap: event.allowOverlap,
     checkInToleranceMinutes: event.checkInToleranceMinutes,
     allowQrReuse: event.allowQrReuse,
+    requireAccount: event.requireAccount ?? false,
     allowChildren: event.allowChildren,
     maxChildrenPerRegistration: event.maxChildrenPerRegistration,
     allowCompanions: event.allowCompanions,
