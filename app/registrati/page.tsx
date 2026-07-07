@@ -1,13 +1,14 @@
 'use client'
 
 import { Suspense, useEffect, useState, type FormEvent } from 'react'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { useAuthActions } from '@convex-dev/auth/react'
 import { useAction } from 'convex/react'
 import { UserPlus } from 'lucide-react'
 import Link from 'next/link'
 import { api } from '@/convex/_generated/api'
 import { useCurrentUser } from '@/lib/use-current-user'
+import { resolveInternalRedirect } from '@/lib/redirect-utils'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -17,13 +18,15 @@ import { Label } from '@/components/ui/label'
 function RegistrationRedirect() {
   const { user, isLoading } = useCurrentUser()
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const redirect = resolveInternalRedirect(searchParams.get('redirect'))
 
   useEffect(() => {
     if (isLoading || !user) return
-    if (user.role === 'member') router.replace('/profilo')
+    if (user.role === 'member') router.replace(redirect ?? '/profilo')
     else if (user.role === 'admin') router.replace('/admin')
     else router.replace('/staff')
-  }, [user, isLoading, router])
+  }, [redirect, user, isLoading, router])
 
   return null
 }
@@ -32,6 +35,7 @@ function RegistrationForm() {
   const { signIn } = useAuthActions()
   const signUpMember = useAction(api.accounts.signUpMember)
   const router = useRouter()
+  const searchParams = useSearchParams()
   const [error, setError] = useState<string | null>(null)
   const [pending, setPending] = useState(false)
 
@@ -44,6 +48,7 @@ function RegistrationForm() {
     const name = String(formData.get('name') ?? '').trim()
     const email = String(formData.get('email') ?? '').trim()
     const password = String(formData.get('password') ?? '')
+    const redirect = resolveInternalRedirect(searchParams.get('redirect'))
 
     try {
       // 1. Create member account (role is always 'member', never from client input).
@@ -56,7 +61,7 @@ function RegistrationForm() {
       signInData.set('password', password)
       await signIn('password', signInData)
 
-      router.replace('/profilo')
+      router.replace(redirect ?? '/profilo')
     } catch (submitError) {
       setError(
         submitError instanceof Error ? submitError.message : 'Registrazione non riuscita.',
@@ -102,7 +107,7 @@ function RegistrationForm() {
           </Button>
           <p className="text-center text-sm text-muted-foreground">
             Hai già un account?{' '}
-            <Link href="/admin/login" className="underline underline-offset-4 hover:text-foreground">
+            <Link href="/accedi" className="underline underline-offset-4 hover:text-foreground">
               Accedi
             </Link>
           </p>

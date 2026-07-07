@@ -42,6 +42,7 @@ const defaultValues: EventInput = {
   allowOverlap: false,
   checkInToleranceMinutes: 15,
   allowQrReuse: false,
+  requireAccount: false,
   allowChildren: false,
   maxChildrenPerRegistration: 2,
   allowCompanions: false,
@@ -345,6 +346,29 @@ export function EventForm({
           <p className="text-sm text-muted-foreground">
             Se attivo, lo stesso QR può essere scansionato più volte (ingresso evento e attività):
             ogni rientro resta valido e viene conteggiato.
+          </p>
+        </div>
+      </div>
+
+      <div className="flex items-start gap-2 rounded-lg border border-border p-4">
+        <Controller
+          control={control}
+          name="requireAccount"
+          render={({ field }) => (
+            <Checkbox
+              id="requireAccount"
+              className="mt-0.5"
+              checked={field.value}
+              onCheckedChange={(checked) => field.onChange(checked === true)}
+            />
+          )}
+        />
+        <div className="grid gap-1">
+          <Label htmlFor="requireAccount" className="font-normal">
+            Prenotazione riservata agli account
+          </Label>
+          <p className="text-sm text-muted-foreground">
+            Se attivo, solo i Membri con email verificata possono completare la prenotazione.
           </p>
         </div>
       </div>

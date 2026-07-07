@@ -27,6 +27,7 @@ function toEventInput(event: EventWithStats): EventInput {
     allowOverlap: event.allowOverlap,
     checkInToleranceMinutes: event.checkInToleranceMinutes,
     allowQrReuse: event.allowQrReuse,
+    requireAccount: event.requireAccount,
     allowChildren: event.allowChildren,
     maxChildrenPerRegistration: event.maxChildrenPerRegistration || 2,
     allowCompanions: event.allowCompanions,

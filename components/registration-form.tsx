@@ -1,6 +1,8 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import Link from 'next/link'
+import { usePathname } from 'next/navigation'
+import { useEffect, useMemo, useState } from 'react'
 import { useFieldArray, useForm } from 'react-hook-form'
 import { Plus, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
@@ -24,6 +26,7 @@ import { formatTimeRange, formatDateRange } from '@/lib/format'
 import { generateQrDataUrl } from '@/lib/qr-client'
 import { intervalsOverlap } from '@/lib/slots'
 import type { EventWithStats, RegisteredPerson, SlotWithAvailability } from '@/lib/types'
+import { useCurrentUser } from '@/lib/use-current-user'
 import { TicketResult } from './ticket-result'
 
 const NONE = '__none__'
@@ -44,6 +47,8 @@ export function RegistrationForm({
 }) {
   const registerMutation = useMutation(api.registrations.register)
   const sendTickets = useAction(api.emails.sendTickets)
+  const pathname = usePathname()
+  const { user, isLoading } = useCurrentUser()
   const [tickets, setTickets] = useState<RegisteredPerson[] | null>(null)
   const [submitting, setSubmitting] = useState(false)
   const [slotByActivity, setSlotByActivity] = useState<Record<string, string>>({})
@@ -53,6 +58,7 @@ export function RegistrationForm({
     handleSubmit,
     control,
     reset,
+    setValue,
     watch,
     formState: { errors },
   } = useForm<RegistrationInput>({
@@ -69,8 +75,23 @@ export function RegistrationForm({
 
   const childrenArray = useFieldArray({ control, name: 'children' })
   const companionsArray = useFieldArray({ control, name: 'companions' })
+  const isMember = user?.role === 'member'
+  const lockedContactEmail = isMember ? (user.email ?? '') : ''
+  const contactEmailLocked = lockedContactEmail.length > 0
+  const eventUrl = `/eventi/${event.id}`
+  const redirectPath = pathname || eventUrl
+  const userName = watch('userName')
 
   const personsNeeded = 1 + childrenArray.fields.length + companionsArray.fields.length
+
+  useEffect(() => {
+    if (!isMember) return
+    if (lockedContactEmail) {
+      setValue('contactEmail', lockedContactEmail, { shouldValidate: true })
+    }
+    if (!user.name || userName.trim() !== '') return
+    setValue('userName', user.name)
+  }, [isMember, lockedContactEmail, setValue, user?.name, userName])
 
   const slotById = useMemo(() => {
     const map = new Map<string, SlotWithAvailability>()
@@ -181,6 +202,77 @@ export function RegistrationForm({
     )
   }
 
+  if (embed && event.requireAccount) {
+    return (
+      <RegistrationNotice
+        title="Completa la registrazione dal sito principale"
+        description="Questo evento richiede un account Membro verificato. Apri la pagina ufficiale dell'evento per accedere o registrarti prima di prenotare."
+      >
+        <Button nativeButton={false} className="w-full" render={<Link href={eventUrl} />}>
+          Vai al sito principale
+        </Button>
+      </RegistrationNotice>
+    )
+  }
+
+  if (event.requireAccount && isLoading) {
+    return (
+      <RegistrationNotice
+        title="Verifica account in corso…"
+        description="Controlliamo se hai già un account Membro verificato per questo evento."
+      />
+    )
+  }
+
+  if (event.requireAccount && !user) {
+    return (
+      <RegistrationNotice
+        title="Accedi o registrati per prenotare"
+        description="La prenotazione per questo evento è riservata ai Membri con account verificato."
+      >
+        <div className="flex flex-col gap-2 sm:flex-row">
+          <Button
+            nativeButton={false}
+            className="flex-1"
+            render={<Link href={`/accedi?redirect=${encodeURIComponent(redirectPath)}`} />}
+          >
+            Accedi
+          </Button>
+          <Button
+            nativeButton={false}
+            variant="outline"
+            className="flex-1"
+            render={<Link href={`/registrati?redirect=${encodeURIComponent(redirectPath)}`} />}
+          >
+            Registrati
+          </Button>
+        </div>
+      </RegistrationNotice>
+    )
+  }
+
+  if (event.requireAccount && user?.role !== 'member') {
+    return (
+      <RegistrationNotice
+        title="Prenotazione riservata ai Membri"
+        description="Per questo evento serve un account Membro verificato. Accedi con un account Membro per continuare."
+      />
+    )
+  }
+
+  if (event.requireAccount && !user?.emailVerified) {
+    return (
+      <RegistrationNotice
+        title="Verifica la tua email"
+        description="Prima di prenotare questo evento devi verificare l'email del tuo account Membro."
+      >
+        <Button nativeButton={false} className="w-full" render={<Link href="/profilo" />}>
+          Apri il profilo
+        </Button>
+      </RegistrationNotice>
+    )
+  }
+
   return (
     <Card>
       <CardHeader>
@@ -202,10 +294,17 @@ export function RegistrationForm({
               id="contactEmail"
               type="email"
               {...register('contactEmail')}
+              readOnly={contactEmailLocked}
               aria-invalid={!!errors.contactEmail}
+              className={contactEmailLocked ? 'bg-muted' : undefined}
             />
             {errors.contactEmail && (
               <p className="text-sm text-destructive">{errors.contactEmail.message}</p>
+            )}
+            {contactEmailLocked && (
+              <p className="text-sm text-muted-foreground">
+                Ti invieremo i biglietti all'email del tuo account Membro.
+              </p>
             )}
           </div>
 
@@ -308,6 +407,28 @@ export function RegistrationForm({
             {submitting ? 'Registrazione in corso…' : `Conferma registrazione (${personsNeeded} persone)`}
           </Button>
         </form>
+      </CardContent>
+    </Card>
+  )
+}
+
+function RegistrationNotice({
+  title,
+  description,
+  children,
+}: {
+  title: string
+  description: string
+  children?: React.ReactNode
+}) {
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>{title}</CardTitle>
+      </CardHeader>
+      <CardContent className="flex flex-col gap-4">
+        <p className="text-sm text-muted-foreground">{description}</p>
+        {children}
       </CardContent>
     </Card>
   )

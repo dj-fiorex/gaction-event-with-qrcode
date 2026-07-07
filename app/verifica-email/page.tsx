@@ -60,7 +60,7 @@ function VerifyEmailContent() {
         <Button nativeButton={false} render={<Link href="/profilo" />}>
           Vai al profilo
         </Button>
-        <Button variant="outline" nativeButton={false} render={<Link href="/admin/login" />}>
+        <Button variant="outline" nativeButton={false} render={<Link href="/accedi" />}>
           Accedi
         </Button>
       </CardContent>
