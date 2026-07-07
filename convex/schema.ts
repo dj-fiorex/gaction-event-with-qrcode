@@ -20,7 +20,7 @@ export const personCategory = v.union(
   v.literal('companion'),
 )
 
-export const userRole = v.union(v.literal('admin'), v.literal('staff'))
+export const userRole = v.union(v.literal('admin'), v.literal('staff'), v.literal('member'))
 
 export default defineSchema({
   // Tabelle di Convex Auth (users, authSessions, authAccounts, ...).
@@ -35,7 +35,7 @@ export default defineSchema({
     phoneVerificationTime: v.optional(v.number()),
     image: v.optional(v.string()),
     isAnonymous: v.optional(v.boolean()),
-    /** Ruolo applicativo. Assente = staff finché un admin non lo promuove. */
+    /** Ruolo applicativo. Assente = staff per i documenti legacy senza ruolo. */
     role: v.optional(userRole),
   })
     .index('email', ['email'])
@@ -64,6 +64,8 @@ export default defineSchema({
     scanUnlockToken: v.union(v.string(), v.null()),
     /** Abilita l'incorporamento del form di registrazione su siti terzi via iframe. */
     embedEnabled: v.optional(v.boolean()),
+    /** Se true, la Prenotazione richiede un Membro autenticato. */
+    requireAccount: v.optional(v.boolean()),
     /**
      * Origini autorizzate a incorporare il form (CSP frame-ancestors).
      * Ogni voce è un'origine esatta (https://www.partner.com) o un wildcard di
@@ -97,7 +99,10 @@ export default defineSchema({
   registrations: defineTable({
     eventId: v.id('events'),
     contactEmail: v.string(),
-  }).index('by_event', ['eventId']),
+    userId: v.optional(v.id('users')),
+  })
+    .index('by_event', ['eventId'])
+    .index('by_user', ['userId']),
 
   slotSelections: defineTable({
     registrationId: v.id('registrations'),
