@@ -57,7 +57,6 @@ export function RegistrationForm({
     register,
     handleSubmit,
     control,
-    getValues,
     reset,
     setValue,
     watch,
@@ -81,18 +80,19 @@ export function RegistrationForm({
   const contactEmailLocked = lockedContactEmail.length > 0
   const eventUrl = `/eventi/${event.id}`
   const redirectPath = pathname || eventUrl
+  const userName = watch('userName')
 
   const personsNeeded = 1 + childrenArray.fields.length + companionsArray.fields.length
 
   useEffect(() => {
     if (!isMember) return
-    if (user.name && !getValues('userName')) {
+    if (user.name && !userName) {
       setValue('userName', user.name)
     }
     if (lockedContactEmail) {
       setValue('contactEmail', lockedContactEmail, { shouldValidate: true })
     }
-  }, [isMember, lockedContactEmail, user?.name])
+  }, [isMember, lockedContactEmail, setValue, user?.name, userName])
 
   const slotById = useMemo(() => {
     const map = new Map<string, SlotWithAvailability>()
