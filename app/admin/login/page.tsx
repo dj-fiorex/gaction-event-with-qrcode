@@ -3,18 +3,14 @@
 import { Suspense, useEffect } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { LoginForm } from '@/components/admin/login-form'
+import { resolveInternalRedirect } from '@/lib/redirect-utils'
 import { useCurrentUser } from '@/lib/use-current-user'
-
-function resolveRedirect(raw: string | null) {
-  if (!raw || !raw.startsWith('/') || raw.startsWith('//')) return null
-  return raw
-}
 
 function LoginRedirect() {
   const { user, isLoading } = useCurrentUser()
   const router = useRouter()
   const searchParams = useSearchParams()
-  const redirect = resolveRedirect(searchParams.get('redirect'))
+  const redirect = resolveInternalRedirect(searchParams.get('redirect'))
 
   useEffect(() => {
     if (isLoading || !user) return

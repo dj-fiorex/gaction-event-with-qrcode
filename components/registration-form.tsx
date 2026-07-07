@@ -92,7 +92,7 @@ export function RegistrationForm({
     if (lockedContactEmail) {
       setValue('contactEmail', lockedContactEmail, { shouldValidate: true })
     }
-  }, [getValues, isMember, lockedContactEmail, setValue, user?.name])
+  }, [isMember, lockedContactEmail, user?.name])
 
   const slotById = useMemo(() => {
     const map = new Map<string, SlotWithAvailability>()

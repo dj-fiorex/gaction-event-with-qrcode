@@ -8,22 +8,18 @@ import { UserPlus } from 'lucide-react'
 import Link from 'next/link'
 import { api } from '@/convex/_generated/api'
 import { useCurrentUser } from '@/lib/use-current-user'
+import { resolveInternalRedirect } from '@/lib/redirect-utils'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 
 /** Reindirizza automaticamente se l'utente è già autenticato. */
-function resolveRedirect(raw: string | null) {
-  if (!raw || !raw.startsWith('/') || raw.startsWith('//')) return null
-  return raw
-}
-
 function RegistrationRedirect() {
   const { user, isLoading } = useCurrentUser()
   const router = useRouter()
   const searchParams = useSearchParams()
-  const redirect = resolveRedirect(searchParams.get('redirect'))
+  const redirect = resolveInternalRedirect(searchParams.get('redirect'))
 
   useEffect(() => {
     if (isLoading || !user) return
@@ -52,7 +48,7 @@ function RegistrationForm() {
     const name = String(formData.get('name') ?? '').trim()
     const email = String(formData.get('email') ?? '').trim()
     const password = String(formData.get('password') ?? '')
-    const redirect = resolveRedirect(searchParams.get('redirect'))
+    const redirect = resolveInternalRedirect(searchParams.get('redirect'))
 
     try {
       // 1. Create member account (role is always 'member', never from client input).
