@@ -304,3 +304,127 @@ test('register keeps the anonymous flow unchanged and never links ownership by c
   })
   expect(registration?.userId).toBeUndefined()
 })
+
+test('myRegistrations returns only registrations belonging to the caller', async () => {
+  const t = convexTest(schema, modules)
+  const memberAId = await createUser(t, { email: 'a@example.com', role: 'member', verified: true })
+  const memberBId = await createUser(t, { email: 'b@example.com', role: 'member', verified: true })
+  const { eventId, activityId, slotId } = await createEventFixture(t)
+
+  await t.withIdentity({ subject: subjectFor(memberAId) }).mutation(api.registrations.register, {
+    eventId,
+    userName: 'Membro A',
+    contactEmail: 'a@example.com',
+    children: [],
+    companions: [],
+    selections: [{ activityId, slotId }],
+  })
+  await t.withIdentity({ subject: subjectFor(memberBId) }).mutation(api.registrations.register, {
+    eventId,
+    userName: 'Membro B',
+    contactEmail: 'b@example.com',
+    children: [],
+    companions: [],
+    selections: [{ activityId, slotId }],
+  })
+
+  const resultA = await t
+    .withIdentity({ subject: subjectFor(memberAId) })
+    .query(api.registrations.myRegistrations, {})
+  const resultB = await t
+    .withIdentity({ subject: subjectFor(memberBId) })
+    .query(api.registrations.myRegistrations, {})
+
+  expect(resultA).toHaveLength(1)
+  expect(resultA[0]).toMatchObject({ eventId, eventTitle: 'Evento test' })
+  expect(resultB).toHaveLength(1)
+  expect(resultA[0].id).not.toBe(resultB[0].id)
+})
+
+test('myRegistrations excludes anonymous registrations even with matching contactEmail', async () => {
+  const t = convexTest(schema, modules)
+  const memberId = await createUser(t, {
+    email: 'member@example.com',
+    role: 'member',
+    verified: true,
+  })
+  const { eventId, activityId, slotId } = await createEventFixture(t)
+
+  // Anonymous registration with the same email as the member
+  await t.mutation(api.registrations.register, {
+    eventId,
+    userName: 'Guest',
+    contactEmail: 'member@example.com',
+    children: [],
+    companions: [],
+    selections: [{ activityId, slotId }],
+  })
+
+  const result = await t
+    .withIdentity({ subject: subjectFor(memberId) })
+    .query(api.registrations.myRegistrations, {})
+
+  expect(result).toHaveLength(0)
+})
+
+test('myRegistrations returns empty array for unauthenticated callers', async () => {
+  const t = convexTest(schema, modules)
+  const { eventId, activityId, slotId } = await createEventFixture(t)
+
+  await t.mutation(api.registrations.register, {
+    eventId,
+    userName: 'Guest',
+    contactEmail: 'guest@example.com',
+    children: [],
+    companions: [],
+    selections: [{ activityId, slotId }],
+  })
+
+  const result = await t.query(api.registrations.myRegistrations, {})
+  expect(result).toHaveLength(0)
+})
+
+test('myRegistrations includes real check-in status for persons', async () => {
+  const t = convexTest(schema, modules)
+  const memberId = await createUser(t, {
+    email: 'member@example.com',
+    role: 'member',
+    verified: true,
+  })
+  const { eventId, activityId, slotId } = await createEventFixture(t)
+
+  const { registrationId } = await t
+    .withIdentity({ subject: subjectFor(memberId) })
+    .mutation(api.registrations.register, {
+      eventId,
+      userName: 'Mario Rossi',
+      contactEmail: 'member@example.com',
+      children: [],
+      companions: [],
+      selections: [{ activityId, slotId }],
+    })
+
+  // Simulate event check-in by setting eventCheckInAt directly
+  const [person] = await t.run((ctx) =>
+    ctx.db
+      .query('persons')
+      .withIndex('by_registration', (q) => q.eq('registrationId', registrationId))
+      .collect(),
+  )
+  await t.run((ctx) =>
+    ctx.db.patch(person._id, {
+      eventCheckInAt: new Date().toISOString(),
+      eventCheckInCount: 1,
+    }),
+  )
+
+  const result = await t
+    .withIdentity({ subject: subjectFor(memberId) })
+    .query(api.registrations.myRegistrations, {})
+
+  expect(result).toHaveLength(1)
+  const [reg] = result
+  expect(reg.persons).toHaveLength(1)
+  expect(reg.persons[0].eventCheckInAt).not.toBeNull()
+  expect(reg.persons[0].eventCheckInCount).toBe(1)
+})
