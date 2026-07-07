@@ -11,19 +11,29 @@ const accountValidator = v.object({
   role: v.union(v.literal('admin'), v.literal('staff'), v.literal('member')),
 })
 
-/** Elenco account (solo admin). */
+/** Validator for staff/admin accounts only (members excluded). */
+const staffAccountValidator = v.object({
+  id: v.id('users'),
+  name: v.union(v.string(), v.null()),
+  email: v.union(v.string(), v.null()),
+  role: v.union(v.literal('admin'), v.literal('staff')),
+})
+
+/** Elenco account operatori (solo admin). I Membri sono esclusi. */
 export const list = query({
   args: {},
-  returns: v.array(accountValidator),
+  returns: v.array(staffAccountValidator),
   handler: async (ctx) => {
     await requireAdmin(ctx)
     const users = await ctx.db.query('users').collect()
-    return users.map((u) => ({
-      id: u._id,
-      name: u.name ?? null,
-      email: u.email ?? null,
-      role: u.role ?? ('staff' as const),
-    }))
+    return users
+      .filter((u) => (u.role ?? 'staff') !== 'member')
+      .map((u) => ({
+        id: u._id,
+        name: u.name ?? null,
+        email: u.email ?? null,
+        role: (u.role ?? 'staff') as 'admin' | 'staff',
+      }))
   },
 })
 
@@ -217,5 +227,37 @@ export const bootstrapFirstAdmin = internalMutation({
       await ctx.db.patch(args.userId, { role: 'admin' })
     }
     return null
+  },
+})
+
+/**
+ * Registrazione pubblica di un Membro.
+ * Il ruolo è sempre 'member': nessun input del client può produrre
+ * un ruolo diverso. Admin/Assistenti vengono creati solo tramite
+ * `createStaffAccount`.
+ */
+export const signUpMember = action({
+  args: {
+    email: v.string(),
+    password: v.string(),
+    name: v.string(),
+  },
+  returns: v.object({ userId: v.id('users') }),
+  handler: async (ctx, args): Promise<{ userId: import('./_generated/dataModel').Id<'users'> }> => {
+    const email = args.email.trim().toLowerCase()
+    if (!email) throw new Error('Email obbligatoria')
+    if (args.name.trim().length < 2) throw new Error('Inserisci nome e cognome')
+    if (args.password.length < 8) throw new Error('La password deve avere almeno 8 caratteri')
+    if (await ctx.runQuery(internal.accounts.emailExists, { email })) {
+      throw new Error('Esiste già un account con questa email')
+    }
+
+    const result = await createAccount(ctx, {
+      provider: 'password',
+      account: { id: email, secret: args.password },
+      // Role is ALWAYS 'member' — cannot be overridden by client input.
+      profile: { email, name: args.name.trim(), role: 'member' },
+    })
+    return { userId: result.user._id }
   },
 })

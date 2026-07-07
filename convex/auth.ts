@@ -4,17 +4,19 @@ import type { DataModel } from './_generated/dataModel'
 
 /**
  * Provider Password.
- * La registrazione pubblica è disabilitata: gli account (admin/Assistenti)
- * vengono creati solo da un admin tramite `createAccount` (che non passa da
- * questo `profile`). Qui blocchiamo esplicitamente il flow "signUp" e ci
- * limitiamo a normalizzare l'email in fase di "signIn".
+ * Il flow "signUp" è abilitato per la registrazione pubblica dei Membri.
+ * Il ruolo viene forzato a 'member' indipendentemente da qualsiasi input
+ * del client: nessun client può ottenere 'admin' o 'staff' tramite questo
+ * path. Admin/Assistenti vengono creati solo tramite `createStaffAccount`.
  */
 const ApplicationPassword = Password<DataModel>({
   profile(params) {
-    if (params.flow === 'signUp') {
-      throw new Error('La registrazione pubblica è disabilitata')
-    }
     const email = String(params.email ?? '').trim().toLowerCase()
+    if (params.flow === 'signUp') {
+      const name = String(params.name ?? '').trim() || undefined
+      // Role is ALWAYS 'member' for public sign-up — never from client input.
+      return { email, name, role: 'member' as const }
+    }
     return { email }
   },
 })
