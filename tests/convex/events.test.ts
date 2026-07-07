@@ -51,6 +51,27 @@ function buildEventInput(requireAccount: boolean) {
   }
 }
 
+async function createStaff(t: ReturnType<typeof convexTest>) {
+  return t.run((ctx) =>
+    ctx.db.insert('users', {
+      email: 'staff@example.com',
+      name: 'Staff',
+      role: 'staff',
+    }),
+  )
+}
+
+async function createMember(t: ReturnType<typeof convexTest>) {
+  return t.run((ctx) =>
+    ctx.db.insert('users', {
+      email: 'member@example.com',
+      name: 'Member',
+      role: 'member',
+      emailVerificationTime: Date.now(),
+    }),
+  )
+}
+
 test('events.create persists requireAccount and exposes it to public queries', async () => {
   const t = convexTest(schema, modules)
   const adminId = await createAdmin(t)
@@ -86,4 +107,56 @@ test('events.update can toggle requireAccount off', async () => {
 
   expect(rawEvent?.requireAccount).toBe(false)
   expect(publicEvent?.requireAccount).toBe(false)
+})
+
+test('events.listOperable excludes members for password-mode events and includes staff', async () => {
+  const t = convexTest(schema, modules)
+  const adminId = await createAdmin(t)
+  const staffId = await createStaff(t)
+  const memberId = await createMember(t)
+
+  const created = await t.withIdentity({ subject: subjectFor(adminId) }).mutation(
+    api.events.create,
+    {
+      ...buildEventInput(false),
+      checkInAccess: 'password',
+      checkInPassword: '123456',
+    },
+  )
+
+  const memberOperable = await t
+    .withIdentity({ subject: subjectFor(memberId) })
+    .query(api.events.listOperable, {})
+  const staffOperable = await t
+    .withIdentity({ subject: subjectFor(staffId) })
+    .query(api.events.listOperable, {})
+
+  expect(memberOperable.map((event) => event.id)).not.toContain(created.id)
+  expect(staffOperable.map((event) => event.id)).toContain(created.id)
+})
+
+test('checkins.operableEvents excludes members for password-mode events and includes staff', async () => {
+  const t = convexTest(schema, modules)
+  const adminId = await createAdmin(t)
+  const staffId = await createStaff(t)
+  const memberId = await createMember(t)
+
+  const created = await t.withIdentity({ subject: subjectFor(adminId) }).mutation(
+    api.events.create,
+    {
+      ...buildEventInput(false),
+      checkInAccess: 'password',
+      checkInPassword: '123456',
+    },
+  )
+
+  const memberOperable = await t
+    .withIdentity({ subject: subjectFor(memberId) })
+    .query(api.checkins.operableEvents, {})
+  const staffOperable = await t
+    .withIdentity({ subject: subjectFor(staffId) })
+    .query(api.checkins.operableEvents, {})
+
+  expect(memberOperable.map((event) => event.id)).not.toContain(created.id)
+  expect(staffOperable.map((event) => event.id)).toContain(created.id)
 })

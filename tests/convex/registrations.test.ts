@@ -428,3 +428,53 @@ test('myRegistrations includes real check-in status for persons', async () => {
   expect(reg.persons[0].eventCheckInAt).not.toBeNull()
   expect(reg.persons[0].eventCheckInCount).toBe(1)
 })
+
+test('checkins.checkIn rejects member operators on password events', async () => {
+  const t = convexTest(schema, modules)
+  const adminId = await createUser(t, { email: 'admin@example.com', role: 'admin', verified: true })
+  const memberId = await createUser(t, {
+    email: 'member@example.com',
+    role: 'member',
+    verified: true,
+  })
+  const { eventId, activityId, slotId } = await createEventFixture(t, {
+    requireAccount: false,
+  })
+
+  const { registrationId } = await t.withIdentity({ subject: subjectFor(memberId) }).mutation(
+    api.registrations.register,
+    {
+      eventId,
+      userName: 'Mario Rossi',
+      contactEmail: 'member@example.com',
+      children: [],
+      companions: [],
+      selections: [{ activityId, slotId }],
+    },
+  )
+
+  const [person] = await t.run((ctx) =>
+    ctx.db
+      .query('persons')
+      .withIndex('by_registration', (q) => q.eq('registrationId', registrationId))
+      .collect(),
+  )
+
+  // Sanity check: admin is authorized for the same check-in operation.
+  await expect(
+    t.withIdentity({ subject: subjectFor(adminId) }).mutation(api.checkins.checkIn, {
+      eventId,
+      code: person.ticketCode,
+      mode: 'event',
+    }),
+  ).resolves.toMatchObject({ status: 'event-valid' })
+
+  // Member must not be authorized as check-in operator, even on password-mode events.
+  await expect(
+    t.withIdentity({ subject: subjectFor(memberId) }).mutation(api.checkins.checkIn, {
+      eventId,
+      code: person.ticketCode,
+      mode: 'event',
+    }),
+  ).rejects.toThrow('Accesso non autorizzato')
+})

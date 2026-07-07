@@ -260,6 +260,50 @@ test('password reset replaces the old secret with the new one', async () => {
   })
 })
 
+test('eventStaff.setForEvent rejects member assignments', async () => {
+  const t = convexTest(schema, modules)
+  const { adminId, memberId, eventId } = await t.run(async (ctx) => {
+    const adminId = await ctx.db.insert('users', {
+      email: 'admin@example.com',
+      name: 'Admin',
+      role: 'admin',
+    })
+    const memberId = await ctx.db.insert('users', {
+      email: 'member@example.com',
+      name: 'Member',
+      role: 'member',
+    })
+    const eventId = await ctx.db.insert('events', {
+      title: 'Evento test',
+      description: 'Descrizione',
+      location: 'Roma',
+      activityPolicy: 'free',
+      minActivities: 0,
+      allowOverlap: false,
+      checkInToleranceMinutes: 15,
+      allowQrReuse: false,
+      allowChildren: false,
+      maxChildrenPerRegistration: 0,
+      allowCompanions: false,
+      maxCompanionsPerRegistration: 0,
+      checkInAccess: 'private',
+      scanToken: `scan-${Math.random().toString(36).slice(2)}`,
+      checkInPasswordHash: null,
+      scanUnlockToken: null,
+      embedEnabled: false,
+      requireAccount: false,
+    })
+    return { adminId, memberId, eventId }
+  })
+
+  await expect(
+    t.withIdentity({ subject: subjectFor(adminId) }).mutation(api.eventStaff.setForEvent, {
+      eventId,
+      userIds: [memberId],
+    }),
+  ).rejects.toThrow('Puoi associare all\'evento solo account admin o staff')
+})
+
 test('seedFirstAdmin creates a trusted admin account', async () => {
   const t = convexTest(schema, modules)
   const { userId } = await t.action(api.accounts.seedFirstAdmin, {

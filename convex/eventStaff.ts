@@ -43,6 +43,9 @@ export const setForEvent = mutation({
       if (!current.has(userId)) {
         const user = await ctx.db.get(userId)
         if (!user) continue
+        if (user.role === 'member') {
+          throw new Error('Puoi associare all\'evento solo account admin o staff')
+        }
         await ctx.db.insert('eventStaff', { eventId, userId })
       }
     }

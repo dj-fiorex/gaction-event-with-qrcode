@@ -82,6 +82,8 @@ export async function canOperateEvent(
   const user = await getCurrentUser(ctx)
   if (user) {
     if (user.role === 'admin') return true
+    // Members are never check-in operators.
+    if (user.role !== 'staff' && user.role !== undefined) return false
     if (event.checkInAccess === 'password') return true
     const assoc = await ctx.db
       .query('eventStaff')
