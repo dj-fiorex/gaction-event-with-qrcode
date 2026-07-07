@@ -1,5 +1,6 @@
 'use client'
 
+import Link from 'next/link'
 import { useState, type FormEvent } from 'react'
 import { useAuthActions } from '@convex-dev/auth/react'
 import { useQuery, useAction } from 'convex/react'
@@ -81,7 +82,14 @@ export function LoginForm() {
             <Input id="email" name="email" type="email" autoComplete="username" required />
           </div>
           <div className="grid gap-2">
-            <Label htmlFor="password">Password</Label>
+            <div className="flex items-center justify-between gap-3">
+              <Label htmlFor="password">Password</Label>
+              {!bootstrap && (
+                <Link href="/reimposta-password" className="text-sm text-primary hover:underline">
+                  Password dimenticata?
+                </Link>
+              )}
+            </div>
             <Input
               id="password"
               name="password"

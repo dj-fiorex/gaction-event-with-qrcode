@@ -1,7 +1,7 @@
 /// <reference types="vite/client" />
 
 import { convexTest } from 'convex-test'
-import { expect, test } from 'vitest'
+import { beforeAll, expect, test } from 'vitest'
 import { api, internal } from '../../convex/_generated/api'
 import type { Id } from '../../convex/_generated/dataModel'
 import schema from '../../convex/schema'
@@ -11,6 +11,31 @@ const modules = import.meta.glob('../../convex/**/*.ts')
 function subjectFor(userId: Id<'users'>) {
   return `${userId}|test-session`
 }
+
+async function ensureAuthTestEnv() {
+  process.env.CONVEX_SITE_URL ??= 'http://localhost:3210'
+  process.env.SITE_URL ??= 'http://localhost:3000'
+  if (process.env.JWT_PRIVATE_KEY) return
+
+  const keyPair = await crypto.subtle.generateKey(
+    {
+      name: 'RSASSA-PKCS1-v1_5',
+      modulusLength: 2048,
+      publicExponent: new Uint8Array([1, 0, 1]),
+      hash: 'SHA-256',
+    },
+    true,
+    ['sign', 'verify'],
+  )
+  const exported = await crypto.subtle.exportKey('pkcs8', keyPair.privateKey)
+  const body = btoa(String.fromCharCode(...new Uint8Array(exported)))
+  const lines = body.match(/.{1,64}/g)?.join('\n') ?? body
+  process.env.JWT_PRIVATE_KEY = `-----BEGIN PRIVATE KEY-----\n${lines}\n-----END PRIVATE KEY-----`
+}
+
+beforeAll(async () => {
+  await ensureAuthTestEnv()
+})
 
 test('accounts.me returns member for an explicit member account', async () => {
   const t = convexTest(schema, modules)
@@ -156,6 +181,78 @@ test('email verification completion marks the member as verified', async () => {
 
   expect(user?.emailVerificationTime).toEqual(expect.any(Number))
   expect(updatedAccount?.emailVerified).toBe('verifyme@example.com')
+})
+
+test('accounts.requestPasswordReset starts the password reset flow for members', async () => {
+  const t = convexTest(schema, modules)
+  await t.action(api.accounts.signUpMember, {
+    email: 'resetme@example.com',
+    password: 'password123',
+    name: 'Reset Me',
+  })
+
+  await t.action(api.accounts.requestPasswordReset, {
+    email: 'resetme@example.com',
+  })
+
+  const verificationCodes = await t.run((ctx) => ctx.db.query('authVerificationCodes').collect())
+  expect(
+    verificationCodes.filter((code) => code.provider === 'member-password-reset'),
+  ).toHaveLength(1)
+})
+
+test('password reset replaces the old secret with the new one', async () => {
+  const t = convexTest(schema, modules)
+  await t.action(api.accounts.signUpMember, {
+    email: 'newsecret@example.com',
+    password: 'password123',
+    name: 'Cambio Password',
+  })
+
+  const account = await t.run((ctx) =>
+    ctx.db
+      .query('authAccounts')
+      .withIndex('providerAndAccountId', (q) =>
+        q.eq('provider', 'password').eq('providerAccountId', 'newsecret@example.com'),
+      )
+      .unique(),
+  )
+  expect(account?._id).toBeTruthy()
+
+  const verificationCode = await t.mutation(internal.auth.issuePasswordResetCodeInternal, {
+    accountId: account!._id,
+    email: 'newsecret@example.com',
+  })
+
+  await t.action(api.accounts.completePasswordReset, {
+    email: 'newsecret@example.com',
+    code: verificationCode.code,
+    newPassword: 'password456',
+  })
+
+  await expect(
+    t.action(api.auth.signIn, {
+      provider: 'password',
+      params: {
+        flow: 'signIn',
+        email: 'newsecret@example.com',
+        password: 'password123',
+      },
+    }),
+  ).rejects.toThrow()
+
+  await expect(
+    t.action(api.auth.signIn, {
+      provider: 'password',
+      params: {
+        flow: 'signIn',
+        email: 'newsecret@example.com',
+        password: 'password456',
+      },
+    }),
+  ).resolves.toMatchObject({
+    tokens: expect.anything(),
+  })
 })
 
 test('seedFirstAdmin creates a trusted admin account', async () => {
