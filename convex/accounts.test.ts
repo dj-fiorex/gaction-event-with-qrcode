@@ -113,3 +113,89 @@ test('accounts.signUpMember rejects duplicate email', async () => {
     }),
   ).rejects.toThrow('Esiste già un account con questa email')
 })
+
+test('accounts.updateName persists the new name for the caller', async () => {
+  const t = convexTest(schema, modules)
+  const userId = await t.run((ctx) =>
+    ctx.db.insert('users', {
+      email: 'member@example.com',
+      name: 'Vecchio Nome',
+      role: 'member',
+    }),
+  )
+
+  await t
+    .withIdentity({ subject: `${userId}|test-session` })
+    .mutation(api.accounts.updateName, { name: 'Nuovo Nome' })
+
+  const updated = await t.run((ctx) => ctx.db.get(userId as Id<'users'>))
+  expect(updated?.name).toBe('Nuovo Nome')
+})
+
+test('accounts.updateName trims whitespace', async () => {
+  const t = convexTest(schema, modules)
+  const userId = await t.run((ctx) =>
+    ctx.db.insert('users', {
+      email: 'member2@example.com',
+      name: 'Nome',
+      role: 'member',
+    }),
+  )
+
+  await t
+    .withIdentity({ subject: `${userId}|test-session` })
+    .mutation(api.accounts.updateName, { name: '  Mario Rossi  ' })
+
+  const updated = await t.run((ctx) => ctx.db.get(userId as Id<'users'>))
+  expect(updated?.name).toBe('Mario Rossi')
+})
+
+test('accounts.updateName rejects names shorter than 2 chars', async () => {
+  const t = convexTest(schema, modules)
+  const userId = await t.run((ctx) =>
+    ctx.db.insert('users', {
+      email: 'member3@example.com',
+      name: 'Nome',
+      role: 'member',
+    }),
+  )
+
+  await expect(
+    t
+      .withIdentity({ subject: `${userId}|test-session` })
+      .mutation(api.accounts.updateName, { name: 'A' }),
+  ).rejects.toThrow('Il nome deve avere almeno 2 caratteri')
+})
+
+test('accounts.updateName rejects unauthenticated callers', async () => {
+  const t = convexTest(schema, modules)
+
+  await expect(
+    t.mutation(api.accounts.updateName, { name: 'Chiunque' }),
+  ).rejects.toThrow('Non autenticato')
+})
+
+test('accounts.updateName does not modify other users', async () => {
+  const t = convexTest(schema, modules)
+  const { userId1, userId2 } = await t.run(async (ctx) => ({
+    userId1: await ctx.db.insert('users', {
+      email: 'member1@example.com',
+      name: 'Primo',
+      role: 'member',
+    }),
+    userId2: await ctx.db.insert('users', {
+      email: 'member2b@example.com',
+      name: 'Secondo',
+      role: 'member',
+    }),
+  }))
+
+  // user1 updates their own name
+  await t
+    .withIdentity({ subject: `${userId1}|test-session` })
+    .mutation(api.accounts.updateName, { name: 'Primo Aggiornato' })
+
+  // user2's name must remain unchanged
+  const user2 = await t.run((ctx) => ctx.db.get(userId2 as Id<'users'>))
+  expect(user2?.name).toBe('Secondo')
+})
