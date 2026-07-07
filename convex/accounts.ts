@@ -212,6 +212,23 @@ export const remove = mutation({
 })
 
 /**
+ * Aggiorna il nome del Membro autenticato.
+ * Autorizzato solo sul proprio account: usa `getAuthUserId` come chiave.
+ */
+export const updateName = mutation({
+  args: { name: v.string() },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const userId = await getAuthUserId(ctx)
+    if (!userId) throw new Error('Non autenticato')
+    const trimmed = args.name.trim()
+    if (trimmed.length < 2) throw new Error('Il nome deve avere almeno 2 caratteri')
+    await ctx.db.patch(userId, { name: trimmed })
+    return null
+  },
+})
+
+/**
  * Promuove a admin il primo utente registrato quando non esiste ancora alcun admin.
  * Usato dal bootstrap iniziale (vedi seed). Idempotente.
  */
