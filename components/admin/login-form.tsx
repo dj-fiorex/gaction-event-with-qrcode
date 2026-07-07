@@ -1,7 +1,6 @@
 'use client'
 
 import { useState, type FormEvent } from 'react'
-import { useRouter, useSearchParams } from 'next/navigation'
 import { useAuthActions } from '@convex-dev/auth/react'
 import { useQuery, useAction } from 'convex/react'
 import { Lock, UserPlus } from 'lucide-react'
@@ -13,8 +12,6 @@ import { Label } from '@/components/ui/label'
 
 export function LoginForm() {
   const { signIn } = useAuthActions()
-  const router = useRouter()
-  const searchParams = useSearchParams()
   const needsBootstrap = useQuery(api.accounts.needsBootstrap)
   const seedFirstAdmin = useAction(api.accounts.seedFirstAdmin)
   const [error, setError] = useState<string | null>(null)
@@ -39,8 +36,7 @@ export function LoginForm() {
       signInData.set('email', String(formData.get('email') ?? ''))
       signInData.set('password', String(formData.get('password') ?? ''))
       await signIn('password', signInData)
-      const redirectTo = searchParams.get('redirect') ?? '/admin'
-      router.replace(redirectTo)
+      // Navigation is handled by LoginRedirect (role-based routing).
     } catch (submitError) {
       setError(
         needsBootstrap

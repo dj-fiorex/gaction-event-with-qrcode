@@ -1,18 +1,25 @@
 'use client'
 
 import { Suspense, useEffect } from 'react'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { LoginForm } from '@/components/admin/login-form'
 import { useCurrentUser } from '@/lib/use-current-user'
 
 function LoginRedirect() {
   const { user, isLoading } = useCurrentUser()
   const router = useRouter()
+  const searchParams = useSearchParams()
 
   useEffect(() => {
     if (isLoading || !user) return
-    router.replace(user.role === 'admin' ? '/admin' : '/staff')
-  }, [user, isLoading, router])
+    if (user.role === 'member') {
+      router.replace('/profilo')
+    } else if (user.role === 'admin') {
+      router.replace(searchParams.get('redirect') ?? '/admin')
+    } else {
+      router.replace('/staff')
+    }
+  }, [user, isLoading, router, searchParams])
 
   return null
 }

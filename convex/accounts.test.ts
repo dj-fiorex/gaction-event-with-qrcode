@@ -49,7 +49,7 @@ test('accounts.me falls back to staff when the role is absent', async () => {
   })
 })
 
-test('accounts.list accepts member rows and preserves the legacy staff fallback', async () => {
+test('accounts.list excludes members, shows admin and staff only', async () => {
   const t = convexTest(schema, modules)
   const { adminId, memberId, legacyId } = await t.run(async (ctx) => ({
     adminId: await ctx.db.insert('users', {
@@ -72,20 +72,44 @@ test('accounts.list accepts member rows and preserves the legacy staff fallback'
     .withIdentity({ subject: subjectFor(adminId) })
     .query(api.accounts.list, {})
 
+  // Admin and legacy-staff appear.
   expect(accounts).toEqual(
     expect.arrayContaining([
-      expect.objectContaining({
-        id: adminId,
-        role: 'admin',
-      }),
-      expect.objectContaining({
-        id: memberId,
-        role: 'member',
-      }),
-      expect.objectContaining({
-        id: legacyId,
-        role: 'staff',
-      }),
+      expect.objectContaining({ id: adminId, role: 'admin' }),
+      expect.objectContaining({ id: legacyId, role: 'staff' }),
     ]),
   )
+  // Members are excluded.
+  expect(accounts.map((a) => a.id)).not.toContain(memberId)
+})
+
+test('accounts.signUpMember always creates a member account', async () => {
+  const t = convexTest(schema, modules)
+  const { userId } = await t.action(api.accounts.signUpMember, {
+    email: 'new@example.com',
+    password: 'password123',
+    name: 'Nuovo Membro',
+  })
+
+  const user = await t.run((ctx) => ctx.db.get(userId as Id<'users'>))
+  expect(user?.role).toBe('member')
+  expect(user?.email).toBe('new@example.com')
+  expect(user?.name).toBe('Nuovo Membro')
+})
+
+test('accounts.signUpMember rejects duplicate email', async () => {
+  const t = convexTest(schema, modules)
+  await t.action(api.accounts.signUpMember, {
+    email: 'dupe@example.com',
+    password: 'password123',
+    name: 'Primo',
+  })
+
+  await expect(
+    t.action(api.accounts.signUpMember, {
+      email: 'dupe@example.com',
+      password: 'password456',
+      name: 'Secondo',
+    }),
+  ).rejects.toThrow('Esiste già un account con questa email')
 })

@@ -17,7 +17,13 @@ function FullPageLoader({ label }: { label: string }) {
 }
 
 interface AuthGateProps {
-  /** Ruolo minimo richiesto. 'staff' consente sia staff sia admin; 'admin' solo admin. */
+  /**
+   * Ruolo minimo richiesto.
+   * - 'staff' consente sia staff sia admin (ma non member)
+   * - 'admin' solo admin
+   * I Membri che tentano di accedere a queste aree vengono reindirizzati
+   * a '/profilo'.
+   */
   require: Role
   children: (user: { role: Role }) => React.ReactNode
 }
@@ -34,7 +40,13 @@ export function AuthGate({ require, children }: AuthGateProps) {
   useEffect(() => {
     if (isLoading) return
     if (!isAuthenticated) {
-      router.replace('/admin/login')
+      const current = window.location.pathname
+      router.replace(`/admin/login?redirect=${encodeURIComponent(current)}`)
+      return
+    }
+    // Members cannot access admin or staff areas.
+    if (role === 'member') {
+      router.replace('/profilo')
       return
     }
     if (require === 'admin' && role !== 'admin') {
@@ -44,6 +56,7 @@ export function AuthGate({ require, children }: AuthGateProps) {
 
   if (isLoading) return <FullPageLoader label="Verifica accesso…" />
   if (!isAuthenticated) return <FullPageLoader label="Reindirizzamento…" />
+  if (role === 'member') return <FullPageLoader label="Reindirizzamento…" />
   if (require === 'admin' && role !== 'admin') return <FullPageLoader label="Reindirizzamento…" />
   if (!role) return <FullPageLoader label="Caricamento profilo…" />
 
