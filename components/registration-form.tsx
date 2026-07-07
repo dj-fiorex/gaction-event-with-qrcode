@@ -86,12 +86,11 @@ export function RegistrationForm({
 
   useEffect(() => {
     if (!isMember) return
-    if (user.name && userName.trim() === '') {
-      setValue('userName', user.name)
-    }
     if (lockedContactEmail) {
       setValue('contactEmail', lockedContactEmail, { shouldValidate: true })
     }
+    if (!user.name || userName.trim() !== '') return
+    setValue('userName', user.name)
   }, [isMember, lockedContactEmail, setValue, user?.name, userName])
 
   const slotById = useMemo(() => {
@@ -304,7 +303,7 @@ export function RegistrationForm({
             )}
             {contactEmailLocked && (
               <p className="text-sm text-muted-foreground">
-                I biglietti verranno inviati all'email del tuo account Membro.
+                Ti invieremo i biglietti all'email del tuo account Membro.
               </p>
             )}
           </div>
