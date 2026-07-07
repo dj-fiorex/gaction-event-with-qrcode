@@ -72,7 +72,7 @@ export const sendTickets = action({
           </div>
         </div>`
 
-      await resend.emails.send({
+      const res = await resend.emails.send({
         from: FROM_ADDRESS,
         to: args.contactEmail,
         subject: `Ticket per ${args.eventTitle}`,
@@ -83,6 +83,7 @@ export const sendTickets = action({
           contentId: `qr-${index}`,
         })),
       })
+      console.log('[email] Email inviata con Resend:', res)
       return { delivered: true, simulated: false }
     } catch (error) {
       console.log('[v0] Errore invio email Resend:', error)
