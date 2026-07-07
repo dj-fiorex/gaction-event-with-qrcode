@@ -13,9 +13,20 @@ const PASSWORD_RESET_CODE_EXPIRY_MS = 1000 * 60 * 60 * 24
 
 function randomCode(length: number) {
   const alphabet = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz'
-  const bytes = new Uint8Array(length)
-  crypto.getRandomValues(bytes)
-  return Array.from(bytes, (byte) => alphabet[byte % alphabet.length]).join('')
+  const maxByte = Math.floor(256 / alphabet.length) * alphabet.length
+  let code = ''
+
+  while (code.length < length) {
+    const bytes = new Uint8Array(length)
+    crypto.getRandomValues(bytes)
+    for (const byte of bytes) {
+      if (byte >= maxByte) continue
+      code += alphabet[byte % alphabet.length]
+      if (code.length === length) break
+    }
+  }
+
+  return code
 }
 
 async function sha256Hex(input: string) {

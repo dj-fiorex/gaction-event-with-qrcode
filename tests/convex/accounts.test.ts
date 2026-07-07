@@ -28,7 +28,12 @@ async function ensureAuthTestEnv() {
     ['sign', 'verify'],
   )
   const exported = await crypto.subtle.exportKey('pkcs8', keyPair.privateKey)
-  const body = btoa(String.fromCharCode(...new Uint8Array(exported)))
+  const bytes = new Uint8Array(exported)
+  let binary = ''
+  for (let index = 0; index < bytes.length; index += 1024) {
+    binary += String.fromCharCode(...bytes.slice(index, index + 1024))
+  }
+  const body = btoa(binary)
   const lines = body.match(/.{1,64}/g)?.join('\n') ?? body
   process.env.JWT_PRIVATE_KEY = `-----BEGIN PRIVATE KEY-----\n${lines}\n-----END PRIVATE KEY-----`
 }
