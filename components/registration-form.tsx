@@ -79,7 +79,8 @@ export function RegistrationForm({
   const isMember = user?.role === 'member'
   const lockedContactEmail = isMember ? (user.email ?? '') : ''
   const contactEmailLocked = lockedContactEmail.length > 0
-  const redirectPath = pathname || `/eventi/${event.id}`
+  const eventUrl = `/eventi/${event.id}`
+  const redirectPath = pathname || eventUrl
 
   const personsNeeded = 1 + childrenArray.fields.length + companionsArray.fields.length
 
@@ -208,7 +209,7 @@ export function RegistrationForm({
         title="Completa la registrazione dal sito principale"
         description="Questo evento richiede un account Membro verificato. Apri la pagina ufficiale dell'evento per accedere o registrarti prima di prenotare."
       >
-        <Button nativeButton={false} className="w-full" render={<Link href={`/eventi/${event.id}`} />}>
+        <Button nativeButton={false} className="w-full" render={<Link href={eventUrl} />}>
           Vai al sito principale
         </Button>
       </RegistrationNotice>
