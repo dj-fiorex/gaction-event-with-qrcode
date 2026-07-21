@@ -11,8 +11,8 @@ Identità autenticata **persistente** che una persona crea sul sito per prenotar
 ### Persona
 Un partecipante fisico all'Evento. Occupa un posto e riceve **1 QR code**. NON è un account. Ha almeno un **nome**. Categorie di Persona:
 - **Utente** — l'iscritto stesso (vedi sopra).
-- **Figlio** — persona a carico portata dall'Utente, con **nome + età**. Ammessi solo se l'admin lo consente per l'Evento, entro un massimo **per Prenotazione**.
-- **Accompagnatore** — persona adulta al seguito, con **nome**. Ammessi solo se l'admin lo consente per l'Evento, entro un massimo **per Prenotazione**.
+- **Figlio** — persona minorenne a carico portata dall'Utente, con **età** (e nome solo se l'Evento prevede la [[Raccolta nomi]]). Ammessi solo se l'admin lo consente per l'Evento, entro un massimo **per Prenotazione**.
+- **Ospite** — persona adulta al seguito (nome solo con [[Raccolta nomi]] attiva). Ammessi solo se l'admin lo consente per l'Evento, entro un massimo **per Prenotazione**. _Evitare: Accompagnatore (termine storico, sostituito da Ospite nella UI e nei documenti)._
 
 ### Evento
 Un raduno a cui gli Utenti si iscrivono. Genera **1 QR code per ogni Persona** (non per Attività). L'admin configura per ogni Evento se sono ammessi Figli (con max) e se sono ammessi Accompagnatori (con max).
@@ -34,6 +34,24 @@ Margine in minuti, **configurabile dall'admin**, entro cui è consentito il chec
 
 ### Prenotazione
 L'insieme delle Persone iscritte insieme da un Utente in un'unica operazione. La **selezione è unica per Prenotazione**: per ogni Attività scelta si seleziona **uno Slot specifico**, e tutte le Persone della Prenotazione occupano quello stesso Slot. Ogni Persona occupa 1 posto in ciascuno Slot selezionato.
+
+### Allergie e intolleranze
+Dichiarazione libera e facoltativa resa per **ogni Persona** della Prenotazione quando l'Evento la richiede (impostazione per-Evento). Campo vuoto = nessuna allergia dichiarata. È un dato sanitario: visibile ad admin, export, email di conferma e scanner per scelta esplicita del committente.
+
+### Raccolta nomi
+Impostazione a livello di Evento decisa dall'admin. Se attiva (default), il form chiede il nome di ogni Figlio e Ospite. Se disattiva, Figli e Ospiti sono identificati solo dall'[[Etichetta posizionale]] (più l'età per i Figli), per minimizzare i dati personali raccolti.
+
+### Etichetta posizionale
+Identificativo progressivo per categoria — «Figlio 1», «Figlio 2», «Ospite 1» — assegnato alle Persone di una Prenotazione quando l'Evento non prevede la [[Raccolta nomi]]. Compare ovunque comparirebbe il nome: email di conferma, biglietti, scanner, pannello admin, export.
+
+### Conferma di partecipazione
+Impostazione a livello di Evento decisa dall'admin. Se attiva, il form pubblico chiede per prima cosa «Confermi la partecipazione? sì/no»: il «sì» prosegue con la normale Prenotazione, il «no» registra una [[Rinuncia]]. Se disattiva, il form si comporta come oggi (chi non partecipa semplicemente non si iscrive).
+
+### Rinuncia
+Risposta negativa («non partecipo») di una persona a un Evento che richiede la [[Conferma di partecipazione]]. Contiene solo nome e email. **Non è una Prenotazione**: non crea Persone, non occupa posti, non genera QR code. Al massimo una Rinuncia per email per Evento (una nuova risposta «no» la aggiorna). Una successiva Prenotazione con la stessa email cancella la Rinuncia; il percorso inverso è bloccato — chi è già iscritto non può rinunciare dal form pubblico ma deve contattare l'organizzatore (vedi [[Annullamento della Prenotazione]]).
+
+### Annullamento della Prenotazione
+Azione riservata all'admin che elimina un'intera Prenotazione: rimuove le sue Persone e selezioni, libera i posti negli Slot e invalida i relativi QR code. Non esiste un annullamento self-service dal form pubblico.
 
 ### Prenotazione riservata agli account (requireAccount)
 Booleano a livello di Evento impostato dall'admin. Se **true**, per prenotare quell'Evento bisogna essere un [[Membro]] **loggato e con email verificata**; la Prenotazione viene collegata al Membro. Se **false**, la prenotazione anonima funziona come oggi (nome + `contactEmail`, senza login). Interazione con l'embed: quando un Evento è sia `requireAccount` sia `embedEnabled`, **per ora vince `requireAccount`** — il form incorporato rifiuta la prenotazione anonima e rimanda al sito principale. La coesistenza embed↔account va progettata in una sessione dedicata.
@@ -83,3 +101,7 @@ Valore di ritorno delle mutation di check-in, mappato dalla UI sugli stati esist
 Atto di scansionare il QR di una Persona. Avviene:
 1. **All'ingresso dell'Evento** — validazione generale.
 2. **All'ingresso di ogni Attività** — verifica che la Persona sia iscritta a quell'Attività e che stia arrivando nella fascia oraria corretta (arrivo troppo in anticipo/fuori orario = bloccato).
+3. **All'uscita dall'Evento** — solo per gli Eventi con la [[Registrazione dell'uscita]] attiva; richiede un ingresso già registrato (uscita senza ingresso = bloccata).
+
+### Registrazione dell'uscita
+Impostazione a livello di Evento decisa dall'admin. Se attiva, lo scanner offre la modalità «Uscita», che registra l'orario di uscita della Persona dall'Evento. Le ri-uscite seguono la stessa regola dei rientri (riuso QR).
