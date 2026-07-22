@@ -1,5 +1,11 @@
 'use client'
 
+import { useState } from 'react'
+import { useMutation } from 'convex/react'
+import { Ban } from 'lucide-react'
+import { toast } from 'sonner'
+import { api } from '@/convex/_generated/api'
+import type { Id } from '@/convex/_generated/dataModel'
 import {
   Table,
   TableBody,
@@ -9,6 +15,7 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
 import { PdfDownloadButton } from '@/components/admin/pdf-download-button'
 import { downloadAllTickets } from '@/lib/pdf/download-tickets'
 import { formatDateRange, formatDateTime } from '@/lib/format'
@@ -21,6 +28,28 @@ interface RegistrationsTableProps {
 }
 
 export function RegistrationsTable({ registrations, events }: RegistrationsTableProps) {
+  const cancelRegistration = useMutation(api.registrations.cancel)
+  const [cancelingId, setCancelingId] = useState<string | null>(null)
+
+  async function handleCancel(id: string, contactEmail: string) {
+    if (
+      !window.confirm(
+        `Annullare la prenotazione di "${contactEmail}"? Le persone verranno rimosse, i posti liberati e i QR invalidati.`,
+      )
+    ) {
+      return
+    }
+    setCancelingId(id)
+    try {
+      await cancelRegistration({ registrationId: id as Id<'registrations'> })
+      toast.success('Prenotazione annullata')
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Annullamento non riuscito')
+    } finally {
+      setCancelingId(null)
+    }
+  }
+
   if (registrations.length === 0) {
     return (
       <p className="rounded-lg border border-dashed p-8 text-center text-sm text-muted-foreground">
@@ -43,6 +72,7 @@ export function RegistrationsTable({ registrations, events }: RegistrationsTable
             <TableHead className="text-center">Ingressi</TableHead>
             <TableHead>Registrato il</TableHead>
             <TableHead className="text-right">Biglietti</TableHead>
+            <TableHead className="text-right">Azioni</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -104,6 +134,18 @@ export function RegistrationsTable({ registrations, events }: RegistrationsTable
                     successMessage="Biglietti pronti"
                     iconOnly
                   />
+                </TableCell>
+                <TableCell className="text-right">
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    onClick={() => handleCancel(r.id, r.contactEmail)}
+                    disabled={cancelingId === r.id}
+                    aria-label={`Annulla prenotazione di ${r.contactEmail}`}
+                    title={`Annulla prenotazione di ${r.contactEmail}`}
+                  >
+                    <Ban className="h-4 w-4" aria-hidden="true" />
+                  </Button>
                 </TableCell>
               </TableRow>
             )

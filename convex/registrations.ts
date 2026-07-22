@@ -333,3 +333,44 @@ export const myRegistrations = query({
     )
   },
 })
+
+/* ------------------------------------------------------------------ */
+/* Annullamento della Prenotazione (admin, ADR 0004)                   */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Elimina end-to-end una Prenotazione: le sue Persone, le selezioni di
+ * slot e i check-in di attività, liberando i posti negli Slot e
+ * invalidando i ticketCode (una scansione successiva risulta not-found).
+ * Solo admin, per ADR 0004: non esiste annullamento self-service.
+ */
+export const cancel = mutation({
+  args: { registrationId: v.id('registrations') },
+  handler: async (ctx, { registrationId }) => {
+    await requireAdmin(ctx)
+    const registration = await ctx.db.get(registrationId)
+    if (!registration) throw new Error('Prenotazione non trovata')
+
+    const persons = await ctx.db
+      .query('persons')
+      .withIndex('by_registration', (q) => q.eq('registrationId', registrationId))
+      .collect()
+    for (const person of persons) {
+      const checkIns = await ctx.db
+        .query('activityCheckIns')
+        .withIndex('by_person', (q) => q.eq('personId', person._id))
+        .collect()
+      for (const checkIn of checkIns) await ctx.db.delete(checkIn._id)
+      await ctx.db.delete(person._id)
+    }
+
+    const selections = await ctx.db
+      .query('slotSelections')
+      .withIndex('by_registration', (q) => q.eq('registrationId', registrationId))
+      .collect()
+    for (const selection of selections) await ctx.db.delete(selection._id)
+
+    await ctx.db.delete(registrationId)
+    return { success: true }
+  },
+})

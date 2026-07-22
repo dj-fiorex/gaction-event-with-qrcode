@@ -478,3 +478,170 @@ test('checkins.checkIn rejects member operators on password events', async () =>
     }),
   ).rejects.toThrow('Accesso non autorizzato')
 })
+
+/* ------------------------------------------------------------------ */
+/* Annullamento della Prenotazione (admin)                             */
+/* ------------------------------------------------------------------ */
+
+test('cancel rejects staff, member, and anonymous callers', async () => {
+  const t = convexTest(schema, modules)
+  const staffId = await createUser(t, { email: 'staff@example.com', role: 'staff', verified: true })
+  const memberId = await createUser(t, { email: 'member@example.com', role: 'member', verified: true })
+  const { eventId, activityId, slotId } = await createEventFixture(t)
+
+  const { registrationId } = await t.mutation(api.registrations.register, {
+    eventId,
+    userName: 'Mario Rossi',
+    contactEmail: 'guest@example.com',
+    children: [],
+    companions: [],
+    selections: [{ activityId, slotId }],
+  })
+
+  await expect(t.mutation(api.registrations.cancel, { registrationId })).rejects.toThrow(
+    'Non autenticato',
+  )
+  await expect(
+    t.withIdentity({ subject: subjectFor(staffId) }).mutation(api.registrations.cancel, {
+      registrationId,
+    }),
+  ).rejects.toThrow('Accesso riservato agli amministratori')
+  await expect(
+    t.withIdentity({ subject: subjectFor(memberId) }).mutation(api.registrations.cancel, {
+      registrationId,
+    }),
+  ).rejects.toThrow('Accesso riservato agli amministratori')
+
+  // Sanity check: the registration survived every rejected attempt.
+  const stillThere = await t.run((ctx) => ctx.db.get(registrationId))
+  expect(stillThere).not.toBeNull()
+})
+
+test('cancel throws for a nonexistent registration', async () => {
+  const t = convexTest(schema, modules)
+  const adminId = await createUser(t, { email: 'admin@example.com', role: 'admin', verified: true })
+  const { eventId, activityId, slotId } = await createEventFixture(t)
+  const { registrationId } = await t.mutation(api.registrations.register, {
+    eventId,
+    userName: 'Mario Rossi',
+    contactEmail: 'guest@example.com',
+    children: [],
+    companions: [],
+    selections: [{ activityId, slotId }],
+  })
+  await t.withIdentity({ subject: subjectFor(adminId) }).mutation(api.registrations.cancel, {
+    registrationId,
+  })
+
+  await expect(
+    t.withIdentity({ subject: subjectFor(adminId) }).mutation(api.registrations.cancel, {
+      registrationId,
+    }),
+  ).rejects.toThrow('Prenotazione non trovata')
+})
+
+test('cancel removes the Prenotazione end-to-end: Persone, selections, check-ins, admin listing, frees capacity, and invalidates QR codes', async () => {
+  const t = convexTest(schema, modules)
+  const adminId = await createUser(t, { email: 'admin@example.com', role: 'admin', verified: true })
+  const { eventId, activityId, slotId } = await createEventFixture(t)
+
+  // Shrink the slot so a single-person registration fills it completely.
+  await t.run((ctx) => ctx.db.patch(slotId, { capacity: 1 }))
+
+  const { registrationId } = await t.mutation(api.registrations.register, {
+    eventId,
+    userName: 'Mario Rossi',
+    contactEmail: 'guest@example.com',
+    children: [],
+    companions: [],
+    selections: [{ activityId, slotId }],
+  })
+
+  const [person] = await t.run((ctx) =>
+    ctx.db
+      .query('persons')
+      .withIndex('by_registration', (q) => q.eq('registrationId', registrationId))
+      .collect(),
+  )
+
+  // Seed an activity check-in directly, bypassing the slot time-window checks.
+  await t.run((ctx) =>
+    ctx.db.insert('activityCheckIns', {
+      personId: person._id,
+      eventId,
+      activityId,
+      slotId,
+      at: new Date().toISOString(),
+      count: 1,
+      lastAt: new Date().toISOString(),
+    }),
+  )
+
+  // The slot is now full: a competing registration is rejected.
+  await expect(
+    t.mutation(api.registrations.register, {
+      eventId,
+      userName: 'Altra Persona',
+      contactEmail: 'other@example.com',
+      children: [],
+      companions: [],
+      selections: [{ activityId, slotId }],
+    }),
+  ).rejects.toThrow('Posti insufficienti')
+
+  await t.withIdentity({ subject: subjectFor(adminId) }).mutation(api.registrations.cancel, {
+    registrationId,
+  })
+
+  expect(await t.run((ctx) => ctx.db.get(registrationId))).toBeNull()
+  expect(
+    await t.run((ctx) =>
+      ctx.db
+        .query('persons')
+        .withIndex('by_registration', (q) => q.eq('registrationId', registrationId))
+        .collect(),
+    ),
+  ).toHaveLength(0)
+  expect(
+    await t.run((ctx) =>
+      ctx.db
+        .query('slotSelections')
+        .withIndex('by_registration', (q) => q.eq('registrationId', registrationId))
+        .collect(),
+    ),
+  ).toHaveLength(0)
+  expect(
+    await t.run((ctx) =>
+      ctx.db
+        .query('activityCheckIns')
+        .withIndex('by_person', (q) => q.eq('personId', person._id))
+        .collect(),
+    ),
+  ).toHaveLength(0)
+
+  const remaining = await t
+    .withIdentity({ subject: subjectFor(adminId) })
+    .query(api.registrations.listAll, { eventId })
+  expect(remaining.map((r) => r.id)).not.toContain(registrationId)
+
+  // Capacity freed: the previously-failing registration now succeeds.
+  await expect(
+    t.mutation(api.registrations.register, {
+      eventId,
+      userName: 'Altra Persona',
+      contactEmail: 'other@example.com',
+      children: [],
+      companions: [],
+      selections: [{ activityId, slotId }],
+    }),
+  ).resolves.toMatchObject({ eventTitle: 'Evento test' })
+
+  // QR invalidated: scanning the cancelled Persona's ticket code returns not-found.
+  await expect(
+    t.withIdentity({ subject: subjectFor(adminId) }).mutation(api.checkins.checkIn, {
+      eventId,
+      code: person.ticketCode,
+      mode: 'event',
+    }),
+  ).resolves.toMatchObject({ status: 'not-found' })
+})
