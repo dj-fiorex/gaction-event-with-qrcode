@@ -47,6 +47,9 @@ Identificativo progressivo per categoria — «Figlio 1», «Figlio 2», «Ospit
 ### Conferma di partecipazione
 Impostazione a livello di Evento decisa dall'admin. Se attiva, il form pubblico chiede per prima cosa «Confermi la partecipazione? sì/no»: il «sì» prosegue con la normale Prenotazione, il «no» registra una [[Rinuncia]]. Se disattiva, il form si comporta come oggi (chi non partecipa semplicemente non si iscrive).
 
+### Regola del nucleo familiare
+Impostazione opzionale a livello di Evento (numero «max Ospiti quando ci sono Figli», assente di default). Se assente, [[Figlio|Figli]] e [[Ospite|Ospiti]] restano indipendenti come oggi (ciascuno col proprio massimo per Prenotazione, nessuna domanda aggiuntiva). Se presente, il form chiede esplicitamente «Hai figli minorenni a carico? sì/no»: con «sì» mostra fino al massimo Figli (con età) più al massimo questo cap ridotto di Ospiti; con «no» mostra fino al massimo Ospiti pieno. La regola è applicata **server-side** nella mutation di registrazione in base al numero di Figli effettivamente inviati (mai fidandosi della risposta dichiarata dal client); il form la rispecchia solo per UX.
+
 ### Rinuncia
 Risposta negativa («non partecipo») di una persona a un Evento che richiede la [[Conferma di partecipazione]]. Contiene solo nome e email. **Non è una Prenotazione**: non crea Persone, non occupa posti, non genera QR code. Al massimo una Rinuncia per email per Evento (una nuova risposta «no» la aggiorna). Una successiva Prenotazione con la stessa email cancella la Rinuncia; il percorso inverso è bloccato — chi è già iscritto non può rinunciare dal form pubblico ma deve contattare l'organizzatore (vedi [[Annullamento della Prenotazione]]).
 

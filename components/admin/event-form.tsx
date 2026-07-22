@@ -48,6 +48,7 @@ const defaultValues: EventInput = {
   maxChildrenPerRegistration: 2,
   allowCompanions: false,
   maxCompanionsPerRegistration: 1,
+  maxCompanionsWithChildren: undefined,
   checkInAccess: 'private',
   checkInPassword: '',
   activities: [emptyActivity],
@@ -87,6 +88,7 @@ export function EventForm({
     handleSubmit,
     control,
     watch,
+    setValue,
     formState: { errors },
   } = useForm<EventInput>({
     resolver: typedZodResolver(eventSchema),
@@ -99,6 +101,13 @@ export function EventForm({
   const allowChildren = watch('allowChildren')
   const allowCompanions = watch('allowCompanions')
   const checkInAccess = watch('checkInAccess')
+  const maxCompanionsWithChildren = watch('maxCompanionsWithChildren')
+  const familyRuleActive = maxCompanionsWithChildren !== undefined
+
+  /** Regola del nucleo familiare (issue #35): non ha senso senza Figli e Ospiti entrambi ammessi. */
+  function handleFamilyRuleDependencyToggle(nextValue: boolean) {
+    if (!nextValue) setValue('maxCompanionsWithChildren', undefined)
+  }
 
   const onSubmit = handleSubmit(async (values) => {
     setSubmitting(true)
@@ -471,7 +480,10 @@ export function EventForm({
               <Checkbox
                 id="allowChildren"
                 checked={field.value}
-                onCheckedChange={(checked) => field.onChange(checked === true)}
+                onCheckedChange={(checked) => {
+                  field.onChange(checked === true)
+                  handleFamilyRuleDependencyToggle(checked === true)
+                }}
               />
             )}
           />
@@ -499,7 +511,10 @@ export function EventForm({
               <Checkbox
                 id="allowCompanions"
                 checked={field.value}
-                onCheckedChange={(checked) => field.onChange(checked === true)}
+                onCheckedChange={(checked) => {
+                  field.onChange(checked === true)
+                  handleFamilyRuleDependencyToggle(checked === true)
+                }}
               />
             )}
           />
@@ -516,6 +531,42 @@ export function EventForm({
               min={0}
               {...register('maxCompanionsPerRegistration', { valueAsNumber: true })}
             />
+          </div>
+        )}
+
+        {allowChildren && allowCompanions && (
+          <div className="flex flex-col gap-2 border-t border-border pt-4">
+            <div className="flex items-center gap-2">
+              <Checkbox
+                id="familyRuleEnabled"
+                checked={familyRuleActive}
+                onCheckedChange={(checked) =>
+                  setValue('maxCompanionsWithChildren', checked === true ? 1 : undefined, {
+                    shouldValidate: true,
+                  })
+                }
+              />
+              <Label htmlFor="familyRuleEnabled" className="font-normal">
+                Regola del nucleo familiare
+              </Label>
+            </div>
+            <p className="text-sm text-muted-foreground">
+              Se attiva, il form chiede prima «Hai figli minorenni a carico?»: con figli, il numero
+              di Ospiti è limitato al valore qui sotto; senza figli resta il massimo impostato sopra.
+            </p>
+            {familyRuleActive && (
+              <div className="grid gap-2 sm:max-w-60">
+                <Label htmlFor="maxCompanionsWithChildren">Max Ospiti quando ci sono Figli</Label>
+                <Input
+                  id="maxCompanionsWithChildren"
+                  type="number"
+                  min={0}
+                  {...register('maxCompanionsWithChildren', { valueAsNumber: true })}
+                  aria-invalid={!!errors.maxCompanionsWithChildren}
+                />
+                <FieldError message={errors.maxCompanionsWithChildren?.message} />
+              </div>
+            )}
           </div>
         )}
       </div>

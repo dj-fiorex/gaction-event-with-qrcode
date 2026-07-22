@@ -33,6 +33,7 @@ function toEventInput(event: EventWithStats): EventInput {
     maxChildrenPerRegistration: event.maxChildrenPerRegistration || 2,
     allowCompanions: event.allowCompanions,
     maxCompanionsPerRegistration: event.maxCompanionsPerRegistration || 1,
+    maxCompanionsWithChildren: event.maxCompanionsWithChildren ?? undefined,
     checkInAccess: event.checkInAccess,
     checkInPassword: '',
     activities: event.activities.map((activity) => ({

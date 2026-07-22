@@ -39,6 +39,7 @@ const eventInput = {
   maxChildrenPerRegistration: v.number(),
   allowCompanions: v.boolean(),
   maxCompanionsPerRegistration: v.number(),
+  maxCompanionsWithChildren: v.optional(v.number()),
   checkInAccess,
   checkInPassword: v.optional(v.string()),
   activities: v.array(activityInput),
@@ -190,6 +191,10 @@ async function insertActivitiesAndSlots(
 function validateEventInput(input: {
   activityPolicy: 'all' | 'min' | 'free'
   minActivities: number
+  allowChildren: boolean
+  allowCompanions: boolean
+  maxCompanionsPerRegistration: number
+  maxCompanionsWithChildren?: number
   activities: Array<{ start: string; end: string; slotDurationMinutes: number; capacityPerSlot: number }>
 }): string | null {
   if (input.activities.length === 0) return 'Aggiungi almeno un\u2019attività'
@@ -204,6 +209,14 @@ function validateEventInput(input: {
     (input.minActivities < 1 || input.minActivities > input.activities.length)
   ) {
     return 'Il minimo di attività deve essere tra 1 e il numero di attività'
+  }
+  if (
+    input.allowChildren &&
+    input.allowCompanions &&
+    input.maxCompanionsWithChildren !== undefined &&
+    input.maxCompanionsWithChildren > input.maxCompanionsPerRegistration
+  ) {
+    return 'Il massimo Ospiti con Figli non può superare il massimo Ospiti'
   }
   return null
 }
@@ -243,6 +256,8 @@ export const create = mutation({
       maxChildrenPerRegistration: args.allowChildren ? args.maxChildrenPerRegistration : 0,
       allowCompanions: args.allowCompanions,
       maxCompanionsPerRegistration: args.allowCompanions ? args.maxCompanionsPerRegistration : 0,
+      maxCompanionsWithChildren:
+        args.allowChildren && args.allowCompanions ? args.maxCompanionsWithChildren : undefined,
       checkInAccess: args.checkInAccess,
       scanToken: randomToken(),
       checkInPasswordHash,
@@ -306,6 +321,8 @@ export const update = mutation({
       maxChildrenPerRegistration: args.allowChildren ? args.maxChildrenPerRegistration : 0,
       allowCompanions: args.allowCompanions,
       maxCompanionsPerRegistration: args.allowCompanions ? args.maxCompanionsPerRegistration : 0,
+      maxCompanionsWithChildren:
+        args.allowChildren && args.allowCompanions ? args.maxCompanionsWithChildren : undefined,
       checkInAccess: args.checkInAccess,
       checkInPasswordHash,
       scanUnlockToken,

@@ -63,6 +63,8 @@ export function RegistrationForm({
   )
   const [declined, setDeclined] = useState(false)
   const [decliningSubmitting, setDecliningSubmitting] = useState(false)
+  const familyRuleActive = event.maxCompanionsWithChildren !== null
+  const [familyBranch, setFamilyBranch] = useState<'children' | 'no-children' | null>(null)
 
   const {
     register,
@@ -86,6 +88,27 @@ export function RegistrationForm({
 
   const childrenArray = useFieldArray({ control, name: 'children' })
   const companionsArray = useFieldArray({ control, name: 'companions' })
+
+  // Regola del nucleo familiare (issue #35): la risposta al ramo determina quali
+  // sezioni mostrare e il cap Ospiti applicabile. Cambiare risposta azzera le
+  // persone già aggiunte, perché i cap validi differiscono per ramo.
+  function selectFamilyBranch(branch: 'children' | 'no-children') {
+    setFamilyBranch(branch)
+    childrenArray.replace([])
+    companionsArray.replace([])
+  }
+
+  const companionsMax = familyRuleActive
+    ? familyBranch === 'children'
+      ? event.maxCompanionsWithChildren!
+      : event.maxCompanionsPerRegistration
+    : event.maxCompanionsPerRegistration
+  const showChildren = event.allowChildren && (!familyRuleActive || familyBranch === 'children')
+  const showCompanions = event.allowCompanions && (!familyRuleActive || familyBranch !== null)
+  const companionsLabel = familyRuleActive ? 'Ospiti' : 'Accompagnatori'
+  const companionsNamePlaceholder = familyRuleActive ? "Nome dell'ospite" : "Nome dell'accompagnatore"
+  const familyBranchMissing = familyRuleActive && familyBranch === null
+
   const isMember = user?.role === 'member'
   const lockedContactEmail = isMember ? (user.email ?? '') : ''
   const contactEmailLocked = lockedContactEmail.length > 0
@@ -146,6 +169,11 @@ export function RegistrationForm({
   }
 
   const onSubmit = handleSubmit(async (values) => {
+    if (familyBranchMissing) {
+      toast.error('Rispondi alla domanda sui figli minorenni prima di confermare')
+      return
+    }
+
     const selections = buildSelections()
     const selectionError = validateSelectionsClient(selections)
     if (selectionError) {
@@ -235,6 +263,7 @@ export function RegistrationForm({
           setTickets(null)
           setParticipationAnswer(event.confirmParticipation ? null : 'yes')
           setDeclined(false)
+          setFamilyBranch(null)
         }}
       />
     )
@@ -427,7 +456,37 @@ export function RegistrationForm({
             )}
           </div>
 
-          {event.allowChildren && (
+          {familyRuleActive && (
+            <div className="flex flex-col gap-3 rounded-lg border border-border p-4">
+              <div>
+                <p className="font-medium">Hai figli minorenni a carico?</p>
+                <p className="text-sm text-muted-foreground">
+                  In base alla risposta ti mostriamo solo le sezioni valide per la tua
+                  prenotazione.
+                </p>
+              </div>
+              <div className="flex flex-col gap-2 sm:flex-row">
+                <Button
+                  type="button"
+                  variant={familyBranch === 'children' ? 'default' : 'outline'}
+                  className="flex-1"
+                  onClick={() => selectFamilyBranch('children')}
+                >
+                  Sì, ho figli a carico
+                </Button>
+                <Button
+                  type="button"
+                  variant={familyBranch === 'no-children' ? 'default' : 'outline'}
+                  className="flex-1"
+                  onClick={() => selectFamilyBranch('no-children')}
+                >
+                  No, non ho figli a carico
+                </Button>
+              </div>
+            </div>
+          )}
+
+          {showChildren && (
             <PersonRepeater
               title="Figli"
               hint={`Fino a ${event.maxChildrenPerRegistration} figli. Riceveranno un proprio QR.`}
@@ -455,16 +514,16 @@ export function RegistrationForm({
             />
           )}
 
-          {event.allowCompanions && (
+          {showCompanions && (
             <PersonRepeater
-              title="Accompagnatori"
-              hint={`Fino a ${event.maxCompanionsPerRegistration} accompagnatori. Riceveranno un proprio QR.`}
+              title={companionsLabel}
+              hint={`Fino a ${companionsMax} ${companionsLabel.toLowerCase()}. Riceveranno un proprio QR.`}
               fields={companionsArray.fields}
-              canAdd={companionsArray.fields.length < event.maxCompanionsPerRegistration}
+              canAdd={companionsArray.fields.length < companionsMax}
               onAdd={() => companionsArray.append({ name: '' })}
               onRemove={companionsArray.remove}
               register={(index) => register(`companions.${index}.name` as const)}
-              namePlaceholder="Nome dell'accompagnatore"
+              namePlaceholder={companionsNamePlaceholder}
             />
           )}
 
@@ -522,7 +581,13 @@ export function RegistrationForm({
             })}
           </div>
 
-          <Button type="submit" disabled={submitting} className="w-full">
+          {familyBranchMissing && (
+            <p className="text-sm text-destructive">
+              Rispondi alla domanda sui figli minorenni prima di confermare.
+            </p>
+          )}
+
+          <Button type="submit" disabled={submitting || familyBranchMissing} className="w-full">
             {submitting ? 'Registrazione in corso…' : `Conferma registrazione (${personsNeeded} persone)`}
           </Button>
         </form>

@@ -45,6 +45,8 @@ export const eventSchema = z
     maxChildrenPerRegistration: z.coerce.number().int().min(0).default(0),
     allowCompanions: z.boolean().default(false),
     maxCompanionsPerRegistration: z.coerce.number().int().min(0).default(0),
+    /** Regola del nucleo familiare: assente = cap Ospiti indipendente da oggi. */
+    maxCompanionsWithChildren: z.coerce.number().int().min(0).optional(),
     checkInAccess: z.enum(['private', 'password']).default('private'),
     /**
      * Password di check-in. Stringa vuota = "mantieni quella corrente" (in
@@ -63,6 +65,17 @@ export const eventSchema = z
     {
       message: 'Il minimo di attività deve essere tra 1 e il numero di attività',
       path: ['minActivities'],
+    },
+  )
+  .refine(
+    (e) =>
+      !e.allowChildren ||
+      !e.allowCompanions ||
+      e.maxCompanionsWithChildren === undefined ||
+      e.maxCompanionsWithChildren <= e.maxCompanionsPerRegistration,
+    {
+      message: 'Il massimo Ospiti con Figli non può superare il massimo Ospiti',
+      path: ['maxCompanionsWithChildren'],
     },
   )
 

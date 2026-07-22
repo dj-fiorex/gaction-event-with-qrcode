@@ -159,6 +159,8 @@ export interface EventWithStatsDTO {
   maxChildrenPerRegistration: number
   allowCompanions: boolean
   maxCompanionsPerRegistration: number
+  /** Regola del nucleo familiare (issue #35). null = non attiva. */
+  maxCompanionsWithChildren: number | null
   checkInAccess: 'private' | 'password'
   scanToken: string
   hasCheckInPassword: boolean
@@ -281,6 +283,7 @@ export async function loadEventWithStats(
     maxChildrenPerRegistration: event.maxChildrenPerRegistration,
     allowCompanions: event.allowCompanions,
     maxCompanionsPerRegistration: event.maxCompanionsPerRegistration,
+    maxCompanionsWithChildren: event.maxCompanionsWithChildren ?? null,
     checkInAccess: event.checkInAccess,
     scanToken: opts.includeScanToken ? event.scanToken : '',
     hasCheckInPassword: event.checkInPasswordHash !== null,

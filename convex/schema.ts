@@ -56,6 +56,13 @@ export default defineSchema({
     maxChildrenPerRegistration: v.number(),
     allowCompanions: v.boolean(),
     maxCompanionsPerRegistration: v.number(),
+    /**
+     * Regola del nucleo familiare (issue #35): se presente, con almeno un
+     * Figlio nella Prenotazione il cap Ospiti si riduce a questo valore
+     * invece di maxCompanionsPerRegistration. Assente = comportamento
+     * odierno (cap indipendenti, nessuna domanda sì/no nel form).
+     */
+    maxCompanionsWithChildren: v.optional(v.number()),
     checkInAccess,
     scanToken: v.string(),
     /** Hash SHA-256 della password di check-in (solo modalità password). */

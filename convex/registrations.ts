@@ -70,10 +70,20 @@ export const register = mutation({
     if (children.length > event.maxChildrenPerRegistration) {
       throw new Error(`Puoi aggiungere al massimo ${event.maxChildrenPerRegistration} figli`)
     }
-    if (companions.length > event.maxCompanionsPerRegistration) {
-      throw new Error(
-        `Puoi aggiungere al massimo ${event.maxCompanionsPerRegistration} accompagnatori`,
-      )
+
+    // Regola del nucleo familiare (issue #35): con almeno un Figlio effettivamente
+    // inviato, il cap Ospiti si riduce. Basato sui Figli persistiti, mai su un
+    // ramo dichiarato dal client.
+    const familyRuleConfigured = event.maxCompanionsWithChildren !== undefined
+    const companionsCap =
+      familyRuleConfigured && children.length > 0
+        ? event.maxCompanionsWithChildren!
+        : event.maxCompanionsPerRegistration
+    if (companions.length > companionsCap) {
+      // Il termine rispecchia quello che il form mostra per questo Evento
+      // (CONTEXT.md: «Ospite», non «Accompagnatore», è il termine corrente).
+      const noun = familyRuleConfigured ? 'ospiti' : 'accompagnatori'
+      throw new Error(`Puoi aggiungere al massimo ${companionsCap} ${noun}`)
     }
 
     // Carica gli slot selezionati e verifica che appartengano all'Evento.

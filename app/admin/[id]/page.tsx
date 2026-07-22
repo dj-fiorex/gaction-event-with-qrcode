@@ -260,6 +260,14 @@ function EventDetailContent() {
                 }
               />
               <InfoRow
+                label="Regola nucleo familiare"
+                value={
+                  event.maxCompanionsWithChildren !== null
+                    ? `Con figli: max ${event.maxCompanionsWithChildren} ospiti`
+                    : 'Non attiva'
+                }
+              />
+              <InfoRow
                 label="Posti occupati"
                 value={`${event.totalTaken}/${event.totalCapacity}`}
               />

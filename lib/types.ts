@@ -71,6 +71,12 @@ export interface Event {
   maxChildrenPerRegistration: number
   allowCompanions: boolean
   maxCompanionsPerRegistration: number
+  /**
+   * Regola del nucleo familiare: se impostato, con almeno un Figlio nella
+   * Prenotazione il cap Ospiti si riduce a questo valore invece del massimo
+   * pieno. null = regola non attiva (comportamento odierno, cap indipendenti).
+   */
+  maxCompanionsWithChildren: number | null
   /** Modalità di accesso al check-in: privata (sessione) o password. */
   checkInAccess: CheckInAccess
   /** Token univoco e non indovinabile usato nel link /scan/[token]. Rotabile. */

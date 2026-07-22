@@ -41,11 +41,17 @@ async function createEventFixture(
     embedEnabled = false,
     allowChildren = false,
     allowCompanions = false,
+    maxChildrenPerRegistration,
+    maxCompanionsPerRegistration,
+    maxCompanionsWithChildren,
   }: {
     requireAccount?: boolean
     embedEnabled?: boolean
     allowChildren?: boolean
     allowCompanions?: boolean
+    maxChildrenPerRegistration?: number
+    maxCompanionsPerRegistration?: number
+    maxCompanionsWithChildren?: number
   } = {},
 ) {
   return t.run(async (ctx) => {
@@ -59,9 +65,10 @@ async function createEventFixture(
       checkInToleranceMinutes: 15,
       allowQrReuse: false,
       allowChildren,
-      maxChildrenPerRegistration: allowChildren ? 2 : 0,
+      maxChildrenPerRegistration: allowChildren ? (maxChildrenPerRegistration ?? 2) : 0,
       allowCompanions,
-      maxCompanionsPerRegistration: allowCompanions ? 2 : 0,
+      maxCompanionsPerRegistration: allowCompanions ? (maxCompanionsPerRegistration ?? 2) : 0,
+      maxCompanionsWithChildren,
       checkInAccess: 'password',
       scanToken: `scan-${Math.random().toString(36).slice(2)}`,
       checkInPasswordHash: null,
@@ -233,6 +240,132 @@ test('register links the verified member, locks contactEmail, and still allows c
   })
   expect(result.contactEmail).toBe('member@example.com')
   expect(persons.map((person) => person.category)).toEqual(['user', 'child', 'companion'])
+})
+
+/* ------------------------------------------------------------------ */
+/* Regola del nucleo familiare (issue #35)                             */
+/* ------------------------------------------------------------------ */
+
+test('register keeps independent Figli/Ospiti caps when maxCompanionsWithChildren is absent', async () => {
+  const t = convexTest(schema, modules)
+  const { eventId, activityId, slotId } = await createEventFixture(t, {
+    allowChildren: true,
+    allowCompanions: true,
+    maxChildrenPerRegistration: 2,
+    maxCompanionsPerRegistration: 1,
+  })
+
+  // 2 figli + 1 ospite: entro i cap indipendenti, nessuna domanda di ramo coinvolta.
+  await expect(
+    t.mutation(api.registrations.register, {
+      eventId,
+      userName: 'Mario Rossi',
+      contactEmail: 'guest@example.com',
+      children: [{ name: 'Figlio 1', age: 5 }, { name: 'Figlio 2', age: 7 }],
+      companions: [{ name: 'Ospite 1' }],
+      selections: [{ activityId, slotId }],
+    }),
+  ).resolves.toMatchObject({ eventTitle: 'Evento test' })
+
+  // Superare il cap Ospiti resta bloccato esattamente come oggi, a prescindere dai figli.
+  await expect(
+    t.mutation(api.registrations.register, {
+      eventId,
+      userName: 'Altra Persona',
+      contactEmail: 'other@example.com',
+      children: [],
+      companions: [{ name: 'Ospite 1' }, { name: 'Ospite 2' }],
+      selections: [{ activityId, slotId }],
+    }),
+  ).rejects.toThrow('Puoi aggiungere al massimo 1 accompagnatori')
+})
+
+test('register rejects more Ospiti than the reduced cap when at least one Figlio is present', async () => {
+  const t = convexTest(schema, modules)
+  const { eventId, activityId, slotId } = await createEventFixture(t, {
+    allowChildren: true,
+    allowCompanions: true,
+    maxChildrenPerRegistration: 5,
+    maxCompanionsPerRegistration: 2,
+    maxCompanionsWithChildren: 1,
+  })
+
+  await expect(
+    t.mutation(api.registrations.register, {
+      eventId,
+      userName: 'Mario Rossi',
+      contactEmail: 'guest@example.com',
+      children: [{ name: 'Figlio 1', age: 5 }],
+      companions: [{ name: 'Ospite 1' }, { name: 'Ospite 2' }],
+      selections: [{ activityId, slotId }],
+    }),
+  ).rejects.toThrow('Puoi aggiungere al massimo 1 ospiti')
+})
+
+test('register allows exactly the reduced Ospiti cap when a Figlio is present (boundary)', async () => {
+  const t = convexTest(schema, modules)
+  const { eventId, activityId, slotId } = await createEventFixture(t, {
+    allowChildren: true,
+    allowCompanions: true,
+    maxChildrenPerRegistration: 5,
+    maxCompanionsPerRegistration: 2,
+    maxCompanionsWithChildren: 1,
+  })
+
+  await expect(
+    t.mutation(api.registrations.register, {
+      eventId,
+      userName: 'Mario Rossi',
+      contactEmail: 'guest@example.com',
+      children: [{ name: 'Figlio 1', age: 5 }],
+      companions: [{ name: 'Ospite 1' }],
+      selections: [{ activityId, slotId }],
+    }),
+  ).resolves.toMatchObject({ eventTitle: 'Evento test' })
+})
+
+test('register allows the full Ospiti cap when there are no Figli, even with the family rule active', async () => {
+  const t = convexTest(schema, modules)
+  const { eventId, activityId, slotId } = await createEventFixture(t, {
+    allowChildren: true,
+    allowCompanions: true,
+    maxChildrenPerRegistration: 5,
+    maxCompanionsPerRegistration: 2,
+    maxCompanionsWithChildren: 1,
+  })
+
+  await expect(
+    t.mutation(api.registrations.register, {
+      eventId,
+      userName: 'Mario Rossi',
+      contactEmail: 'guest@example.com',
+      children: [],
+      companions: [{ name: 'Ospite 1' }, { name: 'Ospite 2' }],
+      selections: [{ activityId, slotId }],
+    }),
+  ).resolves.toMatchObject({ eventTitle: 'Evento test' })
+})
+
+test('register still enforces the full Ospiti cap when there are no Figli and the family rule is active', async () => {
+  const t = convexTest(schema, modules)
+  const { eventId, activityId, slotId } = await createEventFixture(t, {
+    allowChildren: true,
+    allowCompanions: true,
+    maxChildrenPerRegistration: 5,
+    maxCompanionsPerRegistration: 2,
+    maxCompanionsWithChildren: 1,
+  })
+
+  await expect(
+    t.mutation(api.registrations.register, {
+      eventId,
+      userName: 'Mario Rossi',
+      contactEmail: 'guest@example.com',
+      children: [],
+      companions: [{ name: 'Ospite 1' }, { name: 'Ospite 2' }, { name: 'Ospite 3' }],
+      selections: [{ activityId, slotId }],
+    }),
+  ).rejects.toThrow('Puoi aggiungere al massimo 2 ospiti')
 })
 
 test('register links authenticated callers on anonymous events and locks contactEmail for members', async () => {

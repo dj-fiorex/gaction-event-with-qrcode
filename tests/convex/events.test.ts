@@ -110,6 +110,121 @@ test('events.update can toggle requireAccount off', async () => {
   expect(publicEvent?.requireAccount).toBe(false)
 })
 
+/* ------------------------------------------------------------------ */
+/* Regola del nucleo familiare (issue #35)                             */
+/* ------------------------------------------------------------------ */
+
+test('events.create persists maxCompanionsWithChildren when Figli and Ospiti are both enabled', async () => {
+  const t = convexTest(schema, modules)
+  const adminId = await createAdmin(t)
+
+  const { id: eventId } = await t.withIdentity({ subject: subjectFor(adminId) }).mutation(
+    api.events.create,
+    {
+      ...buildEventInput(false),
+      allowChildren: true,
+      maxChildrenPerRegistration: 5,
+      allowCompanions: true,
+      maxCompanionsPerRegistration: 2,
+      maxCompanionsWithChildren: 1,
+    },
+  )
+
+  const rawEvent = await t.run((ctx) => ctx.db.get(eventId))
+  const publicEvent = await t.query(api.events.getPublic, { eventId })
+
+  expect(rawEvent?.maxCompanionsWithChildren).toBe(1)
+  expect(publicEvent?.maxCompanionsWithChildren).toBe(1)
+})
+
+test('events.create clears maxCompanionsWithChildren when Figli are not enabled, even if sent', async () => {
+  const t = convexTest(schema, modules)
+  const adminId = await createAdmin(t)
+
+  const { id: eventId } = await t.withIdentity({ subject: subjectFor(adminId) }).mutation(
+    api.events.create,
+    {
+      ...buildEventInput(false),
+      allowChildren: false,
+      allowCompanions: true,
+      maxCompanionsPerRegistration: 2,
+      maxCompanionsWithChildren: 1,
+    },
+  )
+
+  const rawEvent = await t.run((ctx) => ctx.db.get(eventId))
+  const publicEvent = await t.query(api.events.getPublic, { eventId })
+
+  expect(rawEvent?.maxCompanionsWithChildren).toBeUndefined()
+  expect(publicEvent?.maxCompanionsWithChildren).toBeNull()
+})
+
+test('events.create rejects a maxCompanionsWithChildren greater than the base Ospiti cap', async () => {
+  const t = convexTest(schema, modules)
+  const adminId = await createAdmin(t)
+
+  await expect(
+    t.withIdentity({ subject: subjectFor(adminId) }).mutation(api.events.create, {
+      ...buildEventInput(false),
+      allowChildren: true,
+      maxChildrenPerRegistration: 5,
+      allowCompanions: true,
+      maxCompanionsPerRegistration: 1,
+      maxCompanionsWithChildren: 2,
+    }),
+  ).rejects.toThrow('Il massimo Ospiti con Figli non può superare il massimo Ospiti')
+})
+
+test('events.create allows a maxCompanionsWithChildren exactly equal to the base Ospiti cap (boundary)', async () => {
+  const t = convexTest(schema, modules)
+  const adminId = await createAdmin(t)
+
+  const { id: eventId } = await t.withIdentity({ subject: subjectFor(adminId) }).mutation(
+    api.events.create,
+    {
+      ...buildEventInput(false),
+      allowChildren: true,
+      maxChildrenPerRegistration: 5,
+      allowCompanions: true,
+      maxCompanionsPerRegistration: 2,
+      maxCompanionsWithChildren: 2,
+    },
+  )
+
+  const rawEvent = await t.run((ctx) => ctx.db.get(eventId))
+  expect(rawEvent?.maxCompanionsWithChildren).toBe(2)
+})
+
+test('events.update clears a previously-set maxCompanionsWithChildren when Ospiti are disabled', async () => {
+  const t = convexTest(schema, modules)
+  const adminId = await createAdmin(t)
+
+  const { id: eventId } = await t.withIdentity({ subject: subjectFor(adminId) }).mutation(
+    api.events.create,
+    {
+      ...buildEventInput(false),
+      allowChildren: true,
+      maxChildrenPerRegistration: 5,
+      allowCompanions: true,
+      maxCompanionsPerRegistration: 2,
+      maxCompanionsWithChildren: 1,
+    },
+  )
+
+  await t.withIdentity({ subject: subjectFor(adminId) }).mutation(api.events.update, {
+    eventId,
+    ...buildEventInput(false),
+    allowChildren: true,
+    maxChildrenPerRegistration: 5,
+    allowCompanions: false,
+    maxCompanionsPerRegistration: 0,
+    maxCompanionsWithChildren: 1,
+  })
+
+  const rawEvent = await t.run((ctx) => ctx.db.get(eventId))
+  expect(rawEvent?.maxCompanionsWithChildren).toBeUndefined()
+})
+
 test('events.listOperable excludes members for password-mode events and includes staff', async () => {
   const t = convexTest(schema, modules)
   const adminId = await createAdmin(t)
