@@ -66,6 +66,8 @@ export default defineSchema({
     embedEnabled: v.optional(v.boolean()),
     /** Se true, la Prenotazione richiede un Membro autenticato. */
     requireAccount: v.optional(v.boolean()),
+    /** Se true, il form pubblico chiede prima «Confermi la partecipazione? sì/no». */
+    confirmParticipation: v.optional(v.boolean()),
     /**
      * Origini autorizzate a incorporare il form (CSP frame-ancestors).
      * Ogni voce è un'origine esatta (https://www.partner.com) o un wildcard di
@@ -150,4 +152,18 @@ export default defineSchema({
     .index('by_event', ['eventId'])
     .index('by_user', ['userId'])
     .index('by_event_user', ['eventId', 'userId']),
+
+  // Rinuncia (ADR 0004): risposta «no» a Conferma di partecipazione.
+  // Non è una Prenotazione: nessuna Persona, nessun posto, nessun QR.
+  declines: defineTable({
+    eventId: v.id('events'),
+    name: v.string(),
+    /** Normalizzata (trim + lowercase): solo dedup dentro l'Evento, mai identity linking. */
+    email: v.string(),
+    /** ISO dell'ultima risposta «no» (si aggiorna a ogni upsert). */
+    respondedAt: v.string(),
+  })
+    // Compound index: a query for "just eventId" is a valid prefix match,
+    // so a separate by_event index would be redundant.
+    .index('by_event_email', ['eventId', 'email']),
 })

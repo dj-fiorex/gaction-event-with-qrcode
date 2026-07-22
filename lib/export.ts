@@ -1,6 +1,6 @@
 import * as XLSX from 'xlsx'
 import { formatDateTime } from './format'
-import type { EventWithStats, PersonCategory, Registration } from './types'
+import type { Decline, EventWithStats, PersonCategory, Registration } from './types'
 
 const CATEGORY_LABEL: Record<PersonCategory, string> = {
   user: 'Iscritto',
@@ -31,6 +31,13 @@ function activitiesLabel(
     .join(', ')
 }
 
+interface DeclineRow {
+  Evento: string
+  Nome: string
+  Email: string
+  'Data risposta': string
+}
+
 /**
  * Costruisce e scarica un file XLSX delle registrazioni lato client,
  * usando i dati già caricati via Convex (nessuna round-trip al server).
@@ -39,9 +46,11 @@ export function downloadRegistrationsXlsx(
   registrations: Registration[],
   events: EventWithStats[],
   eventId?: string,
+  declines: Decline[] = [],
 ): void {
   const eventById = new Map(events.map((e) => [e.id, e]))
   const scoped = eventId ? registrations.filter((r) => r.eventId === eventId) : registrations
+  const scopedDeclines = eventId ? declines.filter((d) => d.eventId === eventId) : declines
 
   const rows: ExportRow[] = []
   for (const r of scoped) {
@@ -63,6 +72,13 @@ export function downloadRegistrationsXlsx(
     }
   }
 
+  const declineRows: DeclineRow[] = scopedDeclines.map((d) => ({
+    Evento: eventById.get(d.eventId)?.title ?? d.eventId,
+    Nome: d.name,
+    Email: d.email,
+    'Data risposta': formatDateTime(d.respondedAt),
+  }))
+
   const worksheet = XLSX.utils.json_to_sheet(rows)
   worksheet['!cols'] = [
     { wch: 26 },
@@ -77,8 +93,14 @@ export function downloadRegistrationsXlsx(
     { wch: 18 },
   ]
 
+  const declinesWorksheet = XLSX.utils.json_to_sheet(declineRows, {
+    header: ['Evento', 'Nome', 'Email', 'Data risposta'],
+  })
+  declinesWorksheet['!cols'] = [{ wch: 26 }, { wch: 22 }, { wch: 26 }, { wch: 18 }]
+
   const workbook = XLSX.utils.book_new()
   XLSX.utils.book_append_sheet(workbook, worksheet, 'Persone')
+  XLSX.utils.book_append_sheet(workbook, declinesWorksheet, 'Rinunce')
 
   const suffix = eventId ? eventById.get(eventId)?.title ?? eventId : 'tutti-gli-eventi'
   const filename = `registrazioni-${suffix}`

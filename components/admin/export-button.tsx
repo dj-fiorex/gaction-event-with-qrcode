@@ -5,16 +5,23 @@ import { Download } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { downloadRegistrationsXlsx } from '@/lib/export'
-import type { EventWithStats, Registration } from '@/lib/types'
+import type { Decline, EventWithStats, Registration } from '@/lib/types'
 
 interface ExportButtonProps {
   registrations: Registration[]
   events: EventWithStats[]
   eventId?: string
+  declines?: Decline[]
   disabled?: boolean
 }
 
-export function ExportButton({ registrations, events, eventId, disabled }: ExportButtonProps) {
+export function ExportButton({
+  registrations,
+  events,
+  eventId,
+  declines = [],
+  disabled,
+}: ExportButtonProps) {
   const [loading, setLoading] = useState(false)
 
   function handleExport() {
@@ -27,7 +34,7 @@ export function ExportButton({ registrations, events, eventId, disabled }: Expor
         toast.error('Nessuna registrazione da esportare')
         return
       }
-      downloadRegistrationsXlsx(registrations, events, eventId)
+      downloadRegistrationsXlsx(registrations, events, eventId, declines)
       toast.success('Esportazione completata')
     } catch {
       toast.error('Errore durante l\u2019esportazione')

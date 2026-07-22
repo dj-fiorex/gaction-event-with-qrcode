@@ -1,0 +1,323 @@
+/// <reference types="vite/client" />
+
+import { convexTest } from 'convex-test'
+import { expect, test } from 'vitest'
+import { api } from '../../convex/_generated/api'
+import type { Id } from '../../convex/_generated/dataModel'
+import schema from '../../convex/schema'
+
+const modules = import.meta.glob('../../convex/**/*.ts')
+
+function subjectFor(userId: Id<'users'>) {
+  return `${userId}|test-session`
+}
+
+async function createUser(
+  t: ReturnType<typeof convexTest>,
+  { email, role }: { email: string; role: 'admin' | 'staff' | 'member' },
+) {
+  return t.run((ctx) =>
+    ctx.db.insert('users', {
+      email,
+      name: `${role} user`,
+      role,
+      emailVerificationTime: Date.now(),
+    }),
+  )
+}
+
+async function createEventFixture(
+  t: ReturnType<typeof convexTest>,
+  { confirmParticipation = true }: { confirmParticipation?: boolean } = {},
+) {
+  return t.run(async (ctx) => {
+    const eventId = await ctx.db.insert('events', {
+      title: 'Evento aziendale',
+      description: 'Descrizione',
+      location: 'Milano',
+      activityPolicy: 'free',
+      minActivities: 0,
+      allowOverlap: false,
+      checkInToleranceMinutes: 15,
+      allowQrReuse: false,
+      allowChildren: false,
+      maxChildrenPerRegistration: 0,
+      allowCompanions: false,
+      maxCompanionsPerRegistration: 0,
+      checkInAccess: 'password',
+      scanToken: `scan-${Math.random().toString(36).slice(2)}`,
+      checkInPasswordHash: null,
+      scanUnlockToken: null,
+      confirmParticipation,
+    })
+    const activityId = await ctx.db.insert('activities', {
+      eventId,
+      title: 'Laboratorio',
+      start: '2026-07-07T09:00:00.000Z',
+      end: '2026-07-07T10:00:00.000Z',
+      slotDurationMinutes: 60,
+      capacityPerSlot: 10,
+      order: 0,
+    })
+    const slotId = await ctx.db.insert('slots', {
+      eventId,
+      activityId,
+      start: '2026-07-07T09:00:00.000Z',
+      end: '2026-07-07T10:00:00.000Z',
+      capacity: 10,
+      order: 0,
+    })
+    return { eventId, activityId, slotId }
+  })
+}
+
+/* ------------------------------------------------------------------ */
+/* decline: flag gate                                                  */
+/* ------------------------------------------------------------------ */
+
+test('decline rejects when the event does not have confirmParticipation enabled', async () => {
+  const t = convexTest(schema, modules)
+  const { eventId } = await createEventFixture(t, { confirmParticipation: false })
+
+  await expect(
+    t.mutation(api.declines.decline, {
+      eventId,
+      name: 'Mario Rossi',
+      email: 'mario@example.com',
+    }),
+  ).rejects.toThrow('Questo evento non richiede la conferma di partecipazione')
+})
+
+/* ------------------------------------------------------------------ */
+/* decline: stores a Rinuncia with no Persone/capacity/QR impact        */
+/* ------------------------------------------------------------------ */
+
+test('decline stores only name and email, creates no Persone and occupies no capacity', async () => {
+  const t = convexTest(schema, modules)
+  const { eventId, activityId, slotId } = await createEventFixture(t)
+
+  await t.mutation(api.declines.decline, {
+    eventId,
+    name: 'Mario Rossi',
+    email: 'Mario@Example.com ',
+  })
+
+  const declines = await t.run((ctx) =>
+    ctx.db
+      .query('declines')
+      .withIndex('by_event_email', (q) => q.eq('eventId', eventId))
+      .collect(),
+  )
+  expect(declines).toHaveLength(1)
+  expect(declines[0]).toMatchObject({ name: 'Mario Rossi', email: 'mario@example.com' })
+
+  const persons = await t.run((ctx) => ctx.db.query('persons').collect())
+  const registrations = await t.run((ctx) => ctx.db.query('registrations').collect())
+  const selections = await t.run((ctx) => ctx.db.query('slotSelections').collect())
+  expect(persons).toHaveLength(0)
+  expect(registrations).toHaveLength(0)
+  expect(selections).toHaveLength(0)
+
+  // Full capacity remains available: a real registration for the same slot still fits entirely.
+  await expect(
+    t.mutation(api.registrations.register, {
+      eventId,
+      userName: 'Altra Persona',
+      contactEmail: 'other@example.com',
+      children: [],
+      companions: [],
+      selections: [{ activityId, slotId }],
+    }),
+  ).resolves.toMatchObject({ eventTitle: 'Evento aziendale' })
+})
+
+/* ------------------------------------------------------------------ */
+/* decline: upsert on repeated «no» (latest wins, no duplicate)         */
+/* ------------------------------------------------------------------ */
+
+test('a second decline from the same normalized email upserts instead of duplicating', async () => {
+  const t = convexTest(schema, modules)
+  const { eventId } = await createEventFixture(t)
+
+  await t.mutation(api.declines.decline, {
+    eventId,
+    name: 'Mario Rossi',
+    email: 'mario@example.com',
+  })
+  await t.mutation(api.declines.decline, {
+    eventId,
+    name: 'Mario R.',
+    email: '  MARIO@EXAMPLE.COM',
+  })
+
+  const declines = await t.run((ctx) =>
+    ctx.db
+      .query('declines')
+      .withIndex('by_event_email', (q) => q.eq('eventId', eventId))
+      .collect(),
+  )
+  expect(declines).toHaveLength(1)
+  expect(declines[0]).toMatchObject({ name: 'Mario R.', email: 'mario@example.com' })
+})
+
+/* ------------------------------------------------------------------ */
+/* register deletes a matching Rinuncia («sì» dopo «no»)                */
+/* ------------------------------------------------------------------ */
+
+test('registering with an email that has a Rinuncia on that event deletes the Rinuncia', async () => {
+  const t = convexTest(schema, modules)
+  const { eventId, activityId, slotId } = await createEventFixture(t)
+
+  await t.mutation(api.declines.decline, {
+    eventId,
+    name: 'Mario Rossi',
+    email: 'mario@example.com',
+  })
+
+  await t.mutation(api.registrations.register, {
+    eventId,
+    userName: 'Mario Rossi',
+    contactEmail: 'Mario@Example.com',
+    children: [],
+    companions: [],
+    selections: [{ activityId, slotId }],
+  })
+
+  const declines = await t.run((ctx) =>
+    ctx.db
+      .query('declines')
+      .withIndex('by_event_email', (q) => q.eq('eventId', eventId))
+      .collect(),
+  )
+  expect(declines).toHaveLength(0)
+})
+
+test('registering does not affect a Rinuncia belonging to a different email', async () => {
+  const t = convexTest(schema, modules)
+  const { eventId, activityId, slotId } = await createEventFixture(t)
+
+  await t.mutation(api.declines.decline, {
+    eventId,
+    name: 'Altra Persona',
+    email: 'altra@example.com',
+  })
+
+  await t.mutation(api.registrations.register, {
+    eventId,
+    userName: 'Mario Rossi',
+    contactEmail: 'mario@example.com',
+    children: [],
+    companions: [],
+    selections: [{ activityId, slotId }],
+  })
+
+  const declines = await t.run((ctx) =>
+    ctx.db
+      .query('declines')
+      .withIndex('by_event_email', (q) => q.eq('eventId', eventId))
+      .collect(),
+  )
+  expect(declines).toHaveLength(1)
+  expect(declines[0]).toMatchObject({ email: 'altra@example.com' })
+})
+
+test('a Rinuncia on one event survives a same-email registration on a different event', async () => {
+  const t = convexTest(schema, modules)
+  const { eventId: eventA } = await createEventFixture(t)
+  const { eventId: eventB, activityId, slotId } = await createEventFixture(t)
+
+  await t.mutation(api.declines.decline, {
+    eventId: eventA,
+    name: 'Mario Rossi',
+    email: 'mario@example.com',
+  })
+
+  await t.mutation(api.registrations.register, {
+    eventId: eventB,
+    userName: 'Mario Rossi',
+    contactEmail: 'mario@example.com',
+    children: [],
+    companions: [],
+    selections: [{ activityId, slotId }],
+  })
+
+  const declinesForA = await t.run((ctx) =>
+    ctx.db
+      .query('declines')
+      .withIndex('by_event_email', (q) => q.eq('eventId', eventA))
+      .collect(),
+  )
+  expect(declinesForA).toHaveLength(1)
+  expect(declinesForA[0]).toMatchObject({ email: 'mario@example.com' })
+})
+
+/* ------------------------------------------------------------------ */
+/* decline is blocked when the email already has a Prenotazione         */
+/* ------------------------------------------------------------------ */
+
+test('declining with an email that already has a Prenotazione throws the block message and stores nothing', async () => {
+  const t = convexTest(schema, modules)
+  const { eventId, activityId, slotId } = await createEventFixture(t)
+
+  await t.mutation(api.registrations.register, {
+    eventId,
+    userName: 'Mario Rossi',
+    contactEmail: 'mario@example.com',
+    children: [],
+    companions: [],
+    selections: [{ activityId, slotId }],
+  })
+
+  await expect(
+    t.mutation(api.declines.decline, {
+      eventId,
+      name: 'Mario Rossi',
+      email: 'Mario@Example.com',
+    }),
+  ).rejects.toThrow(
+    'Risulti già iscritto a questo evento: contatta l’organizzatore per modificare la tua prenotazione',
+  )
+
+  const declines = await t.run((ctx) =>
+    ctx.db
+      .query('declines')
+      .withIndex('by_event_email', (q) => q.eq('eventId', eventId))
+      .collect(),
+  )
+  expect(declines).toHaveLength(0)
+})
+
+/* ------------------------------------------------------------------ */
+/* declines.list (admin)                                               */
+/* ------------------------------------------------------------------ */
+
+test('declines.list rejects non-admin and anonymous callers', async () => {
+  const t = convexTest(schema, modules)
+  const staffId = await createUser(t, { email: 'staff@example.com', role: 'staff' })
+  const { eventId } = await createEventFixture(t)
+
+  await expect(t.query(api.declines.list, { eventId })).rejects.toThrow('Non autenticato')
+  await expect(
+    t.withIdentity({ subject: subjectFor(staffId) }).query(api.declines.list, { eventId }),
+  ).rejects.toThrow('Accesso riservato agli amministratori')
+})
+
+test('declines.list returns the count and list for an event, scoped correctly', async () => {
+  const t = convexTest(schema, modules)
+  const adminId = await createUser(t, { email: 'admin@example.com', role: 'admin' })
+  const { eventId: eventA } = await createEventFixture(t)
+  const { eventId: eventB } = await createEventFixture(t)
+
+  await t.mutation(api.declines.decline, { eventId: eventA, name: 'A1', email: 'a1@example.com' })
+  await t.mutation(api.declines.decline, { eventId: eventA, name: 'A2', email: 'a2@example.com' })
+  await t.mutation(api.declines.decline, { eventId: eventB, name: 'B1', email: 'b1@example.com' })
+
+  const forEventA = await t
+    .withIdentity({ subject: subjectFor(adminId) })
+    .query(api.declines.list, { eventId: eventA })
+  expect(forEventA).toHaveLength(2)
+  expect(forEventA.map((d) => d.email).sort()).toEqual(['a1@example.com', 'a2@example.com'])
+
+  const all = await t.withIdentity({ subject: subjectFor(adminId) }).query(api.declines.list, {})
+  expect(all).toHaveLength(3)
+})

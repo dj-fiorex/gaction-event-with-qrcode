@@ -19,6 +19,7 @@ import type { Id } from '@/convex/_generated/dataModel'
 import { AuthGate } from '@/components/auth/auth-gate'
 import { AdminHeader } from '@/components/admin/admin-header'
 import { CheckInAccessCard } from '@/components/admin/check-in-access-card'
+import { DeclinesCard } from '@/components/admin/declines-card'
 import { EmbedCard } from '@/components/admin/embed-card'
 import { EventActivityMonitor } from '@/components/admin/event-activity-monitor'
 import { ExportButton } from '@/components/admin/export-button'
@@ -75,6 +76,7 @@ function EventDetailContent() {
   const event = useQuery(api.events.getForAdmin, { eventId })
   const activities = useQuery(api.attendance.getActivityAttendance, { eventId })
   const registrations = useQuery(api.registrations.listAll, { eventId })
+  const declines = useQuery(api.declines.list, { eventId })
 
   if (event === undefined) {
     return (
@@ -173,6 +175,7 @@ function EventDetailContent() {
                 registrations={registrations ?? []}
                 events={[event]}
                 eventId={event.id}
+                declines={declines ?? []}
                 disabled={registrations === undefined || event.registrationsCount === 0}
               />
               <PdfDownloadButton
@@ -276,6 +279,8 @@ function EventDetailContent() {
           embedEnabled={event.embedEnabled}
           allowedOrigins={event.allowedOrigins}
         />
+
+        <DeclinesCard declines={declines ?? []} />
 
         <section className="flex flex-col gap-3">
           <div>

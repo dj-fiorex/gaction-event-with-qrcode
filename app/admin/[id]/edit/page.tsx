@@ -28,6 +28,7 @@ function toEventInput(event: EventWithStats): EventInput {
     checkInToleranceMinutes: event.checkInToleranceMinutes,
     allowQrReuse: event.allowQrReuse,
     requireAccount: event.requireAccount,
+    confirmParticipation: event.confirmParticipation,
     allowChildren: event.allowChildren,
     maxChildrenPerRegistration: event.maxChildrenPerRegistration || 2,
     allowCompanions: event.allowCompanions,

@@ -65,6 +65,8 @@ export interface Event {
   allowQrReuse: boolean
   /** Se true, la Prenotazione è riservata ai Membri autenticati e verificati. */
   requireAccount: boolean
+  /** Se true, il form pubblico chiede prima «Confermi la partecipazione? sì/no». */
+  confirmParticipation: boolean
   allowChildren: boolean
   maxChildrenPerRegistration: number
   allowCompanions: boolean
@@ -124,6 +126,19 @@ export interface Registration {
   selections: SlotSelection[]
   persons: Person[]
   createdAt: string
+}
+
+/**
+ * Rinuncia (ADR 0004): risposta «no» a Conferma di partecipazione. Non è una
+ * Prenotazione: nessuna Persona, nessun posto, nessun QR.
+ */
+export interface Decline {
+  id: string
+  eventId: string
+  name: string
+  email: string
+  /** ISO dell'ultima risposta «no» (aggiornata a ogni upsert). */
+  respondedAt: string
 }
 
 export interface SlotWithAvailability extends Slot {

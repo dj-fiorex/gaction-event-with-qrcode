@@ -20,7 +20,12 @@ import {
 import { useAction, useMutation } from 'convex/react'
 import { api } from '@/convex/_generated/api'
 import type { Id } from '@/convex/_generated/dataModel'
-import { registrationSchema, type RegistrationInput } from '@/lib/schemas'
+import {
+  declineSchema,
+  registrationSchema,
+  type DeclineInput,
+  type RegistrationInput,
+} from '@/lib/schemas'
 import { typedZodResolver } from '@/lib/zod-resolver'
 import { formatTimeRange, formatDateRange } from '@/lib/format'
 import { generateQrDataUrl } from '@/lib/qr-client'
@@ -46,12 +51,18 @@ export function RegistrationForm({
   embed?: boolean
 }) {
   const registerMutation = useMutation(api.registrations.register)
+  const declineMutation = useMutation(api.declines.decline)
   const sendTickets = useAction(api.emails.sendTickets)
   const pathname = usePathname()
   const { user, isLoading } = useCurrentUser()
   const [tickets, setTickets] = useState<RegisteredPerson[] | null>(null)
   const [submitting, setSubmitting] = useState(false)
   const [slotByActivity, setSlotByActivity] = useState<Record<string, string>>({})
+  const [participationAnswer, setParticipationAnswer] = useState<'yes' | 'no' | null>(
+    event.confirmParticipation ? null : 'yes',
+  )
+  const [declined, setDeclined] = useState(false)
+  const [decliningSubmitting, setDecliningSubmitting] = useState(false)
 
   const {
     register,
@@ -183,6 +194,31 @@ export function RegistrationForm({
     }
   })
 
+  const {
+    register: registerDecline,
+    handleSubmit: handleDeclineSubmit,
+    formState: { errors: declineErrors },
+  } = useForm<DeclineInput>({
+    resolver: typedZodResolver(declineSchema),
+    defaultValues: { name: '', email: '' },
+  })
+
+  const onDeclineSubmit = handleDeclineSubmit(async (values) => {
+    setDecliningSubmitting(true)
+    try {
+      await declineMutation({
+        eventId: event.id as Id<'events'>,
+        name: values.name,
+        email: values.email,
+      })
+      setDeclined(true)
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Invio non riuscito')
+    } finally {
+      setDecliningSubmitting(false)
+    }
+  })
+
   if (tickets) {
     return (
       <TicketResult
@@ -197,8 +233,91 @@ export function RegistrationForm({
           reset()
           setSlotByActivity({})
           setTickets(null)
+          setParticipationAnswer(event.confirmParticipation ? null : 'yes')
+          setDeclined(false)
         }}
       />
+    )
+  }
+
+  if (event.confirmParticipation && declined) {
+    return (
+      <RegistrationNotice
+        title="Grazie per averci risposto"
+        description="Abbiamo registrato che non parteciperai a questo evento."
+      />
+    )
+  }
+
+  if (event.confirmParticipation && participationAnswer === null) {
+    return (
+      <RegistrationNotice
+        title="Confermi la partecipazione?"
+        description="Facci sapere se parteciperai a questo evento, così possiamo organizzarlo al meglio."
+      >
+        <div className="flex flex-col gap-2 sm:flex-row">
+          <Button className="flex-1" onClick={() => setParticipationAnswer('yes')}>
+            Sì, parteciperò
+          </Button>
+          <Button
+            variant="outline"
+            className="flex-1"
+            onClick={() => setParticipationAnswer('no')}
+          >
+            No, non parteciperò
+          </Button>
+        </div>
+      </RegistrationNotice>
+    )
+  }
+
+  if (event.confirmParticipation && participationAnswer === 'no') {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle>Non parteciperò</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <form onSubmit={onDeclineSubmit} className="flex flex-col gap-5" noValidate>
+            <div className="grid gap-2">
+              <Label htmlFor="declineName">Il tuo nome e cognome</Label>
+              <Input
+                id="declineName"
+                {...registerDecline('name')}
+                aria-invalid={!!declineErrors.name}
+              />
+              {declineErrors.name && (
+                <p className="text-sm text-destructive">{declineErrors.name.message}</p>
+              )}
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="declineEmail">Email</Label>
+              <Input
+                id="declineEmail"
+                type="email"
+                {...registerDecline('email')}
+                aria-invalid={!!declineErrors.email}
+              />
+              {declineErrors.email && (
+                <p className="text-sm text-destructive">{declineErrors.email.message}</p>
+              )}
+            </div>
+            <div className="flex gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                className="flex-1"
+                onClick={() => setParticipationAnswer(null)}
+              >
+                Indietro
+              </Button>
+              <Button type="submit" className="flex-1" disabled={decliningSubmitting}>
+                {decliningSubmitting ? 'Invio…' : 'Conferma non partecipazione'}
+              </Button>
+            </div>
+          </form>
+        </CardContent>
+      </Card>
     )
   }
 

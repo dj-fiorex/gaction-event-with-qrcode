@@ -188,6 +188,15 @@ export const register = mutation({
       })
     }
 
+    // «sì» dopo «no» (ADR 0004): una Prenotazione riuscita cancella la
+    // Rinuncia corrispondente per la stessa email (normalizzata) sull'Evento.
+    const normalizedEmail = persistedContactEmail.trim().toLowerCase()
+    const matchingDecline = await ctx.db
+      .query('declines')
+      .withIndex('by_event_email', (q) => q.eq('eventId', event._id).eq('email', normalizedEmail))
+      .unique()
+    if (matchingDecline) await ctx.db.delete(matchingDecline._id)
+
     return {
       registrationId,
       eventTitle: event.title,

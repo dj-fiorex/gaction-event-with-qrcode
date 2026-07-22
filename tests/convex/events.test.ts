@@ -33,6 +33,7 @@ function buildEventInput(requireAccount: boolean) {
     checkInToleranceMinutes: 15,
     allowQrReuse: false,
     requireAccount,
+    confirmParticipation: false,
     allowChildren: false,
     maxChildrenPerRegistration: 0,
     allowCompanions: false,

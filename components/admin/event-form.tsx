@@ -43,6 +43,7 @@ const defaultValues: EventInput = {
   checkInToleranceMinutes: 15,
   allowQrReuse: false,
   requireAccount: false,
+  confirmParticipation: false,
   allowChildren: false,
   maxChildrenPerRegistration: 2,
   allowCompanions: false,
@@ -369,6 +370,30 @@ export function EventForm({
           </Label>
           <p className="text-sm text-muted-foreground">
             Se attivo, solo i Membri con email verificata possono completare la prenotazione.
+          </p>
+        </div>
+      </div>
+
+      <div className="flex items-start gap-2 rounded-lg border border-border p-4">
+        <Controller
+          control={control}
+          name="confirmParticipation"
+          render={({ field }) => (
+            <Checkbox
+              id="confirmParticipation"
+              className="mt-0.5"
+              checked={field.value}
+              onCheckedChange={(checked) => field.onChange(checked === true)}
+            />
+          )}
+        />
+        <div className="grid gap-1">
+          <Label htmlFor="confirmParticipation" className="font-normal">
+            Conferma di partecipazione
+          </Label>
+          <p className="text-sm text-muted-foreground">
+            Se attivo, il form pubblico chiede prima «Confermi la partecipazione? sì/no»: il «no»
+            registra una Rinuncia (nome + email, nessuna Persona, nessun posto, nessun QR).
           </p>
         </div>
       </div>

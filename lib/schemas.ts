@@ -40,6 +40,7 @@ export const eventSchema = z
       .default(15),
     allowQrReuse: z.boolean().default(false),
     requireAccount: z.boolean().default(false),
+    confirmParticipation: z.boolean().default(false),
     allowChildren: z.boolean().default(false),
     maxChildrenPerRegistration: z.coerce.number().int().min(0).default(0),
     allowCompanions: z.boolean().default(false),
@@ -102,6 +103,14 @@ export const registrationSchema = z.object({
 export type ChildInput = z.infer<typeof childInputSchema>
 export type CompanionInput = z.infer<typeof companionInputSchema>
 export type RegistrationInput = z.infer<typeof registrationSchema>
+
+/** Rinuncia (ADR 0004): risposta «no» a Conferma di partecipazione — solo nome ed email. */
+export const declineSchema = z.object({
+  name: z.string().trim().min(2, 'Inserisci nome e cognome'),
+  email: z.string().trim().email('Inserisci un’email valida'),
+})
+
+export type DeclineInput = z.infer<typeof declineSchema>
 
 /* ------------------------------------------------------------------ */
 /* Auth                                                                */

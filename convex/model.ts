@@ -154,6 +154,7 @@ export interface EventWithStatsDTO {
   checkInToleranceMinutes: number
   allowQrReuse: boolean
   requireAccount: boolean
+  confirmParticipation: boolean
   allowChildren: boolean
   maxChildrenPerRegistration: number
   allowCompanions: boolean
@@ -275,6 +276,7 @@ export async function loadEventWithStats(
     checkInToleranceMinutes: event.checkInToleranceMinutes,
     allowQrReuse: event.allowQrReuse,
     requireAccount: event.requireAccount ?? false,
+    confirmParticipation: event.confirmParticipation ?? false,
     allowChildren: event.allowChildren,
     maxChildrenPerRegistration: event.maxChildrenPerRegistration,
     allowCompanions: event.allowCompanions,
