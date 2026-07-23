@@ -1,21 +1,18 @@
 import { v } from 'convex/values'
 import { mutation, query } from './_generated/server'
-import { requireAdmin } from './model'
+import { getCurrentUser, normalizeEmail, requireAdmin, requireEmailUnusedForEvent } from './model'
 
 /**
  * Rinuncia (ADR 0004): risposta «no» a Conferma di partecipazione. Vive in
  * una tabella dedicata — non è una Prenotazione: nessuna Persona, nessun
  * posto, nessun QR. Al massimo una Rinuncia per (evento, email normalizzata).
+ *
+ * ADR 0005: un'email con una risposta già registrata (Prenotazione o
+ * Rinuncia) non può rispondere di nuovo dal form pubblico; ogni modifica
+ * passa dall'organizzatore.
  */
 
 const DECLINE_NOT_ENABLED_ERROR = 'Questo evento non richiede la conferma di partecipazione'
-const DECLINE_BLOCKED_ERROR =
-  'Risulti già iscritto a questo evento: contatta l’organizzatore per modificare la tua prenotazione'
-
-/** Trim + lowercase, solo per dedup dentro l'Evento (mai identity linking, ADR 0003). */
-function normalizeEmail(email: string): string {
-  return email.trim().toLowerCase()
-}
 
 export const decline = mutation({
   args: {
@@ -28,36 +25,40 @@ export const decline = mutation({
     if (!event) throw new Error('Evento non trovato')
     if (!event.confirmParticipation) throw new Error(DECLINE_NOT_ENABLED_ERROR)
 
-    const email = normalizeEmail(args.email)
+    // Come in register: per un Membro loggato vale l'email dell'account, non
+    // quella digitata — altrimenti la stessa persona può rispondere due volte
+    // con email diverse e i controlli incrociati non si incontrano mai.
+    const caller = await getCurrentUser(ctx)
+    const email = normalizeEmail(
+      caller?.role === 'member' && caller.email ? caller.email : args.email,
+    )
     const name = args.name.trim()
 
-    const registrations = await ctx.db
-      .query('registrations')
-      .withIndex('by_event', (q) => q.eq('eventId', args.eventId))
-      .collect()
-    const alreadyRegistered = registrations.some(
-      (r) => normalizeEmail(r.contactEmail) === email,
-    )
-    if (alreadyRegistered) throw new Error(DECLINE_BLOCKED_ERROR)
-
-    const existing = await ctx.db
-      .query('declines')
-      .withIndex('by_event_email', (q) => q.eq('eventId', args.eventId).eq('email', email))
-      .unique()
-
-    const respondedAt = new Date().toISOString()
-    if (existing) {
-      await ctx.db.patch(existing._id, { name, respondedAt })
-      return { id: existing._id }
-    }
+    await requireEmailUnusedForEvent(ctx, args.eventId, email)
 
     const id = await ctx.db.insert('declines', {
       eventId: args.eventId,
       name,
       email,
-      respondedAt,
+      respondedAt: new Date().toISOString(),
     })
     return { id }
+  },
+})
+
+/**
+ * Rimozione della Rinuncia (solo admin, ADR 0005): il rimedio operativo
+ * quando chi ha risposto «no» scrive all'organizzatore per cambiare idea —
+ * rimossa la Rinuncia, l'email torna libera di prenotare.
+ */
+export const remove = mutation({
+  args: { declineId: v.id('declines') },
+  handler: async (ctx, { declineId }) => {
+    await requireAdmin(ctx)
+    const decline = await ctx.db.get(declineId)
+    if (!decline) throw new Error('Rinuncia non trovata')
+    await ctx.db.delete(declineId)
+    return { success: true }
   },
 })
 

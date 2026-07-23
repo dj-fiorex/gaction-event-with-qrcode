@@ -251,11 +251,26 @@ export function RegistrationForm({
   const {
     register: registerDecline,
     handleSubmit: handleDeclineSubmit,
+    setValue: setDeclineValue,
+    watch: watchDecline,
     formState: { errors: declineErrors },
   } = useForm<DeclineInput>({
     resolver: typedZodResolver(declineSchema),
     defaultValues: { name: '', email: '' },
   })
+
+  // Come per la registrazione: per un Membro loggato la risposta vale per
+  // l'email dell'account (il server la impone comunque), così «sì» e «no»
+  // parlano sempre della stessa email.
+  const declineName = watchDecline('name')
+  useEffect(() => {
+    if (!isMember) return
+    if (lockedContactEmail) {
+      setDeclineValue('email', lockedContactEmail, { shouldValidate: true })
+    }
+    if (!user.name || declineName.trim() !== '') return
+    setDeclineValue('name', user.name)
+  }, [isMember, lockedContactEmail, setDeclineValue, user?.name, declineName])
 
   const onDeclineSubmit = handleDeclineSubmit(async (values) => {
     setDecliningSubmitting(true)
@@ -351,10 +366,17 @@ export function RegistrationForm({
                 id="declineEmail"
                 type="email"
                 {...registerDecline('email')}
+                readOnly={contactEmailLocked}
                 aria-invalid={!!declineErrors.email}
+                className={contactEmailLocked ? 'bg-muted' : undefined}
               />
               {declineErrors.email && (
                 <p className="text-sm text-destructive">{declineErrors.email.message}</p>
+              )}
+              {contactEmailLocked && (
+                <p className="text-sm text-muted-foreground">
+                  La risposta vale per l'email del tuo account Membro.
+                </p>
               )}
             </div>
             <div className="flex gap-2">

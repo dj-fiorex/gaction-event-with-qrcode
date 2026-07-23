@@ -4,6 +4,10 @@ import { convexTest } from 'convex-test'
 import { expect, test } from 'vitest'
 import { api } from '../../convex/_generated/api'
 import type { Id } from '../../convex/_generated/dataModel'
+import {
+  EMAIL_ALREADY_DECLINED_ERROR,
+  EMAIL_ALREADY_REGISTERED_ERROR,
+} from '../../convex/model'
 import schema from '../../convex/schema'
 
 const modules = import.meta.glob('../../convex/**/*.ts')
@@ -132,10 +136,10 @@ test('decline stores only name and email, creates no Persone and occupies no cap
 })
 
 /* ------------------------------------------------------------------ */
-/* decline: upsert on repeated «no» (latest wins, no duplicate)         */
+/* one response per email (ADR 0005): repeated «no» is blocked          */
 /* ------------------------------------------------------------------ */
 
-test('a second decline from the same normalized email upserts instead of duplicating', async () => {
+test('a second decline from the same normalized email is blocked and keeps the first Rinuncia', async () => {
   const t = convexTest(schema, modules)
   const { eventId } = await createEventFixture(t)
 
@@ -144,11 +148,13 @@ test('a second decline from the same normalized email upserts instead of duplica
     name: 'Mario Rossi',
     email: 'mario@example.com',
   })
-  await t.mutation(api.declines.decline, {
-    eventId,
-    name: 'Mario R.',
-    email: '  MARIO@EXAMPLE.COM',
-  })
+  await expect(
+    t.mutation(api.declines.decline, {
+      eventId,
+      name: 'Mario R.',
+      email: '  MARIO@EXAMPLE.COM',
+    }),
+  ).rejects.toThrow(EMAIL_ALREADY_DECLINED_ERROR)
 
   const declines = await t.run((ctx) =>
     ctx.db
@@ -157,14 +163,14 @@ test('a second decline from the same normalized email upserts instead of duplica
       .collect(),
   )
   expect(declines).toHaveLength(1)
-  expect(declines[0]).toMatchObject({ name: 'Mario R.', email: 'mario@example.com' })
+  expect(declines[0]).toMatchObject({ name: 'Mario Rossi', email: 'mario@example.com' })
 })
 
 /* ------------------------------------------------------------------ */
-/* register deletes a matching Rinuncia («sì» dopo «no»)                */
+/* one response per email (ADR 0005): «sì» after «no» is blocked        */
 /* ------------------------------------------------------------------ */
 
-test('registering with an email that has a Rinuncia on that event deletes the Rinuncia', async () => {
+test('registering with an email that has a Rinuncia on that event is blocked and stores nothing', async () => {
   const t = convexTest(schema, modules)
   const { eventId, activityId, slotId } = await createEventFixture(t)
 
@@ -174,14 +180,16 @@ test('registering with an email that has a Rinuncia on that event deletes the Ri
     email: 'mario@example.com',
   })
 
-  await t.mutation(api.registrations.register, {
-    eventId,
-    userName: 'Mario Rossi',
-    contactEmail: 'Mario@Example.com',
-    children: [],
-    companions: [],
-    selections: [{ activityId, slotId }],
-  })
+  await expect(
+    t.mutation(api.registrations.register, {
+      eventId,
+      userName: 'Mario Rossi',
+      contactEmail: 'Mario@Example.com',
+      children: [],
+      companions: [],
+      selections: [{ activityId, slotId }],
+    }),
+  ).rejects.toThrow(EMAIL_ALREADY_DECLINED_ERROR)
 
   const declines = await t.run((ctx) =>
     ctx.db
@@ -189,7 +197,9 @@ test('registering with an email that has a Rinuncia on that event deletes the Ri
       .withIndex('by_event_email', (q) => q.eq('eventId', eventId))
       .collect(),
   )
-  expect(declines).toHaveLength(0)
+  expect(declines).toHaveLength(1)
+  const registrations = await t.run((ctx) => ctx.db.query('registrations').collect())
+  expect(registrations).toHaveLength(0)
 })
 
 test('registering does not affect a Rinuncia belonging to a different email', async () => {
@@ -274,9 +284,7 @@ test('declining with an email that already has a Prenotazione throws the block m
       name: 'Mario Rossi',
       email: 'Mario@Example.com',
     }),
-  ).rejects.toThrow(
-    'Risulti già iscritto a questo evento: contatta l’organizzatore per modificare la tua prenotazione',
-  )
+  ).rejects.toThrow(EMAIL_ALREADY_REGISTERED_ERROR)
 
   const declines = await t.run((ctx) =>
     ctx.db
@@ -285,6 +293,118 @@ test('declining with an email that already has a Prenotazione throws the block m
       .collect(),
   )
   expect(declines).toHaveLength(0)
+})
+
+/* ------------------------------------------------------------------ */
+/* decline uses the member account email, not the typed one             */
+/* ------------------------------------------------------------------ */
+
+test('a logged-in member declines with the account email regardless of the typed one', async () => {
+  const t = convexTest(schema, modules)
+  const memberId = await createUser(t, { email: 'member@example.com', role: 'member' })
+  const { eventId } = await createEventFixture(t)
+
+  await t.withIdentity({ subject: subjectFor(memberId) }).mutation(api.declines.decline, {
+    eventId,
+    name: 'Mario Rossi',
+    email: 'typed@example.com',
+  })
+
+  const declines = await t.run((ctx) =>
+    ctx.db
+      .query('declines')
+      .withIndex('by_event_email', (q) => q.eq('eventId', eventId))
+      .collect(),
+  )
+  expect(declines).toHaveLength(1)
+  expect(declines[0]).toMatchObject({ email: 'member@example.com' })
+})
+
+test('a member with a Prenotazione cannot decline even by typing a different email', async () => {
+  const t = convexTest(schema, modules)
+  const memberId = await createUser(t, { email: 'member@example.com', role: 'member' })
+  const { eventId, activityId, slotId } = await createEventFixture(t)
+
+  await t.withIdentity({ subject: subjectFor(memberId) }).mutation(api.registrations.register, {
+    eventId,
+    userName: 'Mario Rossi',
+    contactEmail: 'whatever@example.com',
+    children: [],
+    companions: [],
+    selections: [{ activityId, slotId }],
+  })
+
+  await expect(
+    t.withIdentity({ subject: subjectFor(memberId) }).mutation(api.declines.decline, {
+      eventId,
+      name: 'Mario Rossi',
+      email: 'different@example.com',
+    }),
+  ).rejects.toThrow(EMAIL_ALREADY_REGISTERED_ERROR)
+
+  const declines = await t.run((ctx) =>
+    ctx.db
+      .query('declines')
+      .withIndex('by_event_email', (q) => q.eq('eventId', eventId))
+      .collect(),
+  )
+  expect(declines).toHaveLength(0)
+})
+
+/* ------------------------------------------------------------------ */
+/* declines.remove (admin): the remedy that frees the email             */
+/* ------------------------------------------------------------------ */
+
+test('declines.remove rejects non-admin and anonymous callers', async () => {
+  const t = convexTest(schema, modules)
+  const staffId = await createUser(t, { email: 'staff@example.com', role: 'staff' })
+  const { eventId } = await createEventFixture(t)
+
+  const { id: declineId } = await t.mutation(api.declines.decline, {
+    eventId,
+    name: 'Mario Rossi',
+    email: 'mario@example.com',
+  })
+
+  await expect(t.mutation(api.declines.remove, { declineId })).rejects.toThrow('Non autenticato')
+  await expect(
+    t.withIdentity({ subject: subjectFor(staffId) }).mutation(api.declines.remove, { declineId }),
+  ).rejects.toThrow('Accesso riservato agli amministratori')
+})
+
+test('declines.remove deletes the Rinuncia and frees the email to register again', async () => {
+  const t = convexTest(schema, modules)
+  const adminId = await createUser(t, { email: 'admin@example.com', role: 'admin' })
+  const { eventId, activityId, slotId } = await createEventFixture(t)
+
+  const { id: declineId } = await t.mutation(api.declines.decline, {
+    eventId,
+    name: 'Mario Rossi',
+    email: 'mario@example.com',
+  })
+
+  await t
+    .withIdentity({ subject: subjectFor(adminId) })
+    .mutation(api.declines.remove, { declineId })
+
+  const declines = await t.run((ctx) =>
+    ctx.db
+      .query('declines')
+      .withIndex('by_event_email', (q) => q.eq('eventId', eventId))
+      .collect(),
+  )
+  expect(declines).toHaveLength(0)
+
+  await expect(
+    t.mutation(api.registrations.register, {
+      eventId,
+      userName: 'Mario Rossi',
+      contactEmail: 'mario@example.com',
+      children: [],
+      companions: [],
+      selections: [{ activityId, slotId }],
+    }),
+  ).resolves.toMatchObject({ contactEmail: 'mario@example.com' })
 })
 
 /* ------------------------------------------------------------------ */

@@ -51,10 +51,16 @@ Impostazione a livello di Evento decisa dall'admin. Se attiva, il form pubblico 
 Impostazione opzionale a livello di Evento (numero «max Ospiti quando ci sono Figli», assente di default). Se assente, [[Figlio|Figli]] e [[Ospite|Ospiti]] restano indipendenti come oggi (ciascuno col proprio massimo per Prenotazione, nessuna domanda aggiuntiva). Se presente, il form chiede esplicitamente «Hai figli minorenni a carico? sì/no»: con «sì» mostra fino al massimo Figli (con età) più al massimo questo cap ridotto di Ospiti; con «no» mostra fino al massimo Ospiti pieno. La regola è applicata **server-side** nella mutation di registrazione in base al numero di Figli effettivamente inviati (mai fidandosi della risposta dichiarata dal client); il form la rispecchia solo per UX.
 
 ### Rinuncia
-Risposta negativa («non partecipo») di una persona a un Evento che richiede la [[Conferma di partecipazione]]. Contiene solo nome e email. **Non è una Prenotazione**: non crea Persone, non occupa posti, non genera QR code. Al massimo una Rinuncia per email per Evento (una nuova risposta «no» la aggiorna). Una successiva Prenotazione con la stessa email cancella la Rinuncia; il percorso inverso è bloccato — chi è già iscritto non può rinunciare dal form pubblico ma deve contattare l'organizzatore (vedi [[Annullamento della Prenotazione]]).
+Risposta negativa («non partecipo») di una persona a un Evento che richiede la [[Conferma di partecipazione]]. Contiene solo nome e email. **Non è una Prenotazione**: non crea Persone, non occupa posti, non genera QR code. Al massimo una Rinuncia per email per Evento. Per un [[Membro (Account personale)|Membro]] loggato vale l'email dell'account, non quella digitata (come per la Prenotazione). Vale la regola [[Una sola risposta per email]]: chi ha già risposto — in un senso o nell'altro — non può rispondere di nuovo dal form pubblico.
+
+### Una sola risposta per email
+Per ogni Evento, un'email (normalizzata trim + lowercase) può avere al massimo **una** risposta self-service: una Prenotazione **o** una [[Rinuncia]]. Qualsiasi invio successivo con la stessa email — nuovo «sì», nuovo «no», o cambio di risposta — è bloccato con l'invito a scrivere un'email all'organizzatore. Ogni modifica è un rimedio riservato all'admin: [[Annullamento della Prenotazione]] o [[Rimozione della Rinuncia]] (ADR 0005).
 
 ### Annullamento della Prenotazione
 Azione riservata all'admin che elimina un'intera Prenotazione: rimuove le sue Persone e selezioni, libera i posti negli Slot e invalida i relativi QR code. Non esiste un annullamento self-service dal form pubblico.
+
+### Rimozione della Rinuncia
+Azione riservata all'admin che elimina una [[Rinuncia]]: l'email torna libera di prenotare l'Evento. È il rimedio operativo quando chi ha risposto «no» scrive all'organizzatore per cambiare idea (vedi [[Una sola risposta per email]]).
 
 ### Reinvio dell'email dei biglietti
 Azione riservata all'admin che rimanda l'email di conferma di una Prenotazione — la stessa, con un blocco QR per ogni [[Persona]] e le sue etichette, età e [[Allergie e intolleranze]] **attuali**. Il destinatario è precompilato con l'email memorizzata ed è **modificabile**: un indirizzo corretto viene salvato sulla Prenotazione e vale da lì in avanti per ogni comunicazione. I [[ticketCode (QR token)|ticketCode]] non cambiano: i biglietti già ricevuti restano validi.

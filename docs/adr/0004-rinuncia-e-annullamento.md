@@ -2,7 +2,7 @@
 
 ## Status
 
-accepted
+accepted — le «Regole di coerenza per email» sono superate da ADR 0005 (una sola risposta per email per Evento)
 
 ## Contesto e decisione
 

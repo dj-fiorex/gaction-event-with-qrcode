@@ -1,7 +1,13 @@
 import { v } from 'convex/values'
 import { mutation, query } from './_generated/server'
 import type { Doc, Id } from './_generated/dataModel'
-import { requireAdmin, generateTicketCode, getCurrentUser } from './model'
+import {
+  requireAdmin,
+  generateTicketCode,
+  getCurrentUser,
+  normalizeEmail,
+  requireEmailUnusedForEvent,
+} from './model'
 import { intervalsOverlap } from '../lib/slots'
 import { getAuthUserId } from '@convex-dev/auth/server'
 
@@ -77,6 +83,11 @@ export const register = mutation({
       caller?.role === 'member' && caller.email
         ? caller.email.trim().toLowerCase()
         : args.contactEmail
+
+    // Una sola risposta per email per Evento (ADR 0005): un'email che ha già
+    // una Prenotazione o una Rinuncia non può prenotare di nuovo dal form
+    // pubblico; ogni modifica passa dall'organizzatore.
+    await requireEmailUnusedForEvent(ctx, event._id, normalizeEmail(persistedContactEmail))
 
     const children = event.allowChildren ? args.children : []
     const companions = event.allowCompanions ? args.companions : []
@@ -262,15 +273,6 @@ export const register = mutation({
         slotId: sel.slotId,
       })
     }
-
-    // «sì» dopo «no» (ADR 0004): una Prenotazione riuscita cancella la
-    // Rinuncia corrispondente per la stessa email (normalizzata) sull'Evento.
-    const normalizedEmail = persistedContactEmail.trim().toLowerCase()
-    const matchingDecline = await ctx.db
-      .query('declines')
-      .withIndex('by_event_email', (q) => q.eq('eventId', event._id).eq('email', normalizedEmail))
-      .unique()
-    if (matchingDecline) await ctx.db.delete(matchingDecline._id)
 
     return {
       registrationId,

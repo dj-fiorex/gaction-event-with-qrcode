@@ -553,6 +553,49 @@ test('register keeps the anonymous flow unchanged and never links ownership by c
   expect(registration?.userId).toBeUndefined()
 })
 
+test('register blocks an email that already has a Prenotazione on the same event (ADR 0005)', async () => {
+  const t = convexTest(schema, modules)
+  const { eventId, activityId, slotId } = await createEventFixture(t)
+  const { eventId: otherEventId, activityId: otherActivityId, slotId: otherSlotId } =
+    await createEventFixture(t)
+
+  await t.mutation(api.registrations.register, {
+    eventId,
+    userName: 'Mario Rossi',
+    contactEmail: 'mario@example.com',
+    children: [],
+    companions: [],
+    selections: [{ activityId, slotId }],
+  })
+
+  // Stessa email (normalizzata) sullo stesso Evento: bloccata.
+  await expect(
+    t.mutation(api.registrations.register, {
+      eventId,
+      userName: 'Mario Rossi',
+      contactEmail: '  Mario@Example.com',
+      children: [],
+      companions: [],
+      selections: [{ activityId, slotId }],
+    }),
+  ).rejects.toThrow(
+    'Questa email risulta già iscritta a questo evento: per modificare la prenotazione invia un’email all’organizzatore',
+  )
+  expect(await registrationsForEvent(t, eventId)).toHaveLength(1)
+
+  // La stessa email resta libera su un altro Evento.
+  await expect(
+    t.mutation(api.registrations.register, {
+      eventId: otherEventId,
+      userName: 'Mario Rossi',
+      contactEmail: 'mario@example.com',
+      children: [],
+      companions: [],
+      selections: [{ activityId: otherActivityId, slotId: otherSlotId }],
+    }),
+  ).resolves.toMatchObject({ contactEmail: 'mario@example.com' })
+})
+
 test('myRegistrations returns only registrations belonging to the caller', async () => {
   const t = convexTest(schema, modules)
   const memberAId = await createUser(t, { email: 'a@example.com', role: 'member', verified: true })

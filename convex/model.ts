@@ -41,6 +41,49 @@ export function generateTicketCode(): string {
 }
 
 /* ------------------------------------------------------------------ */
+/* Una sola risposta per email per Evento (ADR 0005)                   */
+/* ------------------------------------------------------------------ */
+
+export const EMAIL_ALREADY_REGISTERED_ERROR =
+  'Questa email risulta già iscritta a questo evento: per modificare la prenotazione invia un’email all’organizzatore'
+export const EMAIL_ALREADY_DECLINED_ERROR =
+  'Per questa email risulta già una rinuncia a questo evento: per modificare la risposta invia un’email all’organizzatore'
+
+/** Trim + lowercase, solo per dedup dentro l'Evento (mai identity linking, ADR 0003). */
+export function normalizeEmail(email: string): string {
+  return email.trim().toLowerCase()
+}
+
+/**
+ * Blocca la scrittura se l'email (normalizzata) ha già una risposta per
+ * l'Evento — Prenotazione o Rinuncia. Ogni modifica passa dall'organizzatore
+ * (Annullamento della Prenotazione o Rimozione della Rinuncia, solo admin).
+ *
+ * Le Prenotazioni memorizzano `contactEmail` così come digitata, quindi il
+ * confronto normalizza a lettura e non può usare un indice sull'email.
+ */
+export async function requireEmailUnusedForEvent(
+  ctx: QueryCtx | MutationCtx,
+  eventId: Id<'events'>,
+  normalizedEmail: string,
+): Promise<void> {
+  const registrations = await ctx.db
+    .query('registrations')
+    .withIndex('by_event', (q) => q.eq('eventId', eventId))
+    .collect()
+  const alreadyRegistered = registrations.some(
+    (r) => normalizeEmail(r.contactEmail) === normalizedEmail,
+  )
+  if (alreadyRegistered) throw new Error(EMAIL_ALREADY_REGISTERED_ERROR)
+
+  const decline = await ctx.db
+    .query('declines')
+    .withIndex('by_event_email', (q) => q.eq('eventId', eventId).eq('email', normalizedEmail))
+    .unique()
+  if (decline) throw new Error(EMAIL_ALREADY_DECLINED_ERROR)
+}
+
+/* ------------------------------------------------------------------ */
 /* Autenticazione / autorizzazione                                     */
 /* ------------------------------------------------------------------ */
 
