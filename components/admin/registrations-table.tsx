@@ -97,7 +97,7 @@ export function RegistrationsTable({ registrations, events }: RegistrationsTable
                   <div className="flex flex-wrap gap-1">
                     <Badge variant="secondary">{r.persons.length} tot.</Badge>
                     {children > 0 && <Badge variant="outline">{children} figli</Badge>}
-                    {companions > 0 && <Badge variant="outline">{companions} accomp.</Badge>}
+                    {companions > 0 && <Badge variant="outline">{companions} ospiti</Badge>}
                   </div>
                 </TableCell>
                 <TableCell className="max-w-56 text-sm text-muted-foreground">

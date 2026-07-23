@@ -252,7 +252,7 @@ function EventDetailContent() {
                 }
               />
               <InfoRow
-                label="Accompagnatori"
+                label="Ospiti"
                 value={
                   event.allowCompanions
                     ? `Fino a ${event.maxCompanionsPerRegistration} per registrazione`

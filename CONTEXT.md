@@ -3,7 +3,7 @@
 ## Ubiquitous Language
 
 ### Utente
-Chi si iscrive a un Evento e gestisce la prenotazione. Un Utente è **sempre anche una Persona**: partecipa, occupa un posto e riceve un proprio QR code. Può portare altre Persone (Figli e Accompagnatori). Un Utente **può ora essere collegato a un [[Membro]]** (account personale) quando prenota da loggato; resta comunque possibile prenotare in modo anonimo.
+Chi si iscrive a un Evento e gestisce la prenotazione. Un Utente è **sempre anche una Persona**: partecipa, occupa un posto e riceve un proprio QR code. Può portare altre Persone (Figli e Ospiti). Un Utente **può ora essere collegato a un [[Membro]]** (account personale) quando prenota da loggato; resta comunque possibile prenotare in modo anonimo.
 
 ### Membro (Account personale)
 Identità autenticata **persistente** che una persona crea sul sito per prenotare gli Eventi senza reinserire i propri dati e per consultare il proprio **Storico partecipazioni**. Tecnicamente è una riga della tabella `users` (Convex Auth) con **`role: 'member'`** — lo **stesso** contenitore di admin/Assistenti, ma **non privilegiato**. L'auto-registrazione è **email + password** con **email verificata obbligatoria**. Un Membro possiede le proprie Prenotazioni (via `registrations.userId`) e, quando prenota, compare all'Evento come Utente-Persona. **Attenzione al confine di nomi:** la tabella `users` NON coincide con il termine di glossario «Utente»; ospita tre attori (admin, staff/Assistente, member).
@@ -15,7 +15,7 @@ Un partecipante fisico all'Evento. Occupa un posto e riceve **1 QR code**. NON �
 - **Ospite** — persona adulta al seguito (nome solo con [[Raccolta nomi]] attiva). Ammessi solo se l'admin lo consente per l'Evento, entro un massimo **per Prenotazione**. _Evitare: Accompagnatore (termine storico, sostituito da Ospite nella UI e nei documenti)._
 
 ### Evento
-Un raduno a cui gli Utenti si iscrivono. Genera **1 QR code per ogni Persona** (non per Attività). L'admin configura per ogni Evento se sono ammessi Figli (con max) e se sono ammessi Accompagnatori (con max).
+Un raduno a cui gli Utenti si iscrivono. Genera **1 QR code per ogni Persona** (non per Attività). L'admin configura per ogni Evento se sono ammessi Figli (con max) e se sono ammessi Ospiti (con max).
 
 ### Immagine dell'Evento
 Immagine **opzionale** di copertina dell'Evento, mostrata come hero nella pagina pubblica e come copertina nella `EventCard`, sempre in frame **16:9**. L'admin la carica ritagliandola client-side (react-easy-crop, aspect 16:9); i byte vivono su **Convex file storage** e sono referenziati da `imageStorageId` (`v.optional(v.id("_storage"))`). Il DTO risolve lo storageId in un URL esposto come `imageUrl` (`string | null`); quando assente si usa il fallback statico. Vedi ADR `0002`.

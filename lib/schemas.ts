@@ -41,6 +41,8 @@ export const eventSchema = z
     allowQrReuse: z.boolean().default(false),
     requireAccount: z.boolean().default(false),
     confirmParticipation: z.boolean().default(false),
+    /** Raccolta nomi (issue #36): attiva di default (comportamento odierno). */
+    collectNames: z.boolean().default(true),
     allowChildren: z.boolean().default(false),
     maxChildrenPerRegistration: z.coerce.number().int().min(0).default(0),
     allowCompanions: z.boolean().default(false),
@@ -96,7 +98,7 @@ export const childInputSchema = z.object({
 })
 
 export const companionInputSchema = z.object({
-  name: z.string().trim().min(2, 'Inserisci il nome dell\u2019accompagnatore'),
+  name: z.string().trim().min(2, 'Inserisci il nome dell\u2019ospite'),
 })
 
 export const slotSelectionSchema = z.object({
@@ -116,6 +118,21 @@ export const registrationSchema = z.object({
 export type ChildInput = z.infer<typeof childInputSchema>
 export type CompanionInput = z.infer<typeof companionInputSchema>
 export type RegistrationInput = z.infer<typeof registrationSchema>
+
+/**
+ * Schema di registrazione parametrico sulla «Raccolta nomi» (issue #36).
+ * Attiva (default): comportamento odierno, nome di Figli/Ospiti obbligatorio.
+ * Disattiva: il form non raccoglie i nomi di Figli/Ospiti — il server genera
+ * l'Etichetta posizionale e ignora comunque i nomi inviati — quindi la
+ * validazione client non li impone. L'età dei Figli resta obbligatoria.
+ */
+export function makeRegistrationSchema(collectNames = true) {
+  if (collectNames) return registrationSchema
+  return registrationSchema.extend({
+    children: z.array(z.object({ name: z.string().trim(), age: childInputSchema.shape.age })).default([]),
+    companions: z.array(z.object({ name: z.string().trim() })).default([]),
+  })
+}
 
 /** Rinuncia (ADR 0004): risposta «no» a Conferma di partecipazione — solo nome ed email. */
 export const declineSchema = z.object({

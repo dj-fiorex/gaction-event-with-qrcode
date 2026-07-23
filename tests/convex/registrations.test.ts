@@ -44,6 +44,7 @@ async function createEventFixture(
     maxChildrenPerRegistration,
     maxCompanionsPerRegistration,
     maxCompanionsWithChildren,
+    collectNames,
   }: {
     requireAccount?: boolean
     embedEnabled?: boolean
@@ -52,6 +53,8 @@ async function createEventFixture(
     maxChildrenPerRegistration?: number
     maxCompanionsPerRegistration?: number
     maxCompanionsWithChildren?: number
+    /** Omesso = campo assente (l'app lo tratta come «Raccolta nomi» attiva). */
+    collectNames?: boolean
   } = {},
 ) {
   return t.run(async (ctx) => {
@@ -75,6 +78,7 @@ async function createEventFixture(
       scanUnlockToken: null,
       embedEnabled,
       requireAccount,
+      ...(collectNames === undefined ? {} : { collectNames }),
     })
     const activityId = await ctx.db.insert('activities', {
       eventId,
@@ -277,7 +281,7 @@ test('register keeps independent Figli/Ospiti caps when maxCompanionsWithChildre
       companions: [{ name: 'Ospite 1' }, { name: 'Ospite 2' }],
       selections: [{ activityId, slotId }],
     }),
-  ).rejects.toThrow('Puoi aggiungere al massimo 1 accompagnatori')
+  ).rejects.toThrow('Puoi aggiungere al massimo 1 ospiti')
 })
 
 test('register rejects more Ospiti than the reduced cap when at least one Figlio is present', async () => {
@@ -366,6 +370,113 @@ test('register still enforces the full Ospiti cap when there are no Figli and th
       selections: [{ activityId, slotId }],
     }),
   ).rejects.toThrow('Puoi aggiungere al massimo 2 ospiti')
+})
+
+/* ------------------------------------------------------------------ */
+/* Etichetta posizionale / Raccolta nomi (issue #36)                   */
+/* ------------------------------------------------------------------ */
+
+test('register generates positional labels and ignores client-sent names when Raccolta nomi is off', async () => {
+  const t = convexTest(schema, modules)
+  const { eventId, activityId, slotId } = await createEventFixture(t, {
+    allowChildren: true,
+    allowCompanions: true,
+    maxChildrenPerRegistration: 5,
+    maxCompanionsPerRegistration: 2,
+    collectNames: false,
+  })
+
+  const { registrationId, persons: returned } = await t.mutation(api.registrations.register, {
+    eventId,
+    userName: 'Mario Rossi',
+    contactEmail: 'guest@example.com',
+    // These names must be ignored server-side and replaced by positional labels.
+    children: [
+      { name: 'Marco', age: 5 },
+      { name: 'Anna', age: 8 },
+    ],
+    companions: [{ name: 'Zia Pina' }],
+    selections: [{ activityId, slotId }],
+  })
+
+  const persons = await t.run((ctx) =>
+    ctx.db
+      .query('persons')
+      .withIndex('by_registration', (q) => q.eq('registrationId', registrationId))
+      .collect(),
+  )
+  const byCategory = (cat: 'user' | 'child' | 'companion') =>
+    persons.filter((p) => p.category === cat)
+
+  // The Iscritto keeps their own name; Figli/Ospiti get progressive labels.
+  expect(byCategory('user').map((p) => p.name)).toEqual(['Mario Rossi'])
+  expect(byCategory('child').map((p) => p.name).sort()).toEqual(['Figlio 1', 'Figlio 2'])
+  expect(byCategory('companion').map((p) => p.name)).toEqual(['Ospite 1'])
+
+  // Ages are still persisted for Figli even without names.
+  expect(byCategory('child').map((p) => p.age).sort()).toEqual([5, 8])
+
+  // The mutation return (drives QR/email/tickets) carries the labels, not the client names.
+  const returnedNames = returned.map((p) => p.name).sort()
+  expect(returnedNames).toEqual(['Figlio 1', 'Figlio 2', 'Mario Rossi', 'Ospite 1'])
+  expect(returnedNames).not.toContain('Marco')
+  expect(returnedNames).not.toContain('Zia Pina')
+})
+
+test('register keeps client-sent names when Raccolta nomi is on (setting-on unchanged)', async () => {
+  const t = convexTest(schema, modules)
+  const { eventId, activityId, slotId } = await createEventFixture(t, {
+    allowChildren: true,
+    allowCompanions: true,
+    maxChildrenPerRegistration: 5,
+    maxCompanionsPerRegistration: 2,
+    collectNames: true,
+  })
+
+  const { registrationId } = await t.mutation(api.registrations.register, {
+    eventId,
+    userName: 'Mario Rossi',
+    contactEmail: 'guest@example.com',
+    children: [{ name: 'Marco', age: 5 }],
+    companions: [{ name: 'Zia Pina' }],
+    selections: [{ activityId, slotId }],
+  })
+
+  const persons = await t.run((ctx) =>
+    ctx.db
+      .query('persons')
+      .withIndex('by_registration', (q) => q.eq('registrationId', registrationId))
+      .collect(),
+  )
+  expect(persons.map((p) => p.name).sort()).toEqual(['Marco', 'Mario Rossi', 'Zia Pina'])
+})
+
+test('register treats a legacy event without the collectNames field as Raccolta nomi on', async () => {
+  const t = convexTest(schema, modules)
+  // collectNames omitted entirely: the field is absent on the event document.
+  const { eventId, activityId, slotId } = await createEventFixture(t, {
+    allowChildren: true,
+    allowCompanions: true,
+    maxChildrenPerRegistration: 5,
+    maxCompanionsPerRegistration: 2,
+  })
+
+  const { registrationId } = await t.mutation(api.registrations.register, {
+    eventId,
+    userName: 'Mario Rossi',
+    contactEmail: 'guest@example.com',
+    children: [{ name: 'Marco', age: 5 }],
+    companions: [{ name: 'Zia Pina' }],
+    selections: [{ activityId, slotId }],
+  })
+
+  const persons = await t.run((ctx) =>
+    ctx.db
+      .query('persons')
+      .withIndex('by_registration', (q) => q.eq('registrationId', registrationId))
+      .collect(),
+  )
+  expect(persons.map((p) => p.name).sort()).toEqual(['Marco', 'Mario Rossi', 'Zia Pina'])
 })
 
 test('register links authenticated callers on anonymous events and locks contactEmail for members', async () => {

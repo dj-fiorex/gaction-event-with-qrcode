@@ -34,6 +34,7 @@ function buildEventInput(requireAccount: boolean) {
     allowQrReuse: false,
     requireAccount,
     confirmParticipation: false,
+    collectNames: true,
     allowChildren: false,
     maxChildrenPerRegistration: 0,
     allowCompanions: false,
@@ -108,6 +109,62 @@ test('events.update can toggle requireAccount off', async () => {
 
   expect(rawEvent?.requireAccount).toBe(false)
   expect(publicEvent?.requireAccount).toBe(false)
+})
+
+/* ------------------------------------------------------------------ */
+/* Raccolta nomi (issue #36)                                           */
+/* ------------------------------------------------------------------ */
+
+test('events.create persists collectNames=false (Raccolta nomi off) and exposes it', async () => {
+  const t = convexTest(schema, modules)
+  const adminId = await createAdmin(t)
+
+  const { id: eventId } = await t.withIdentity({ subject: subjectFor(adminId) }).mutation(
+    api.events.create,
+    { ...buildEventInput(false), collectNames: false },
+  )
+
+  const rawEvent = await t.run((ctx) => ctx.db.get(eventId))
+  const publicEvent = await t.query(api.events.getPublic, { eventId })
+
+  expect(rawEvent?.collectNames).toBe(false)
+  expect(publicEvent?.collectNames).toBe(false)
+})
+
+test('events.create defaults collectNames on, and existing events (no field) read as on', async () => {
+  const t = convexTest(schema, modules)
+  const adminId = await createAdmin(t)
+
+  const { id: eventId } = await t.withIdentity({ subject: subjectFor(adminId) }).mutation(
+    api.events.create,
+    buildEventInput(false),
+  )
+  const publicEvent = await t.query(api.events.getPublic, { eventId })
+  expect(publicEvent?.collectNames).toBe(true)
+
+  // Legacy event inserted without the field defaults to on in the DTO.
+  const legacyId = await t.run((ctx) =>
+    ctx.db.insert('events', {
+      title: 'Legacy',
+      description: 'Descrizione',
+      location: 'Roma',
+      activityPolicy: 'free',
+      minActivities: 0,
+      allowOverlap: false,
+      checkInToleranceMinutes: 15,
+      allowQrReuse: false,
+      allowChildren: false,
+      maxChildrenPerRegistration: 0,
+      allowCompanions: false,
+      maxCompanionsPerRegistration: 0,
+      checkInAccess: 'password',
+      scanToken: `scan-${Math.random().toString(36).slice(2)}`,
+      checkInPasswordHash: null,
+      scanUnlockToken: null,
+    }),
+  )
+  const legacyPublic = await t.query(api.events.getPublic, { eventId: legacyId })
+  expect(legacyPublic?.collectNames).toBe(true)
 })
 
 /* ------------------------------------------------------------------ */

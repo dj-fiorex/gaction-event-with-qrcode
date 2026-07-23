@@ -155,6 +155,8 @@ export interface EventWithStatsDTO {
   allowQrReuse: boolean
   requireAccount: boolean
   confirmParticipation: boolean
+  /** Raccolta nomi (issue #36). true (default) = raccogli i nomi di Figli/Ospiti. */
+  collectNames: boolean
   allowChildren: boolean
   maxChildrenPerRegistration: number
   allowCompanions: boolean
@@ -279,6 +281,7 @@ export async function loadEventWithStats(
     allowQrReuse: event.allowQrReuse,
     requireAccount: event.requireAccount ?? false,
     confirmParticipation: event.confirmParticipation ?? false,
+    collectNames: event.collectNames ?? true,
     allowChildren: event.allowChildren,
     maxChildrenPerRegistration: event.maxChildrenPerRegistration,
     allowCompanions: event.allowCompanions,

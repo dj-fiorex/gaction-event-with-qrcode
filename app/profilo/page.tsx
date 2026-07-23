@@ -84,7 +84,7 @@ function RegistrationHistoryCard({ registration }: { registration: MyRegistratio
             <span className="text-sm text-muted-foreground">
               {person.name}
               <span className="ml-1 text-xs">
-                ({person.category === 'child' ? 'figlio' : 'accompagnatore'})
+                ({person.category === 'child' ? 'figlio' : 'ospite'})
               </span>
             </span>
             <CheckInStatusBadge checkedIn={person.eventCheckInAt !== null} />

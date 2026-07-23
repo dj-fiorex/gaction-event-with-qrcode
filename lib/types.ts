@@ -67,6 +67,12 @@ export interface Event {
   requireAccount: boolean
   /** Se true, il form pubblico chiede prima «Confermi la partecipazione? sì/no». */
   confirmParticipation: boolean
+  /**
+   * Raccolta nomi (issue #36). Se true (default), il form chiede il nome di ogni
+   * Figlio/Ospite. Se false, sono identificati dall'Etichetta posizionale
+   * («Figlio 1», «Ospite 1»); i Figli mantengono l'età.
+   */
+  collectNames: boolean
   allowChildren: boolean
   maxChildrenPerRegistration: number
   allowCompanions: boolean

@@ -19,19 +19,14 @@ import {
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent } from '@/components/ui/card'
 import { formatDateTime, formatTimeRange } from '@/lib/format'
-import type { ActivityWithPeople, PersonCategory, SlotWithPeople } from '@/lib/types'
+import { CATEGORY_LABEL } from '@/lib/person-labels'
+import type { ActivityWithPeople, SlotWithPeople } from '@/lib/types'
 
 interface EventActivityMonitorProps {
   activities: ActivityWithPeople[]
 }
 
 type SlotPhase = 'past' | 'current' | 'upcoming'
-
-const CATEGORY_LABEL: Record<PersonCategory, string> = {
-  user: 'Iscritto',
-  child: 'Figlio',
-  companion: 'Accompagnatore',
-}
 
 function slotPhase(slot: SlotWithPeople, now: number): SlotPhase {
   const start = new Date(slot.start).getTime()

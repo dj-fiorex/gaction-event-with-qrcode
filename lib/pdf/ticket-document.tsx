@@ -1,4 +1,5 @@
 import { Document, Page, View, Text, Image, StyleSheet } from '@react-pdf/renderer'
+import { CATEGORY_LABEL } from '@/lib/person-labels'
 import type { RegisteredPerson } from '@/lib/types'
 
 /** Dati dell'Evento mostrati nell'header di ogni pagina biglietto. */
@@ -14,12 +15,6 @@ export interface TicketPdfEvent {
    * richiede header CORS, quindi la copertina va incorporata come data URL, non come URL remoto.
    */
   coverDataUrl?: string
-}
-
-const CATEGORY_LABEL: Record<RegisteredPerson['category'], string> = {
-  user: 'Iscritto',
-  child: 'Figlio',
-  companion: 'Accompagnatore',
 }
 
 const palette = {

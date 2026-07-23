@@ -44,6 +44,7 @@ const defaultValues: EventInput = {
   allowQrReuse: false,
   requireAccount: false,
   confirmParticipation: false,
+  collectNames: true,
   allowChildren: false,
   maxChildrenPerRegistration: 2,
   allowCompanions: false,
@@ -470,7 +471,7 @@ export function EventForm({
         )}
       </fieldset>
 
-      {/* Figli e accompagnatori */}
+      {/* Figli e ospiti */}
       <div className="flex flex-col gap-4 rounded-lg border border-border p-4">
         <div className="flex items-center gap-2">
           <Controller
@@ -519,12 +520,12 @@ export function EventForm({
             )}
           />
           <Label htmlFor="allowCompanions" className="font-normal">
-            Ammetti accompagnatori
+            Ammetti ospiti
           </Label>
         </div>
         {allowCompanions && (
           <div className="grid gap-2 sm:max-w-60">
-            <Label htmlFor="maxCompanions">Max accompagnatori per registrazione</Label>
+            <Label htmlFor="maxCompanions">Max ospiti per registrazione</Label>
             <Input
               id="maxCompanions"
               type="number"
@@ -569,6 +570,31 @@ export function EventForm({
             )}
           </div>
         )}
+      </div>
+
+      <div className="flex items-start gap-2 rounded-lg border border-border p-4">
+        <Controller
+          control={control}
+          name="collectNames"
+          render={({ field }) => (
+            <Checkbox
+              id="collectNames"
+              className="mt-0.5"
+              checked={field.value}
+              onCheckedChange={(checked) => field.onChange(checked === true)}
+            />
+          )}
+        />
+        <div className="grid gap-1">
+          <Label htmlFor="collectNames" className="font-normal">
+            Raccolta nomi
+          </Label>
+          <p className="text-sm text-muted-foreground">
+            Se attiva (predefinito), il form chiede il nome di ogni Figlio e Ospite. Se disattiva,
+            sono identificati solo dall&apos;etichetta posizionale («Figlio 1», «Ospite 1»); i Figli
+            mantengono l&apos;età.
+          </p>
+        </div>
       </div>
 
       <div className="flex items-center gap-2">

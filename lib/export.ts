@@ -1,12 +1,7 @@
 import * as XLSX from 'xlsx'
 import { formatDateTime } from './format'
-import type { Decline, EventWithStats, PersonCategory, Registration } from './types'
-
-const CATEGORY_LABEL: Record<PersonCategory, string> = {
-  user: 'Iscritto',
-  child: 'Figlio',
-  companion: 'Accompagnatore',
-}
+import { CATEGORY_LABEL } from './person-labels'
+import type { Decline, EventWithStats, Registration } from './types'
 
 interface ExportRow {
   Evento: string

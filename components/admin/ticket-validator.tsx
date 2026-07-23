@@ -20,18 +20,13 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { formatDateTime, formatTimeRange } from '@/lib/format'
+import { CATEGORY_LABEL } from '@/lib/person-labels'
 import type { CheckInMode, CheckInResult, EventWithStats } from '@/lib/types'
 
 type InputMode = 'camera' | 'manual'
 
 const POSITIVE = new Set<CheckInResult['status']>(['event-valid', 'activity-valid'])
 const WARNING = new Set<CheckInResult['status']>(['event-already', 'activity-already'])
-
-const CATEGORY_LABEL: Record<'user' | 'child' | 'companion', string> = {
-  user: 'Iscritto',
-  child: 'Figlio',
-  companion: 'Accompagnatore',
-}
 
 interface TicketValidatorProps {
   event: EventWithStats

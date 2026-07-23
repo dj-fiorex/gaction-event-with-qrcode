@@ -22,7 +22,7 @@ import { api } from '@/convex/_generated/api'
 import type { Id } from '@/convex/_generated/dataModel'
 import {
   declineSchema,
-  registrationSchema,
+  makeRegistrationSchema,
   type DeclineInput,
   type RegistrationInput,
 } from '@/lib/schemas'
@@ -66,6 +66,15 @@ export function RegistrationForm({
   const familyRuleActive = event.maxCompanionsWithChildren !== null
   const [familyBranch, setFamilyBranch] = useState<'children' | 'no-children' | null>(null)
 
+  // Raccolta nomi (issue #36): con l'impostazione disattiva, i nomi di
+  // Figli/Ospiti non sono raccolti né validati — il server assegna l'Etichetta
+  // posizionale e ignora eventuali nomi inviati.
+  const collectNames = event.collectNames
+  const registrationResolver = useMemo(
+    () => typedZodResolver(makeRegistrationSchema(collectNames)),
+    [collectNames],
+  )
+
   const {
     register,
     handleSubmit,
@@ -75,7 +84,7 @@ export function RegistrationForm({
     watch,
     formState: { errors },
   } = useForm<RegistrationInput>({
-    resolver: typedZodResolver(registrationSchema),
+    resolver: registrationResolver,
     defaultValues: {
       eventId: event.id,
       userName: '',
@@ -105,8 +114,9 @@ export function RegistrationForm({
     : event.maxCompanionsPerRegistration
   const showChildren = event.allowChildren && (!familyRuleActive || familyBranch === 'children')
   const showCompanions = event.allowCompanions && (!familyRuleActive || familyBranch !== null)
-  const companionsLabel = familyRuleActive ? 'Ospiti' : 'Accompagnatori'
-  const companionsNamePlaceholder = familyRuleActive ? "Nome dell'ospite" : "Nome dell'accompagnatore"
+  // «Ospite» ha sostituito «Accompagnatore» ovunque nella UI (issue #36).
+  const companionsLabel = 'Ospiti'
+  const companionsNamePlaceholder = "Nome dell'ospite"
   const familyBranchMissing = familyRuleActive && familyBranch === null
 
   const isMember = user?.role === 'member'
@@ -213,6 +223,7 @@ export function RegistrationForm({
         eventTitle: result.eventTitle,
         eventLocation: result.eventLocation,
         contactEmail: result.contactEmail,
+        collectNames: event.collectNames,
         persons: registeredPersons,
       }).catch(() => undefined)
     } catch (error) {
@@ -494,6 +505,8 @@ export function RegistrationForm({
               canAdd={childrenArray.fields.length < event.maxChildrenPerRegistration}
               onAdd={() => childrenArray.append({ name: '', age: 0 })}
               onRemove={childrenArray.remove}
+              collectNames={collectNames}
+              labelSingular="Figlio"
               renderExtra={(index) => (
                 <div className="grid w-24 gap-2">
                   <Label htmlFor={`child-age-${index}`} className="sr-only">
@@ -522,6 +535,8 @@ export function RegistrationForm({
               canAdd={companionsArray.fields.length < companionsMax}
               onAdd={() => companionsArray.append({ name: '' })}
               onRemove={companionsArray.remove}
+              collectNames={collectNames}
+              labelSingular="Ospite"
               register={(index) => register(`companions.${index}.name` as const)}
               namePlaceholder={companionsNamePlaceholder}
             />
@@ -627,6 +642,10 @@ interface PersonRepeaterProps {
   onRemove: (index: number) => void
   register: (index: number) => ReturnType<ReturnType<typeof useForm<RegistrationInput>>['register']>
   namePlaceholder: string
+  /** Raccolta nomi: se false, ogni blocco è intestato dall'Etichetta posizionale invece del nome. */
+  collectNames: boolean
+  /** Prefisso dell'Etichetta posizionale («Figlio», «Ospite») usato quando i nomi non sono raccolti. */
+  labelSingular: string
   renderExtra?: (index: number) => React.ReactNode
 }
 
@@ -639,6 +658,8 @@ function PersonRepeater({
   onRemove,
   register,
   namePlaceholder,
+  collectNames,
+  labelSingular,
   renderExtra,
 }: PersonRepeaterProps) {
   return (
@@ -656,12 +677,18 @@ function PersonRepeater({
 
       {fields.map((field, index) => (
         <div key={field.id} className="flex items-start gap-3">
-          <div className="grid flex-1 gap-2">
-            <Label htmlFor={`${title}-name-${index}`} className="sr-only">
-              {namePlaceholder}
-            </Label>
-            <Input id={`${title}-name-${index}`} placeholder={namePlaceholder} {...register(index)} />
-          </div>
+          {collectNames ? (
+            <div className="grid flex-1 gap-2">
+              <Label htmlFor={`${title}-name-${index}`} className="sr-only">
+                {namePlaceholder}
+              </Label>
+              <Input id={`${title}-name-${index}`} placeholder={namePlaceholder} {...register(index)} />
+            </div>
+          ) : (
+            <p className="flex-1 self-center text-sm font-medium">
+              {labelSingular} {index + 1}
+            </p>
+          )}
           {renderExtra?.(index)}
           <Button
             type="button"

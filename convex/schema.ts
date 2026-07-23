@@ -76,6 +76,13 @@ export default defineSchema({
     /** Se true, il form pubblico chiede prima «Confermi la partecipazione? sì/no». */
     confirmParticipation: v.optional(v.boolean()),
     /**
+     * Raccolta nomi (issue #36): se true o assente, il form chiede il nome di
+     * ogni Figlio/Ospite (comportamento odierno). Se false, Figli e Ospiti sono
+     * identificati solo dall'Etichetta posizionale generata server-side
+     * («Figlio 1», «Ospite 1»); i nomi inviati dal client vengono ignorati.
+     */
+    collectNames: v.optional(v.boolean()),
+    /**
      * Origini autorizzate a incorporare il form (CSP frame-ancestors).
      * Ogni voce è un'origine esatta (https://www.partner.com) o un wildcard di
      * sottodominio (https://*.partner.com). Vuoto = nessun sito autorizzato.

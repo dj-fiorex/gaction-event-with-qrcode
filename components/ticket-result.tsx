@@ -6,15 +6,10 @@ import { CheckCircle2, Download, Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
+import { CATEGORY_LABEL } from '@/lib/person-labels'
 import type { RegisteredPerson } from '@/lib/types'
 import type { TicketPdfEvent } from '@/lib/pdf/ticket-document'
 import { downloadAllTickets, downloadPersonTicket } from '@/lib/pdf/download-tickets'
-
-const CATEGORY_LABEL: Record<RegisteredPerson['category'], string> = {
-  user: 'Iscritto',
-  child: 'Figlio',
-  companion: 'Accompagnatore',
-}
 
 interface TicketResultProps {
   persons: RegisteredPerson[]

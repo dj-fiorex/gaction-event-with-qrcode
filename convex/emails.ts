@@ -4,14 +4,9 @@ import { v } from 'convex/values'
 import { Resend } from 'resend'
 import { action, internalAction } from './_generated/server'
 import { personCategory } from './schema'
+import { CATEGORY_LABEL } from '../lib/person-labels'
 
 const FROM_ADDRESS = process.env.RESEND_FROM_EMAIL ?? 'Eventi <onboarding@resend.dev>'
-
-const CATEGORY_LABEL: Record<'user' | 'child' | 'companion', string> = {
-  user: 'Iscritto',
-  child: 'Figlio',
-  companion: 'Accompagnatore',
-}
 
 const emailPerson = v.object({
   name: v.string(),
@@ -24,12 +19,21 @@ const emailPerson = v.object({
 function personBlock(
   person: { name: string; category: 'user' | 'child' | 'companion'; age: number | null; ticketCode: string },
   index: number,
+  collectNames: boolean,
 ): string {
   const ageLabel = person.category === 'child' && person.age != null ? ` · ${person.age} anni` : ''
+  // Con «Raccolta nomi» disattiva (issue #36) il nome di Figli/Ospiti È già
+  // l'Etichetta posizionale («Figlio 1», «Ospite 1»): si mostra da sola (con
+  // l'età per i Figli), senza ripetere la categoria. L'Iscritto conserva sempre
+  // il proprio nome, quindi la categoria «Iscritto» resta indicata.
+  const isPositionalLabel = !collectNames && person.category !== 'user'
+  const header = isPositionalLabel
+    ? `<strong>${person.name}</strong>${ageLabel}`
+    : `<strong>${person.name}</strong> — ${CATEGORY_LABEL[person.category]}${ageLabel}`
   return `
     <div style="text-align:center;margin:20px 0;padding:16px;border:1px solid #e2e8f0;border-radius:12px;">
       <p style="margin:0 0 8px;font-size:14px;color:#475569;">
-        <strong>${person.name}</strong> — ${CATEGORY_LABEL[person.category]}${ageLabel}
+        ${header}
       </p>
       <img src="cid:qr-${index}" alt="QR code di ${person.name}" width="200" height="200" style="border:1px solid #e2e8f0;border-radius:12px;" />
       <p style="margin:12px 0 0;font-family:monospace;font-size:15px;color:#0f172a;letter-spacing:1px;">${person.ticketCode}</p>
@@ -45,6 +49,8 @@ export const sendTickets = action({
     eventTitle: v.string(),
     eventLocation: v.string(),
     contactEmail: v.string(),
+    /** Raccolta nomi dell'Evento: false ⇒ i blocchi mostrano l'Etichetta posizionale. */
+    collectNames: v.boolean(),
     persons: v.array(emailPerson),
   },
   returns: v.object({ delivered: v.boolean(), simulated: v.boolean() }),
@@ -68,7 +74,7 @@ export const sendTickets = action({
             <h2 style="margin:0 0 8px;font-size:18px;color:#0f172a;">${args.eventTitle}</h2>
             <p style="margin:4px 0;color:#475569;"><strong>Dove:</strong> ${args.eventLocation}</p>
             <p style="margin:12px 0;color:#475569;">Ogni persona ha un proprio QR code. Presentatelo all'ingresso e a ogni attività prenotata.</p>
-            ${args.persons.map(personBlock).join('')}
+            ${args.persons.map((p, index) => personBlock(p, index, args.collectNames)).join('')}
           </div>
         </div>`
 

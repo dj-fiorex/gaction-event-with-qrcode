@@ -83,7 +83,7 @@ export const populateDemo = internalMutation({
       return { activityId, slotIds }
     }
 
-    // --- Evento 1: Family Day (private, no QR reuse, bambini + accompagnatori) ---
+    // --- Evento 1: Family Day (private, no QR reuse, bambini + ospiti) ---
     const familyBase = now + DAY * 20
     const familyDayId = await ctx.db.insert('events', {
       title: 'Family Day Aziendale 2026',

@@ -80,10 +80,9 @@ export const register = mutation({
         ? event.maxCompanionsWithChildren!
         : event.maxCompanionsPerRegistration
     if (companions.length > companionsCap) {
-      // Il termine rispecchia quello che il form mostra per questo Evento
-      // (CONTEXT.md: «Ospite», non «Accompagnatore», è il termine corrente).
-      const noun = familyRuleConfigured ? 'ospiti' : 'accompagnatori'
-      throw new Error(`Puoi aggiungere al massimo ${companionsCap} ${noun}`)
+      // «Ospite» ha sostituito «Accompagnatore» in tutta la UI e nei documenti
+      // (CONTEXT.md / issue #36), a prescindere dalla regola del nucleo familiare.
+      throw new Error(`Puoi aggiungere al massimo ${companionsCap} ospiti`)
     }
 
     // Carica gli slot selezionati e verifica che appartengano all'Evento.
@@ -161,10 +160,23 @@ export const register = mutation({
       ...(registrationUserId ? { userId: registrationUserId } : {}),
     })
 
+    // Etichetta posizionale (issue #36): con «Raccolta nomi» disattiva, il nome
+    // persistito di ogni Figlio/Ospite È l'etichetta progressiva generata qui
+    // («Figlio 1..N», «Ospite 1..N»), ignorando qualsiasi nome inviato dal
+    // client. L'Iscritto conserva sempre il proprio nome. Assente = attiva.
+    const collectNames = event.collectNames ?? true
     const personsInput: Array<{ name: string; category: 'user' | 'child' | 'companion'; age: number | null }> = [
       { name: args.userName, category: 'user', age: null },
-      ...children.map((c) => ({ name: c.name, category: 'child' as const, age: c.age })),
-      ...companions.map((c) => ({ name: c.name, category: 'companion' as const, age: null })),
+      ...children.map((c, i) => ({
+        name: collectNames ? c.name : `Figlio ${i + 1}`,
+        category: 'child' as const,
+        age: c.age,
+      })),
+      ...companions.map((c, i) => ({
+        name: collectNames ? c.name : `Ospite ${i + 1}`,
+        category: 'companion' as const,
+        age: null,
+      })),
     ]
 
     const createdPersons: Array<{
