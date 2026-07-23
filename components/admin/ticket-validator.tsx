@@ -3,7 +3,7 @@
 import { useMemo, useState } from 'react'
 import { useMutation } from 'convex/react'
 import { Scanner, type IDetectedBarcode } from '@yudiel/react-qr-scanner'
-import { CheckCircle2, Clock, Keyboard, Repeat, ScanLine, XCircle } from 'lucide-react'
+import { CheckCircle2, Clock, Keyboard, LogOut, Repeat, ScanLine, XCircle } from 'lucide-react'
 import { api } from '@/convex/_generated/api'
 import type { Id } from '@/convex/_generated/dataModel'
 import { Badge } from '@/components/ui/badge'
@@ -25,8 +25,16 @@ import type { CheckInMode, CheckInResult, EventWithStats } from '@/lib/types'
 
 type InputMode = 'camera' | 'manual'
 
-const POSITIVE = new Set<CheckInResult['status']>(['event-valid', 'activity-valid'])
-const WARNING = new Set<CheckInResult['status']>(['event-already', 'activity-already'])
+const POSITIVE = new Set<CheckInResult['status']>([
+  'event-valid',
+  'activity-valid',
+  'exit-valid',
+])
+const WARNING = new Set<CheckInResult['status']>([
+  'event-already',
+  'activity-already',
+  'exit-already',
+])
 
 interface TicketValidatorProps {
   event: EventWithStats
@@ -35,7 +43,7 @@ interface TicketValidatorProps {
 
 export function TicketValidator({ event, unlockToken }: TicketValidatorProps) {
   const checkIn = useMutation(api.checkins.checkIn)
-  const [checkMode, setCheckMode] = useState<CheckInMode>('event')
+  const [selectedMode, setSelectedMode] = useState<CheckInMode>('event')
   const [activityId, setActivityId] = useState<string>('')
   const [inputMode, setInputMode] = useState<InputMode>('camera')
   const [scanning, setScanning] = useState(true)
@@ -52,7 +60,13 @@ export function TicketValidator({ event, unlockToken }: TicketValidatorProps) {
     [event],
   )
 
-  const contextReady = checkMode === 'event' || activityId.length > 0
+  // L'Uscita è offerta solo dagli Eventi con la Registrazione dell'uscita: se
+  // l'admin la disattiva mentre lo scanner è aperto, il punto di controllo
+  // torna all'ingresso invece di restare su una modalità ormai sparita.
+  const checkMode: CheckInMode =
+    selectedMode === 'exit' && !event.recordExit ? 'event' : selectedMode
+
+  const contextReady = checkMode !== 'activity' || activityId.length > 0
 
   async function runCheckIn(code: string) {
     const trimmed = code.trim()
@@ -103,12 +117,12 @@ export function TicketValidator({ event, unlockToken }: TicketValidatorProps) {
         <CardContent className="flex flex-col gap-4">
           <div className="grid gap-2">
             <Label>Tipo di controllo</Label>
-            <div className="grid grid-cols-2 gap-2">
+            <div className={event.recordExit ? 'grid grid-cols-3 gap-2' : 'grid grid-cols-2 gap-2'}>
               <Button
                 type="button"
                 variant={checkMode === 'event' ? 'default' : 'outline'}
                 onClick={() => {
-                  setCheckMode('event')
+                  setSelectedMode('event')
                   reset()
                 }}
               >
@@ -118,12 +132,25 @@ export function TicketValidator({ event, unlockToken }: TicketValidatorProps) {
                 type="button"
                 variant={checkMode === 'activity' ? 'default' : 'outline'}
                 onClick={() => {
-                  setCheckMode('activity')
+                  setSelectedMode('activity')
                   reset()
                 }}
               >
                 Accesso attività
               </Button>
+              {event.recordExit && (
+                <Button
+                  type="button"
+                  variant={checkMode === 'exit' ? 'default' : 'outline'}
+                  onClick={() => {
+                    setSelectedMode('exit')
+                    reset()
+                  }}
+                >
+                  <LogOut className="h-4 w-4" aria-hidden="true" />
+                  Uscita
+                </Button>
+              )}
             </div>
           </div>
 
@@ -252,12 +279,18 @@ function ResultCard({ result, onReset }: { result: CheckInResult; onReset: () =>
       ? 'border-amber-500 bg-amber-500/10'
       : 'border-destructive bg-destructive/10 text-destructive'
 
+  const isExit = result.status.startsWith('exit-')
+
   const Icon = positive ? CheckCircle2 : warning ? Clock : XCircle
   const title = positive
-    ? 'Accesso consentito'
+    ? isExit
+      ? 'Uscita registrata'
+      : 'Accesso consentito'
     : warning
       ? 'Attenzione'
-      : 'Accesso negato'
+      : isExit
+        ? 'Uscita non registrata'
+        : 'Accesso negato'
 
   return (
     <Card className={tone}>
@@ -271,7 +304,7 @@ function ResultCard({ result, onReset }: { result: CheckInResult; onReset: () =>
         {typeof result.count === 'number' && result.count > 1 && (
           <Badge variant="secondary" className="w-fit gap-1">
             <Repeat className="h-3.5 w-3.5" aria-hidden="true" />
-            {result.count}° ingresso
+            {result.count}° {isExit ? 'uscita' : 'ingresso'}
           </Badge>
         )}
 
@@ -312,7 +345,7 @@ function ResultCard({ result, onReset }: { result: CheckInResult; onReset: () =>
             )}
             {result.at && (
               <>
-                <dt className="text-muted-foreground">Orario check-in</dt>
+                <dt className="text-muted-foreground">{isExit ? 'Orario uscita' : 'Orario check-in'}</dt>
                 <dd>{formatDateTime(result.at)}</dd>
               </>
             )}

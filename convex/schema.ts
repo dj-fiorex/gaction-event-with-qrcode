@@ -89,6 +89,12 @@ export default defineSchema({
      */
     collectAllergies: v.optional(v.boolean()),
     /**
+     * Registrazione dell'uscita (issue #38): se true, lo scanner offre la
+     * modalità «Uscita» come terzo momento di Check-in. Assente o false =
+     * nessuna modalità Uscita (comportamento odierno).
+     */
+    recordExit: v.optional(v.boolean()),
+    /**
      * Origini autorizzate a incorporare il form (CSP frame-ancestors).
      * Ogni voce è un'origine esatta (https://www.partner.com) o un wildcard di
      * sottodominio (https://*.partner.com). Vuoto = nessun sito autorizzato.
@@ -152,6 +158,14 @@ export default defineSchema({
     eventCheckInAt: v.union(v.string(), v.null()),
     eventCheckInCount: v.number(),
     eventCheckInLastAt: v.union(v.string(), v.null()),
+    /**
+     * Uscita dall'Evento (issue #38). Speculari ai campi d'ingresso ma
+     * opzionali: assenti = mai uscito, così le righe esistenti non richiedono
+     * backfill. Valorizzati solo dagli Eventi con `recordExit` attivo.
+     */
+    eventCheckOutAt: v.optional(v.string()),
+    eventCheckOutCount: v.optional(v.number()),
+    eventCheckOutLastAt: v.optional(v.string()),
   })
     .index('by_ticketCode', ['ticketCode'])
     .index('by_registration', ['registrationId'])

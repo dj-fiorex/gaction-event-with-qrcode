@@ -46,6 +46,7 @@ const defaultValues: EventInput = {
   confirmParticipation: false,
   collectNames: true,
   collectAllergies: false,
+  recordExit: false,
   allowChildren: false,
   maxChildrenPerRegistration: 2,
   allowCompanions: false,
@@ -358,6 +359,31 @@ export function EventForm({
           <p className="text-sm text-muted-foreground">
             Se attivo, lo stesso QR può essere scansionato più volte (ingresso evento e attività):
             ogni rientro resta valido e viene conteggiato.
+          </p>
+        </div>
+      </div>
+
+      <div className="flex items-start gap-2 rounded-lg border border-border p-4">
+        <Controller
+          control={control}
+          name="recordExit"
+          render={({ field }) => (
+            <Checkbox
+              id="recordExit"
+              className="mt-0.5"
+              checked={field.value}
+              onCheckedChange={(checked) => field.onChange(checked === true)}
+            />
+          )}
+        />
+        <div className="grid gap-1">
+          <Label htmlFor="recordExit" className="font-normal">
+            Registra l&apos;uscita
+          </Label>
+          <p className="text-sm text-muted-foreground">
+            Se attivo, lo scanner offre la modalità «Uscita» accanto a ingresso evento e accesso
+            attività. L&apos;uscita richiede un ingresso già registrato; le ri-uscite seguono la
+            stessa regola del riuso del QR.
           </p>
         </div>
       </div>

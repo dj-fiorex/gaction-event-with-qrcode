@@ -79,6 +79,12 @@ export interface Event {
    * campo nel form e nessuna dichiarazione raccolta.
    */
   collectAllergies: boolean
+  /**
+   * Registrazione dell'uscita (issue #38). Se true, lo scanner offre la
+   * modalità «Uscita» come terzo momento di Check-in. false = comportamento
+   * odierno (solo ingresso evento e accesso attività).
+   */
+  recordExit: boolean
   allowChildren: boolean
   maxChildrenPerRegistration: number
   allowCompanions: boolean
@@ -237,13 +243,18 @@ export interface RegisteredPerson {
   qrDataUrl: string
 }
 
-export type CheckInMode = 'event' | 'activity'
+/** Momento di Check-in scelto dall'operatore. «exit» solo con recordExit attivo. */
+export type CheckInMode = 'event' | 'activity' | 'exit'
 
 export type CheckInStatus =
   | 'event-valid'
   | 'event-already'
   | 'activity-valid'
   | 'activity-already'
+  | 'exit-valid'
+  | 'exit-already'
+  | 'exit-not-entered'
+  | 'exit-disabled'
   | 'not-registered-activity'
   | 'too-early'
   | 'too-late'

@@ -45,6 +45,8 @@ export const eventSchema = z
     collectNames: z.boolean().default(true),
     /** Allergie e intolleranze (issue #37): disattiva di default (comportamento odierno). */
     collectAllergies: z.boolean().default(false),
+    /** Registrazione dell'uscita (issue #38): disattiva di default. */
+    recordExit: z.boolean().default(false),
     allowChildren: z.boolean().default(false),
     maxChildrenPerRegistration: z.coerce.number().int().min(0).default(0),
     allowCompanions: z.boolean().default(false),

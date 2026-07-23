@@ -98,7 +98,7 @@ Stringa opaca e univoca associata a ogni Persona (`TCK-...`), indicizzata in Con
 Token opaco random per-Evento (solo modalità `password`). Restituito al client quando la password dell'Evento viene verificata con successo; il client lo conserva e lo invia con ogni check-in per provare l'autorizzazione, senza esporre l'hash della password. Ruota al cambio password.
 
 ### Esito check-in
-Valore di ritorno delle mutation di check-in, mappato dalla UI sugli stati esistenti (`event-valid`, `event-already`, `activity-valid`, `activity-already`, `not-registered-activity`, `too-early`, `too-late`, `wrong-event`, `not-found`). Le mutation Convex sono transazionali: lo stato viene ri-letto dentro la transazione per evitare doppi check-in e overbooking.
+Valore di ritorno delle mutation di check-in, mappato dalla UI sugli stati esistenti (`event-valid`, `event-already`, `activity-valid`, `activity-already`, `exit-valid`, `exit-already`, `exit-not-entered`, `exit-disabled`, `not-registered-activity`, `too-early`, `too-late`, `wrong-event`, `not-found`). Le mutation Convex sono transazionali: lo stato viene ri-letto dentro la transazione per evitare doppi check-in e overbooking.
 
 ### Check-in
 Atto di scansionare il QR di una Persona. Avviene:
@@ -107,4 +107,4 @@ Atto di scansionare il QR di una Persona. Avviene:
 3. **All'uscita dall'Evento** — solo per gli Eventi con la [[Registrazione dell'uscita]] attiva; richiede un ingresso già registrato (uscita senza ingresso = bloccata).
 
 ### Registrazione dell'uscita
-Impostazione a livello di Evento decisa dall'admin. Se attiva, lo scanner offre la modalità «Uscita», che registra l'orario di uscita della Persona dall'Evento. Le ri-uscite seguono la stessa regola dei rientri (riuso QR).
+Impostazione a livello di Evento decisa dall'admin (`recordExit`, disattiva di default). Se attiva, lo scanner offre la modalità «Uscita», che registra l'orario di uscita della Persona dall'Evento in campi speculari a quelli d'ingresso (prima uscita, contatore, ultima uscita). Un'uscita senza ingresso registrato è **bloccata** («Non risulta entrato») e non scrive nulla, così una scansione nella modalità sbagliata non corrompe i dati. Le ri-uscite seguono la stessa regola dei rientri (riuso QR): riuso off → «già registrata»; riuso on → il contatore avanza e l'ultima uscita si aggiorna.

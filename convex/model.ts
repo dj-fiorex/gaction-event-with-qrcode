@@ -159,6 +159,8 @@ export interface EventWithStatsDTO {
   collectNames: boolean
   /** Allergie e intolleranze (issue #37). false (default) = nessun campo nel form. */
   collectAllergies: boolean
+  /** Registrazione dell'uscita (issue #38). false (default) = nessuna modalità Uscita. */
+  recordExit: boolean
   allowChildren: boolean
   maxChildrenPerRegistration: number
   allowCompanions: boolean
@@ -285,6 +287,7 @@ export async function loadEventWithStats(
     confirmParticipation: event.confirmParticipation ?? false,
     collectNames: event.collectNames ?? true,
     collectAllergies: event.collectAllergies ?? false,
+    recordExit: event.recordExit ?? false,
     allowChildren: event.allowChildren,
     maxChildrenPerRegistration: event.maxChildrenPerRegistration,
     allowCompanions: event.allowCompanions,

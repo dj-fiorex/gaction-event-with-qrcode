@@ -3,7 +3,7 @@ import { v } from 'convex/values'
 import type { Doc } from './_generated/dataModel'
 import { canOperateEvent, verifyCheckInPassword } from './model'
 
-const checkInMode = v.union(v.literal('event'), v.literal('activity'))
+const checkInMode = v.union(v.literal('event'), v.literal('activity'), v.literal('exit'))
 
 const personSummaryValidator = v.object({
   name: v.string(),
@@ -20,6 +20,10 @@ const checkInResultValidator = v.object({
     v.literal('event-already'),
     v.literal('activity-valid'),
     v.literal('activity-already'),
+    v.literal('exit-valid'),
+    v.literal('exit-already'),
+    v.literal('exit-not-entered'),
+    v.literal('exit-disabled'),
     v.literal('not-registered-activity'),
     v.literal('too-early'),
     v.literal('too-late'),
@@ -144,6 +148,68 @@ export const checkIn = mutation({
       return {
         status: 'event-valid' as const,
         message: 'Ingresso all’evento consentito.',
+        person: personSummary,
+        eventTitle: event.title,
+        at: now,
+        count: 1,
+      }
+    }
+
+    if (args.mode === 'exit') {
+      // Terzo momento di Check-in: attivo solo se l'admin l'ha abilitato.
+      if (!event.recordExit) {
+        return {
+          status: 'exit-disabled' as const,
+          message: 'La registrazione dell’uscita non è attiva per questo evento.',
+          person: personSummary,
+          eventTitle: event.title,
+        }
+      }
+      // Guard rail: un'uscita senza ingresso è una scansione in modalità
+      // sbagliata. Blocca e non scrive nulla, per non corrompere i dati.
+      if (!person.eventCheckInAt) {
+        return {
+          status: 'exit-not-entered' as const,
+          message: 'Non risulta entrato: registra prima l’ingresso all’evento.',
+          person: personSummary,
+          eventTitle: event.title,
+        }
+      }
+
+      const now = new Date().toISOString()
+      if (person.eventCheckOutAt) {
+        if (!event.allowQrReuse) {
+          return {
+            status: 'exit-already' as const,
+            message: 'Uscita già registrata in precedenza.',
+            person: personSummary,
+            eventTitle: event.title,
+            at: person.eventCheckOutAt,
+            count: person.eventCheckOutCount,
+          }
+        }
+        const count = (person.eventCheckOutCount ?? 0) + 1
+        await ctx.db.patch(person._id, {
+          eventCheckOutCount: count,
+          eventCheckOutLastAt: now,
+        })
+        return {
+          status: 'exit-valid' as const,
+          message: `Nuova uscita registrata (uscita n° ${count}).`,
+          person: personSummary,
+          eventTitle: event.title,
+          at: person.eventCheckOutAt,
+          count,
+        }
+      }
+      await ctx.db.patch(person._id, {
+        eventCheckOutAt: now,
+        eventCheckOutCount: 1,
+        eventCheckOutLastAt: now,
+      })
+      return {
+        status: 'exit-valid' as const,
+        message: 'Uscita dall’evento registrata.',
         person: personSummary,
         eventTitle: event.title,
         at: now,
