@@ -56,6 +56,9 @@ Risposta negativa («non partecipo») di una persona a un Evento che richiede la
 ### Annullamento della Prenotazione
 Azione riservata all'admin che elimina un'intera Prenotazione: rimuove le sue Persone e selezioni, libera i posti negli Slot e invalida i relativi QR code. Non esiste un annullamento self-service dal form pubblico.
 
+### Reinvio dell'email dei biglietti
+Azione riservata all'admin che rimanda l'email di conferma di una Prenotazione — la stessa, con un blocco QR per ogni [[Persona]] e le sue etichette, età e [[Allergie e intolleranze]] **attuali**. Il destinatario è precompilato con l'email memorizzata ed è **modificabile**: un indirizzo corretto viene salvato sulla Prenotazione e vale da lì in avanti per ogni comunicazione. I [[ticketCode (QR token)|ticketCode]] non cambiano: i biglietti già ricevuti restano validi.
+
 ### Prenotazione riservata agli account (requireAccount)
 Booleano a livello di Evento impostato dall'admin. Se **true**, per prenotare quell'Evento bisogna essere un [[Membro]] **loggato e con email verificata**; la Prenotazione viene collegata al Membro. Se **false**, la prenotazione anonima funziona come oggi (nome + `contactEmail`, senza login). Interazione con l'embed: quando un Evento è sia `requireAccount` sia `embedEnabled`, **per ora vince `requireAccount`** — il form incorporato rifiuta la prenotazione anonima e rimanda al sito principale. La coesistenza embed↔account va progettata in una sessione dedicata.
 

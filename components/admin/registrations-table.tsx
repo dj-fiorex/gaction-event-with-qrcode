@@ -17,6 +17,7 @@ import {
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { PdfDownloadButton } from '@/components/admin/pdf-download-button'
+import { ResendTicketsDialog } from '@/components/admin/resend-tickets-dialog'
 import { downloadAllTickets } from '@/lib/pdf/download-tickets'
 import { formatDateRange, formatDateTime } from '@/lib/format'
 import { toRegisteredPersons } from '@/lib/qr-client'
@@ -151,16 +152,21 @@ export function RegistrationsTable({ registrations, events }: RegistrationsTable
                   />
                 </TableCell>
                 <TableCell className="text-right">
-                  <Button
-                    variant="outline"
-                    size="icon"
-                    onClick={() => handleCancel(r.id, r.contactEmail)}
-                    disabled={cancelingId === r.id}
-                    aria-label={`Annulla prenotazione di ${r.contactEmail}`}
-                    title={`Annulla prenotazione di ${r.contactEmail}`}
-                  >
-                    <Ban className="h-4 w-4" aria-hidden="true" />
-                  </Button>
+                  <div className="flex justify-end gap-2">
+                    {/* Reinvio dell'email dei biglietti (issue #40): il dialog
+                        parte dall'email memorizzata ed è modificabile. */}
+                    <ResendTicketsDialog registrationId={r.id} contactEmail={r.contactEmail} />
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      onClick={() => handleCancel(r.id, r.contactEmail)}
+                      disabled={cancelingId === r.id}
+                      aria-label={`Annulla prenotazione di ${r.contactEmail}`}
+                      title={`Annulla prenotazione di ${r.contactEmail}`}
+                    >
+                      <Ban className="h-4 w-4" aria-hidden="true" />
+                    </Button>
+                  </div>
                 </TableCell>
               </TableRow>
             )

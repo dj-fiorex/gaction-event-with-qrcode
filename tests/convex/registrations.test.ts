@@ -1130,6 +1130,257 @@ test('register rejects an allergy declaration longer than the server-side limit'
   ).toHaveLength(0)
 })
 
+/* ------------------------------------------------------------------ */
+/* Reinvio dell'email dei biglietti (issue #40)                        */
+/* ------------------------------------------------------------------ */
+
+test('prepareTicketResend rejects staff, member, and anonymous callers', async () => {
+  const t = convexTest(schema, modules)
+  const staffId = await createUser(t, { email: 'staff@example.com', role: 'staff', verified: true })
+  const memberId = await createUser(t, {
+    email: 'member@example.com',
+    role: 'member',
+    verified: true,
+  })
+  const { eventId, activityId, slotId } = await createEventFixture(t)
+
+  const { registrationId } = await t.mutation(api.registrations.register, {
+    eventId,
+    userName: 'Mario Rossi',
+    contactEmail: 'guest@example.com',
+    children: [],
+    companions: [],
+    selections: [{ activityId, slotId }],
+  })
+
+  await expect(
+    t.mutation(api.registrations.prepareTicketResend, {
+      registrationId,
+      contactEmail: 'attacker@example.com',
+    }),
+  ).rejects.toThrow('Non autenticato')
+  await expect(
+    t.withIdentity({ subject: subjectFor(staffId) }).mutation(api.registrations.prepareTicketResend, {
+      registrationId,
+      contactEmail: 'attacker@example.com',
+    }),
+  ).rejects.toThrow('Accesso riservato agli amministratori')
+  await expect(
+    t
+      .withIdentity({ subject: subjectFor(memberId) })
+      .mutation(api.registrations.prepareTicketResend, {
+        registrationId,
+        contactEmail: 'attacker@example.com',
+      }),
+  ).rejects.toThrow('Accesso riservato agli amministratori')
+
+  // Sanity check: no rejected attempt rewrote the stored contact email.
+  expect(await t.run((ctx) => ctx.db.get(registrationId))).toMatchObject({
+    contactEmail: 'guest@example.com',
+  })
+})
+
+test('prepareTicketResend throws for a nonexistent registration', async () => {
+  const t = convexTest(schema, modules)
+  const adminId = await createUser(t, { email: 'admin@example.com', role: 'admin', verified: true })
+  const { eventId, activityId, slotId } = await createEventFixture(t)
+  const { registrationId } = await t.mutation(api.registrations.register, {
+    eventId,
+    userName: 'Mario Rossi',
+    contactEmail: 'guest@example.com',
+    children: [],
+    companions: [],
+    selections: [{ activityId, slotId }],
+  })
+  await t.withIdentity({ subject: subjectFor(adminId) }).mutation(api.registrations.cancel, {
+    registrationId,
+  })
+
+  await expect(
+    t.withIdentity({ subject: subjectFor(adminId) }).mutation(api.registrations.prepareTicketResend, {
+      registrationId,
+      contactEmail: 'guest@example.com',
+    }),
+  ).rejects.toThrow('Prenotazione non trovata')
+})
+
+test('prepareTicketResend builds the email payload from the Prenotazione current Persone', async () => {
+  const t = convexTest(schema, modules)
+  const adminId = await createUser(t, { email: 'admin@example.com', role: 'admin', verified: true })
+  const { eventId, activityId, slotId } = await createEventFixture(t, {
+    allowChildren: true,
+    allowCompanions: true,
+    maxChildrenPerRegistration: 5,
+    maxCompanionsPerRegistration: 2,
+    collectAllergies: true,
+  })
+
+  const { registrationId, persons: registered } = await t.mutation(api.registrations.register, {
+    eventId,
+    userName: 'Mario Rossi',
+    contactEmail: 'guest@example.com',
+    userAllergies: 'Lattosio',
+    children: [{ name: 'Marco', age: 5 }],
+    companions: [{ name: 'Zia Pina', allergies: 'Glutine' }],
+    selections: [{ activityId, slotId }],
+  })
+
+  const payload = await t
+    .withIdentity({ subject: subjectFor(adminId) })
+    .mutation(api.registrations.prepareTicketResend, {
+      registrationId,
+      contactEmail: 'guest@example.com',
+    })
+
+  expect(payload).toMatchObject({
+    eventTitle: 'Evento test',
+    eventLocation: 'Roma',
+    contactEmail: 'guest@example.com',
+    collectNames: true,
+  })
+  expect(payload.persons).toEqual([
+    {
+      name: 'Mario Rossi',
+      category: 'user',
+      age: null,
+      allergies: 'Lattosio',
+      ticketCode: expect.any(String),
+    },
+    { name: 'Marco', category: 'child', age: 5, allergies: null, ticketCode: expect.any(String) },
+    {
+      name: 'Zia Pina',
+      category: 'companion',
+      age: null,
+      allergies: 'Glutine',
+      ticketCode: expect.any(String),
+    },
+  ])
+  // The resent email carries the very same QR codes as the original one.
+  expect(payload.persons.map((p) => p.ticketCode).sort()).toEqual(
+    registered.map((p) => p.ticketCode).sort(),
+  )
+})
+
+test('prepareTicketResend reflects the current Persone, including positional labels', async () => {
+  const t = convexTest(schema, modules)
+  const adminId = await createUser(t, { email: 'admin@example.com', role: 'admin', verified: true })
+  const { eventId, activityId, slotId } = await createEventFixture(t, {
+    allowChildren: true,
+    maxChildrenPerRegistration: 5,
+    collectNames: false,
+  })
+
+  const { registrationId } = await t.mutation(api.registrations.register, {
+    eventId,
+    userName: 'Mario Rossi',
+    contactEmail: 'guest@example.com',
+    children: [{ name: 'Marco', age: 5 }],
+    companions: [],
+    selections: [{ activityId, slotId }],
+  })
+
+  const payload = await t
+    .withIdentity({ subject: subjectFor(adminId) })
+    .mutation(api.registrations.prepareTicketResend, {
+      registrationId,
+      contactEmail: 'guest@example.com',
+    })
+
+  expect(payload.collectNames).toBe(false)
+  expect(payload.persons.map((p) => p.name)).toEqual(['Mario Rossi', 'Figlio 1'])
+})
+
+test('prepareTicketResend persists a corrected recipient on the Prenotazione', async () => {
+  const t = convexTest(schema, modules)
+  const adminId = await createUser(t, { email: 'admin@example.com', role: 'admin', verified: true })
+  const { eventId, activityId, slotId } = await createEventFixture(t)
+
+  const { registrationId } = await t.mutation(api.registrations.register, {
+    eventId,
+    userName: 'Mario Rossi',
+    contactEmail: 'typo@example.com',
+    children: [],
+    companions: [],
+    selections: [{ activityId, slotId }],
+  })
+
+  const payload = await t
+    .withIdentity({ subject: subjectFor(adminId) })
+    .mutation(api.registrations.prepareTicketResend, {
+      registrationId,
+      // Extra spaces are the admin's typing, not part of the address.
+      contactEmail: '  corretto@example.com  ',
+    })
+
+  // The email goes to the corrected address...
+  expect(payload.contactEmail).toBe('corretto@example.com')
+  // ...and every future communication does too.
+  expect(await t.run((ctx) => ctx.db.get(registrationId))).toMatchObject({
+    contactEmail: 'corretto@example.com',
+  })
+  const [listed] = await t
+    .withIdentity({ subject: subjectFor(adminId) })
+    .query(api.registrations.listAll, { eventId })
+  expect(listed.contactEmail).toBe('corretto@example.com')
+})
+
+test('prepareTicketResend falls back to the stored recipient when none is given', async () => {
+  const t = convexTest(schema, modules)
+  const adminId = await createUser(t, { email: 'admin@example.com', role: 'admin', verified: true })
+  const { eventId, activityId, slotId } = await createEventFixture(t)
+
+  const { registrationId } = await t.mutation(api.registrations.register, {
+    eventId,
+    userName: 'Mario Rossi',
+    contactEmail: 'guest@example.com',
+    children: [],
+    companions: [],
+    selections: [{ activityId, slotId }],
+  })
+
+  const payload = await t
+    .withIdentity({ subject: subjectFor(adminId) })
+    .mutation(api.registrations.prepareTicketResend, { registrationId })
+
+  expect(payload.contactEmail).toBe('guest@example.com')
+  expect(await t.run((ctx) => ctx.db.get(registrationId))).toMatchObject({
+    contactEmail: 'guest@example.com',
+  })
+})
+
+test('prepareTicketResend rejects an invalid recipient without touching the stored one', async () => {
+  const t = convexTest(schema, modules)
+  const adminId = await createUser(t, { email: 'admin@example.com', role: 'admin', verified: true })
+  const { eventId, activityId, slotId } = await createEventFixture(t)
+
+  const { registrationId } = await t.mutation(api.registrations.register, {
+    eventId,
+    userName: 'Mario Rossi',
+    contactEmail: 'guest@example.com',
+    children: [],
+    companions: [],
+    selections: [{ activityId, slotId }],
+  })
+
+  const asAdmin = t.withIdentity({ subject: subjectFor(adminId) })
+  await expect(
+    asAdmin.mutation(api.registrations.prepareTicketResend, {
+      registrationId,
+      contactEmail: 'non-una-email',
+    }),
+  ).rejects.toThrow('Indirizzo email non valido')
+  await expect(
+    asAdmin.mutation(api.registrations.prepareTicketResend, {
+      registrationId,
+      contactEmail: '   ',
+    }),
+  ).rejects.toThrow('Indirizzo email non valido')
+
+  expect(await t.run((ctx) => ctx.db.get(registrationId))).toMatchObject({
+    contactEmail: 'guest@example.com',
+  })
+})
+
 test('getActivityAttendance exposes per-person allergies for the admin detail', async () => {
   const t = convexTest(schema, modules)
   const adminId = await createUser(t, { email: 'admin@example.com', role: 'admin' })

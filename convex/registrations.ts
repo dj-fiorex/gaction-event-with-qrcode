@@ -427,6 +427,74 @@ export const myRegistrations = query({
 })
 
 /* ------------------------------------------------------------------ */
+/* Reinvio dell'email dei biglietti (admin, issue #40)                 */
+/* ------------------------------------------------------------------ */
+
+/** Controllo minimo di forma: la consegna vera resta responsabilità del provider. */
+const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+
+/**
+ * Prepara il reinvio dell'email dei biglietti di una Prenotazione e persiste
+ * l'eventuale correzione del destinatario.
+ *
+ * Restituisce il payload dell'email — gli stessi campi che `emails.sendTickets`
+ * riceve dopo una nuova Prenotazione, meno i QR — costruito dalle Persone
+ * attuali della Prenotazione, così il reinvio riflette etichette, età e allergie
+ * di oggi e non quelle del giorno dell'iscrizione. I QR sono rigenerati dal
+ * client a partire dai `ticketCode`, che restano quelli originali: i biglietti
+ * già in mano all'Utente continuano a valere.
+ *
+ * Il destinatario di sostituzione è facoltativo: omesso, si riusa l'email
+ * memorizzata. Se invece è diverso da quella memorizzata viene scritto sulla
+ * Prenotazione (user story 28): la correzione vale per ogni comunicazione
+ * futura, non solo per questo invio.
+ */
+export const prepareTicketResend = mutation({
+  args: {
+    registrationId: v.id('registrations'),
+    contactEmail: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    await requireAdmin(ctx)
+    const registration = await ctx.db.get(args.registrationId)
+    if (!registration) throw new Error('Prenotazione non trovata')
+
+    const event = await ctx.db.get(registration.eventId)
+    if (!event) throw new Error('Evento non trovato')
+
+    // Solo un destinatario di sostituzione viene validato: quello memorizzato
+    // esiste già ed è la destinazione di default, non un dato in ingresso.
+    let contactEmail = registration.contactEmail
+    if (args.contactEmail !== undefined) {
+      contactEmail = args.contactEmail.trim()
+      if (!EMAIL_PATTERN.test(contactEmail)) throw new Error('Indirizzo email non valido')
+      if (contactEmail !== registration.contactEmail) {
+        await ctx.db.patch(registration._id, { contactEmail })
+      }
+    }
+
+    const persons = await ctx.db
+      .query('persons')
+      .withIndex('by_registration', (q) => q.eq('registrationId', registration._id))
+      .collect()
+
+    return {
+      eventTitle: event.title,
+      eventLocation: event.location,
+      contactEmail,
+      collectNames: event.collectNames ?? true,
+      persons: persons.map((person) => ({
+        name: person.name,
+        category: person.category,
+        age: person.age,
+        allergies: person.allergies ?? null,
+        ticketCode: person.ticketCode,
+      })),
+    }
+  },
+})
+
+/* ------------------------------------------------------------------ */
 /* Annullamento della Prenotazione (admin, ADR 0004)                   */
 /* ------------------------------------------------------------------ */
 
