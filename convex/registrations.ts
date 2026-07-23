@@ -5,12 +5,24 @@ import { requireAdmin, generateTicketCode, getCurrentUser } from './model'
 import { intervalsOverlap } from '../lib/slots'
 import { getAuthUserId } from '@convex-dev/auth/server'
 
-const childInput = v.object({ name: v.string(), age: v.number() })
-const companionInput = v.object({ name: v.string() })
+// Allergie e intolleranze (issue #37): dichiarazione facoltativa per Persona.
+// Opzionale nei validator così i client che non la raccolgono restano validi.
+const childInput = v.object({
+  name: v.string(),
+  age: v.number(),
+  allergies: v.optional(v.string()),
+})
+const companionInput = v.object({ name: v.string(), allergies: v.optional(v.string()) })
 const selectionInput = v.object({
   activityId: v.id('activities'),
   slotId: v.id('slots'),
 })
+
+/**
+ * Lunghezza massima della dichiarazione «Allergie e intolleranze» (issue #37).
+ * Deve restare allineata a `allergiesInputSchema` in lib/schemas.ts.
+ */
+const MAX_ALLERGIES_LENGTH = 300
 
 const REQUIRE_ACCOUNT_LOGIN_ERROR =
   'Per registrarti a questo evento devi accedere con un account Membro verificato'
@@ -30,6 +42,8 @@ export const register = mutation({
     eventId: v.id('events'),
     userName: v.string(),
     contactEmail: v.string(),
+    /** Allergie e intolleranze dell'Iscritto (issue #37). */
+    userAllergies: v.optional(v.string()),
     children: v.array(childInput),
     companions: v.array(companionInput),
     selections: v.array(selectionInput),
@@ -165,17 +179,48 @@ export const register = mutation({
     // («Figlio 1..N», «Ospite 1..N»), ignorando qualsiasi nome inviato dal
     // client. L'Iscritto conserva sempre il proprio nome. Assente = attiva.
     const collectNames = event.collectNames ?? true
-    const personsInput: Array<{ name: string; category: 'user' | 'child' | 'companion'; age: number | null }> = [
-      { name: args.userName, category: 'user', age: null },
+
+    // Allergie e intolleranze (issue #37): raccolte solo se l'Evento le chiede,
+    // altrimenti qualsiasi dichiarazione inviata dal client viene ignorata.
+    // Una dichiarazione vuota o di soli spazi = nessuna allergia dichiarata.
+    const collectAllergies = event.collectAllergies ?? false
+    const normalizeAllergies = (value: string | undefined): string | null => {
+      if (!collectAllergies) return null
+      const trimmed = value?.trim() ?? ''
+      if (trimmed.length === 0) return null
+      // Il limite è applicato server-side: il form lo duplica, ma la mutation
+      // non si fida della validazione del client.
+      if (trimmed.length > MAX_ALLERGIES_LENGTH) {
+        throw new Error(
+          `La dichiarazione di allergie e intolleranze non può superare i ${MAX_ALLERGIES_LENGTH} caratteri`,
+        )
+      }
+      return trimmed
+    }
+
+    const personsInput: Array<{
+      name: string
+      category: 'user' | 'child' | 'companion'
+      age: number | null
+      allergies: string | null
+    }> = [
+      {
+        name: args.userName,
+        category: 'user',
+        age: null,
+        allergies: normalizeAllergies(args.userAllergies),
+      },
       ...children.map((c, i) => ({
         name: collectNames ? c.name : `Figlio ${i + 1}`,
         category: 'child' as const,
         age: c.age,
+        allergies: normalizeAllergies(c.allergies),
       })),
       ...companions.map((c, i) => ({
         name: collectNames ? c.name : `Ospite ${i + 1}`,
         category: 'companion' as const,
         age: null,
+        allergies: normalizeAllergies(c.allergies),
       })),
     ]
 
@@ -183,6 +228,7 @@ export const register = mutation({
     name: string
     category: 'user' | 'child' | 'companion'
     age: number | null
+    allergies: string | null
     ticketCode: string
   }> = []
     for (const p of personsInput) {
@@ -193,12 +239,19 @@ export const register = mutation({
         name: p.name,
         category: p.category,
         age: p.age,
+        ...(p.allergies ? { allergies: p.allergies } : {}),
         ticketCode,
         eventCheckInAt: null,
         eventCheckInCount: 0,
         eventCheckInLastAt: null,
       })
-      createdPersons.push({ name: p.name, category: p.category, age: p.age, ticketCode })
+      createdPersons.push({
+        name: p.name,
+        category: p.category,
+        age: p.age,
+        allergies: p.allergies,
+        ticketCode,
+      })
     }
 
     for (const sel of args.selections) {
@@ -253,6 +306,7 @@ async function buildRegistrationDTO(
       name: person.name,
       category: person.category,
       age: person.age,
+      allergies: person.allergies ?? null,
       ticketCode: person.ticketCode,
       eventCheckInAt: person.eventCheckInAt,
       eventCheckInCount: person.eventCheckInCount,
@@ -338,6 +392,7 @@ export const myRegistrations = query({
           name: person.name,
           category: person.category,
           age: person.age,
+          allergies: person.allergies ?? null,
           ticketCode: person.ticketCode,
           eventCheckInAt: person.eventCheckInAt,
           eventCheckInCount: person.eventCheckInCount,

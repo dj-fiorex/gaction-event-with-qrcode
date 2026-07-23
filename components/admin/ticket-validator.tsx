@@ -284,6 +284,14 @@ function ResultCard({ result, onReset }: { result: CheckInResult; onReset: () =>
             </dd>
             <dt className="text-muted-foreground">Tipo</dt>
             <dd>{CATEGORY_LABEL[result.person.category]}</dd>
+            {/* Allergie e intolleranze (issue #37): mostrate a chi controlla gli
+                ingressi per scelta esplicita del committente. */}
+            {result.person.allergies && (
+              <>
+                <dt className="text-muted-foreground">Allergie</dt>
+                <dd className="font-medium">{result.person.allergies}</dd>
+              </>
+            )}
             {result.eventTitle && (
               <>
                 <dt className="text-muted-foreground">Evento</dt>

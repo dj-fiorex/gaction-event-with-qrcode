@@ -15,6 +15,8 @@ interface PersonLike {
   name: string
   category: RegisteredPerson['category']
   age: number | null
+  /** Allergie e intolleranze dichiarate. null = nessuna dichiarazione. */
+  allergies: string | null
   ticketCode: string
 }
 
@@ -25,6 +27,7 @@ export function toRegisteredPersons(persons: PersonLike[]): Promise<RegisteredPe
       name: p.name,
       category: p.category,
       age: p.age,
+      allergies: p.allergies,
       ticketCode: p.ticketCode,
       qrDataUrl: await generateQrDataUrl(p.ticketCode),
     })),

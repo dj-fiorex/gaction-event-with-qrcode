@@ -268,6 +268,10 @@ function EventDetailContent() {
                 }
               />
               <InfoRow
+                label="Allergie e intolleranze"
+                value={event.collectAllergies ? 'Richieste a ogni persona' : 'Non richieste'}
+              />
+              <InfoRow
                 label="Posti occupati"
                 value={`${event.totalTaken}/${event.totalCapacity}`}
               />

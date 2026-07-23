@@ -45,6 +45,7 @@ async function createEventFixture(
     maxCompanionsPerRegistration,
     maxCompanionsWithChildren,
     collectNames,
+    collectAllergies,
   }: {
     requireAccount?: boolean
     embedEnabled?: boolean
@@ -55,6 +56,8 @@ async function createEventFixture(
     maxCompanionsWithChildren?: number
     /** Omesso = campo assente (l'app lo tratta come «Raccolta nomi» attiva). */
     collectNames?: boolean
+    /** Omesso = campo assente (l'app lo tratta come allergie non richieste). */
+    collectAllergies?: boolean
   } = {},
 ) {
   return t.run(async (ctx) => {
@@ -79,6 +82,7 @@ async function createEventFixture(
       embedEnabled,
       requireAccount,
       ...(collectNames === undefined ? {} : { collectNames }),
+      ...(collectAllergies === undefined ? {} : { collectAllergies }),
     })
     const activityId = await ctx.db.insert('activities', {
       eventId,
@@ -888,4 +892,269 @@ test('cancel removes the Prenotazione end-to-end: Persone, selections, check-ins
       mode: 'event',
     }),
   ).resolves.toMatchObject({ status: 'not-found' })
+})
+
+/* ------------------------------------------------------------------ */
+/* Allergie e intolleranze (issue #37)                                 */
+/* ------------------------------------------------------------------ */
+
+test('register persists the allergy declaration of every Persona when the event asks for it', async () => {
+  const t = convexTest(schema, modules)
+  const { eventId, activityId, slotId } = await createEventFixture(t, {
+    allowChildren: true,
+    allowCompanions: true,
+    maxChildrenPerRegistration: 5,
+    maxCompanionsPerRegistration: 2,
+    collectAllergies: true,
+  })
+
+  const { registrationId, persons: returned } = await t.mutation(api.registrations.register, {
+    eventId,
+    userName: 'Mario Rossi',
+    contactEmail: 'guest@example.com',
+    userAllergies: 'Lattosio',
+    children: [{ name: 'Marco', age: 5, allergies: 'Arachidi' }],
+    companions: [{ name: 'Zia Pina', allergies: 'Glutine' }],
+    selections: [{ activityId, slotId }],
+  })
+
+  const persons = await t.run((ctx) =>
+    ctx.db
+      .query('persons')
+      .withIndex('by_registration', (q) => q.eq('registrationId', registrationId))
+      .collect(),
+  )
+  const allergiesByName = Object.fromEntries(persons.map((p) => [p.name, p.allergies ?? null]))
+  expect(allergiesByName).toEqual({
+    'Mario Rossi': 'Lattosio',
+    Marco: 'Arachidi',
+    'Zia Pina': 'Glutine',
+  })
+
+  // The mutation result feeds the confirmation email, so it carries them too.
+  expect(
+    Object.fromEntries(returned.map((p) => [p.name, p.allergies])),
+  ).toEqual({ 'Mario Rossi': 'Lattosio', Marco: 'Arachidi', 'Zia Pina': 'Glutine' })
+})
+
+test('register treats an empty or blank allergy declaration as «nessuna dichiarata»', async () => {
+  const t = convexTest(schema, modules)
+  const { eventId, activityId, slotId } = await createEventFixture(t, {
+    allowChildren: true,
+    maxChildrenPerRegistration: 5,
+    collectAllergies: true,
+  })
+
+  const { registrationId, persons: returned } = await t.mutation(api.registrations.register, {
+    eventId,
+    userName: 'Mario Rossi',
+    contactEmail: 'guest@example.com',
+    userAllergies: '   ',
+    children: [{ name: 'Marco', age: 5 }],
+    companions: [],
+    selections: [{ activityId, slotId }],
+  })
+
+  const persons = await t.run((ctx) =>
+    ctx.db
+      .query('persons')
+      .withIndex('by_registration', (q) => q.eq('registrationId', registrationId))
+      .collect(),
+  )
+  expect(persons.every((p) => p.allergies === undefined)).toBe(true)
+  expect(returned.every((p) => p.allergies === null)).toBe(true)
+})
+
+test('register ignores submitted allergies when the event does not ask for them', async () => {
+  const t = convexTest(schema, modules)
+  const { eventId, activityId, slotId } = await createEventFixture(t, {
+    allowChildren: true,
+    allowCompanions: true,
+    maxChildrenPerRegistration: 5,
+    maxCompanionsPerRegistration: 2,
+    collectAllergies: false,
+  })
+
+  const { registrationId } = await t.mutation(api.registrations.register, {
+    eventId,
+    userName: 'Mario Rossi',
+    contactEmail: 'guest@example.com',
+    userAllergies: 'Lattosio',
+    children: [{ name: 'Marco', age: 5, allergies: 'Arachidi' }],
+    companions: [{ name: 'Zia Pina', allergies: 'Glutine' }],
+    selections: [{ activityId, slotId }],
+  })
+
+  const persons = await t.run((ctx) =>
+    ctx.db
+      .query('persons')
+      .withIndex('by_registration', (q) => q.eq('registrationId', registrationId))
+      .collect(),
+  )
+  expect(persons).toHaveLength(3)
+  expect(persons.every((p) => p.allergies === undefined)).toBe(true)
+})
+
+test('register on a legacy event without the collectAllergies field stores no allergies', async () => {
+  const t = convexTest(schema, modules)
+  // collectAllergies omitted entirely: the field is absent on the event document.
+  const { eventId, activityId, slotId } = await createEventFixture(t)
+
+  const { registrationId } = await t.mutation(api.registrations.register, {
+    eventId,
+    userName: 'Mario Rossi',
+    contactEmail: 'guest@example.com',
+    userAllergies: 'Lattosio',
+    children: [],
+    companions: [],
+    selections: [{ activityId, slotId }],
+  })
+
+  const persons = await t.run((ctx) =>
+    ctx.db
+      .query('persons')
+      .withIndex('by_registration', (q) => q.eq('registrationId', registrationId))
+      .collect(),
+  )
+  expect(persons.map((p) => p.allergies)).toEqual([undefined])
+})
+
+test('registrations.listAll exposes per-person allergies for the admin detail and the export', async () => {
+  const t = convexTest(schema, modules)
+  const adminId = await createUser(t, { email: 'admin@example.com', role: 'admin' })
+  const { eventId, activityId, slotId } = await createEventFixture(t, {
+    allowChildren: true,
+    maxChildrenPerRegistration: 5,
+    collectAllergies: true,
+  })
+
+  await t.mutation(api.registrations.register, {
+    eventId,
+    userName: 'Mario Rossi',
+    contactEmail: 'guest@example.com',
+    userAllergies: 'Lattosio',
+    children: [{ name: 'Marco', age: 5 }],
+    companions: [],
+    selections: [{ activityId, slotId }],
+  })
+
+  const [registration] = await t
+    .withIdentity({ subject: subjectFor(adminId) })
+    .query(api.registrations.listAll, { eventId })
+
+  expect(
+    Object.fromEntries(registration.persons.map((p) => [p.name, p.allergies])),
+  ).toEqual({ 'Mario Rossi': 'Lattosio', Marco: null })
+})
+
+test('checkIn returns the scanned person allergies in the result card payload', async () => {
+  const t = convexTest(schema, modules)
+  const adminId = await createUser(t, { email: 'admin@example.com', role: 'admin' })
+  const { eventId, activityId, slotId } = await createEventFixture(t, {
+    allowChildren: true,
+    maxChildrenPerRegistration: 5,
+    collectAllergies: true,
+  })
+
+  const { persons } = await t.mutation(api.registrations.register, {
+    eventId,
+    userName: 'Mario Rossi',
+    contactEmail: 'guest@example.com',
+    userAllergies: 'Lattosio',
+    children: [{ name: 'Marco', age: 5 }],
+    companions: [],
+    selections: [{ activityId, slotId }],
+  })
+  const withAllergies = persons.find((p) => p.category === 'user')!
+  const withoutAllergies = persons.find((p) => p.category === 'child')!
+
+  const asAdmin = t.withIdentity({ subject: subjectFor(adminId) })
+  await expect(
+    asAdmin.mutation(api.checkins.checkIn, {
+      eventId,
+      code: withAllergies.ticketCode,
+      mode: 'event',
+    }),
+  ).resolves.toMatchObject({ status: 'event-valid', person: { allergies: 'Lattosio' } })
+
+  await expect(
+    asAdmin.mutation(api.checkins.checkIn, {
+      eventId,
+      code: withoutAllergies.ticketCode,
+      mode: 'event',
+    }),
+  ).resolves.toMatchObject({ status: 'event-valid', person: { allergies: null } })
+})
+
+test('register rejects an allergy declaration longer than the server-side limit', async () => {
+  const t = convexTest(schema, modules)
+  const { eventId, activityId, slotId } = await createEventFixture(t, {
+    allowChildren: true,
+    maxChildrenPerRegistration: 5,
+    collectAllergies: true,
+  })
+
+  // The client caps the field too, but the mutation must not trust it.
+  await expect(
+    t.mutation(api.registrations.register, {
+      eventId,
+      userName: 'Mario Rossi',
+      contactEmail: 'guest@example.com',
+      userAllergies: 'a'.repeat(301),
+      children: [],
+      companions: [],
+      selections: [{ activityId, slotId }],
+    }),
+  ).rejects.toThrow('non può superare i 300 caratteri')
+
+  await expect(
+    t.mutation(api.registrations.register, {
+      eventId,
+      userName: 'Mario Rossi',
+      contactEmail: 'guest@example.com',
+      children: [{ name: 'Marco', age: 5, allergies: 'a'.repeat(301) }],
+      companions: [],
+      selections: [{ activityId, slotId }],
+    }),
+  ).rejects.toThrow('non può superare i 300 caratteri')
+
+  // Nothing was persisted by either rejected attempt.
+  expect(await registrationsForEvent(t, eventId)).toHaveLength(0)
+  expect(
+    await t.run((ctx) =>
+      ctx.db
+        .query('persons')
+        .withIndex('by_event', (q) => q.eq('eventId', eventId))
+        .collect(),
+    ),
+  ).toHaveLength(0)
+})
+
+test('getActivityAttendance exposes per-person allergies for the admin detail', async () => {
+  const t = convexTest(schema, modules)
+  const adminId = await createUser(t, { email: 'admin@example.com', role: 'admin' })
+  const { eventId, activityId, slotId } = await createEventFixture(t, {
+    allowChildren: true,
+    maxChildrenPerRegistration: 5,
+    collectAllergies: true,
+  })
+
+  await t.mutation(api.registrations.register, {
+    eventId,
+    userName: 'Mario Rossi',
+    contactEmail: 'guest@example.com',
+    userAllergies: 'Lattosio',
+    children: [{ name: 'Marco', age: 5 }],
+    companions: [],
+    selections: [{ activityId, slotId }],
+  })
+
+  const activities = await t
+    .withIdentity({ subject: subjectFor(adminId) })
+    .query(api.attendance.getActivityAttendance, { eventId })
+
+  const persons = activities[0].slots[0].persons
+  expect(
+    Object.fromEntries(persons.map((p) => [p.name, p.allergies])),
+  ).toEqual({ 'Mario Rossi': 'Lattosio', Marco: null })
 })

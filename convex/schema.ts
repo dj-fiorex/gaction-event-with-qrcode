@@ -83,6 +83,12 @@ export default defineSchema({
      */
     collectNames: v.optional(v.boolean()),
     /**
+     * Allergie e intolleranze (issue #37): se true, il form chiede a ogni
+     * Persona una dichiarazione facoltativa in testo libero. Assente o false =
+     * nessun campo nel form e nessuna dichiarazione persistita.
+     */
+    collectAllergies: v.optional(v.boolean()),
+    /**
      * Origini autorizzate a incorporare il form (CSP frame-ancestors).
      * Ogni voce è un'origine esatta (https://www.partner.com) o un wildcard di
      * sottodominio (https://*.partner.com). Vuoto = nessun sito autorizzato.
@@ -136,6 +142,12 @@ export default defineSchema({
     name: v.string(),
     category: personCategory,
     age: v.union(v.number(), v.null()),
+    /**
+     * Allergie e intolleranze dichiarate (issue #37). Dato sanitario: assente =
+     * nessuna dichiarazione. Optional in stile widen: le righe già esistenti
+     * non richiedono backfill.
+     */
+    allergies: v.optional(v.string()),
     ticketCode: v.string(),
     eventCheckInAt: v.union(v.string(), v.null()),
     eventCheckInCount: v.number(),

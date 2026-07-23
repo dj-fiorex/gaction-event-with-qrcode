@@ -73,6 +73,12 @@ export interface Event {
    * («Figlio 1», «Ospite 1»); i Figli mantengono l'età.
    */
   collectNames: boolean
+  /**
+   * Allergie e intolleranze (issue #37). Se true, il form chiede a ogni Persona
+   * una dichiarazione facoltativa in testo libero. false (default) = nessun
+   * campo nel form e nessuna dichiarazione raccolta.
+   */
+  collectAllergies: boolean
   allowChildren: boolean
   maxChildrenPerRegistration: number
   allowCompanions: boolean
@@ -114,6 +120,11 @@ export interface Person {
   category: PersonCategory
   /** Valorizzata solo per la categoria "child". */
   age: number | null
+  /**
+   * Allergie e intolleranze dichiarate (issue #37). Dato sanitario visibile ad
+   * admin, export, email di conferma e scanner. null = nessuna dichiarazione.
+   */
+  allergies: string | null
   ticketCode: string
   /** Orario del primo check-in all'ingresso dell'Evento. */
   eventCheckInAt: string | null
@@ -167,6 +178,8 @@ export interface SlotPerson {
   id: string
   name: string
   category: PersonCategory
+  /** Allergie e intolleranze dichiarate. null = nessuna dichiarazione. */
+  allergies: string | null
   ticketCode: string
   /** true se la Persona ha effettuato il check-in su questo specifico Slot. */
   checkedIn: boolean
@@ -218,6 +231,8 @@ export interface RegisteredPerson {
   name: string
   category: PersonCategory
   age: number | null
+  /** Allergie e intolleranze dichiarate. null = nessuna dichiarazione. */
+  allergies: string | null
   ticketCode: string
   qrDataUrl: string
 }
@@ -239,6 +254,8 @@ export interface CheckInPersonSummary {
   name: string
   category: PersonCategory
   age: number | null
+  /** Allergie e intolleranze dichiarate, mostrate sulla result card dello scanner. */
+  allergies: string | null
   ticketCode: string
 }
 

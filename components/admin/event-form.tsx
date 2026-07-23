@@ -45,6 +45,7 @@ const defaultValues: EventInput = {
   requireAccount: false,
   confirmParticipation: false,
   collectNames: true,
+  collectAllergies: false,
   allowChildren: false,
   maxChildrenPerRegistration: 2,
   allowCompanions: false,
@@ -593,6 +594,31 @@ export function EventForm({
             Se attiva (predefinito), il form chiede il nome di ogni Figlio e Ospite. Se disattiva,
             sono identificati solo dall&apos;etichetta posizionale («Figlio 1», «Ospite 1»); i Figli
             mantengono l&apos;età.
+          </p>
+        </div>
+      </div>
+
+      <div className="flex items-start gap-2 rounded-lg border border-border p-4">
+        <Controller
+          control={control}
+          name="collectAllergies"
+          render={({ field }) => (
+            <Checkbox
+              id="collectAllergies"
+              className="mt-0.5"
+              checked={field.value}
+              onCheckedChange={(checked) => field.onChange(checked === true)}
+            />
+          )}
+        />
+        <div className="grid gap-1">
+          <Label htmlFor="collectAllergies" className="font-normal">
+            Chiedi allergie/intolleranze
+          </Label>
+          <p className="text-sm text-muted-foreground">
+            Se attiva, il form chiede a ogni persona (iscritto, figli, ospiti) una dichiarazione
+            facoltativa di allergie e intolleranze. È un dato sanitario: viene mostrato nel pannello
+            admin, nell&apos;export, nell&apos;email di conferma e sullo scanner.
           </p>
         </div>
       </div>

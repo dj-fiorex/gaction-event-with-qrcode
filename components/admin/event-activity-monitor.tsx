@@ -56,9 +56,15 @@ function SlotPeopleList({ slot }: { slot: SlotWithPeople }) {
           key={person.id}
           className="flex flex-wrap items-center justify-between gap-2 rounded-md border px-3 py-2"
         >
-          <span className="flex items-center gap-2">
-            <span className="font-medium">{person.name}</span>
-            <Badge variant="outline">{CATEGORY_LABEL[person.category]}</Badge>
+          <span className="flex flex-col gap-0.5">
+            <span className="flex items-center gap-2">
+              <span className="font-medium">{person.name}</span>
+              <Badge variant="outline">{CATEGORY_LABEL[person.category]}</Badge>
+            </span>
+            {/* Allergie e intolleranze (issue #37): dettaglio per Persona. */}
+            {person.allergies && (
+              <span className="text-muted-foreground">Allergie: {person.allergies}</span>
+            )}
           </span>
           {person.checkedIn ? (
             <span className="flex items-center gap-1.5 text-primary">

@@ -81,6 +81,7 @@ export function RegistrationsTable({ registrations, events }: RegistrationsTable
             const children = r.persons.filter((p) => p.category === 'child').length
             const companions = r.persons.filter((p) => p.category === 'companion').length
             const checkedIn = r.persons.filter((p) => p.eventCheckInAt).length
+            const withAllergies = r.persons.filter((p) => p.allergies)
             const reentries = r.persons.reduce(
               (sum, p) => sum + Math.max(0, (p.eventCheckInCount ?? 0) - 1),
               0,
@@ -94,10 +95,24 @@ export function RegistrationsTable({ registrations, events }: RegistrationsTable
                 <TableCell className="font-medium">{event?.title ?? r.eventId}</TableCell>
                 <TableCell className="text-muted-foreground">{r.contactEmail}</TableCell>
                 <TableCell>
-                  <div className="flex flex-wrap gap-1">
-                    <Badge variant="secondary">{r.persons.length} tot.</Badge>
-                    {children > 0 && <Badge variant="outline">{children} figli</Badge>}
-                    {companions > 0 && <Badge variant="outline">{companions} ospiti</Badge>}
+                  <div className="flex flex-col gap-1.5">
+                    <div className="flex flex-wrap gap-1">
+                      <Badge variant="secondary">{r.persons.length} tot.</Badge>
+                      {children > 0 && <Badge variant="outline">{children} figli</Badge>}
+                      {companions > 0 && <Badge variant="outline">{companions} ospiti</Badge>}
+                    </div>
+                    {/* Allergie e intolleranze (issue #37): dettaglio per Persona,
+                        visibile qui per ogni Prenotazione a prescindere dagli slot
+                        scelti. Nessuna dichiarazione = nessuna riga. */}
+                    {withAllergies.length > 0 && (
+                      <ul className="text-xs text-muted-foreground">
+                        {withAllergies.map((p) => (
+                          <li key={p.id}>
+                            <span className="font-medium">{p.name}</span>: {p.allergies}
+                          </li>
+                        ))}
+                      </ul>
+                    )}
                   </div>
                 </TableCell>
                 <TableCell className="max-w-56 text-sm text-muted-foreground">

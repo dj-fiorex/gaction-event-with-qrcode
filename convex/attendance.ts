@@ -51,6 +51,7 @@ export const getActivityAttendance = query({
               id: person._id,
               name: person.name,
               category: person.category,
+              allergies: person.allergies ?? null,
               ticketCode: person.ticketCode,
               checkedIn: checkIn !== null,
               checkedInAt: checkIn?.at ?? null,

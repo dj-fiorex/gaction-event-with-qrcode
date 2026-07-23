@@ -12,12 +12,29 @@ const emailPerson = v.object({
   name: v.string(),
   category: personCategory,
   age: v.union(v.number(), v.null()),
+  /** Allergie e intolleranze dichiarate (issue #37). null = nessuna dichiarazione. */
+  allergies: v.union(v.string(), v.null()),
   ticketCode: v.string(),
   qrDataUrl: v.string(),
 })
 
+/** Escape del testo libero inserito dall'Utente prima di finire nell'HTML dell'email. */
+function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+}
+
 function personBlock(
-  person: { name: string; category: 'user' | 'child' | 'companion'; age: number | null; ticketCode: string },
+  person: {
+    name: string
+    category: 'user' | 'child' | 'companion'
+    age: number | null
+    allergies?: string | null
+    ticketCode: string
+  },
   index: number,
   collectNames: boolean,
 ): string {
@@ -27,16 +44,23 @@ function personBlock(
   // l'età per i Figli), senza ripetere la categoria. L'Iscritto conserva sempre
   // il proprio nome, quindi la categoria «Iscritto» resta indicata.
   const isPositionalLabel = !collectNames && person.category !== 'user'
+  const name = escapeHtml(person.name)
   const header = isPositionalLabel
-    ? `<strong>${person.name}</strong>${ageLabel}`
-    : `<strong>${person.name}</strong> — ${CATEGORY_LABEL[person.category]}${ageLabel}`
+    ? `<strong>${name}</strong>${ageLabel}`
+    : `<strong>${name}</strong> — ${CATEGORY_LABEL[person.category]}${ageLabel}`
+  // Allergie e intolleranze (issue #37): riportate sotto il QR della Persona,
+  // così l'Utente può correggerle prima dell'evento. Assenti = riga omessa.
+  const allergiesLine = person.allergies
+    ? `<p style="margin:8px 0 0;font-size:13px;color:#475569;">Allergie e intolleranze: <strong>${escapeHtml(person.allergies)}</strong></p>`
+    : ''
   return `
     <div style="text-align:center;margin:20px 0;padding:16px;border:1px solid #e2e8f0;border-radius:12px;">
       <p style="margin:0 0 8px;font-size:14px;color:#475569;">
         ${header}
       </p>
-      <img src="cid:qr-${index}" alt="QR code di ${person.name}" width="200" height="200" style="border:1px solid #e2e8f0;border-radius:12px;" />
+      <img src="cid:qr-${index}" alt="QR code di ${name}" width="200" height="200" style="border:1px solid #e2e8f0;border-radius:12px;" />
       <p style="margin:12px 0 0;font-family:monospace;font-size:15px;color:#0f172a;letter-spacing:1px;">${person.ticketCode}</p>
+      ${allergiesLine}
     </div>`
 }
 
@@ -71,8 +95,8 @@ export const sendTickets = action({
             <h1 style="margin:0;font-size:20px;">I vostri QR sono pronti</h1>
           </div>
           <div style="padding:24px;">
-            <h2 style="margin:0 0 8px;font-size:18px;color:#0f172a;">${args.eventTitle}</h2>
-            <p style="margin:4px 0;color:#475569;"><strong>Dove:</strong> ${args.eventLocation}</p>
+            <h2 style="margin:0 0 8px;font-size:18px;color:#0f172a;">${escapeHtml(args.eventTitle)}</h2>
+            <p style="margin:4px 0;color:#475569;"><strong>Dove:</strong> ${escapeHtml(args.eventLocation)}</p>
             <p style="margin:12px 0;color:#475569;">Ogni persona ha un proprio QR code. Presentatelo all'ingresso e a ogni attività prenotata.</p>
             ${args.persons.map((p, index) => personBlock(p, index, args.collectNames)).join('')}
           </div>

@@ -36,6 +36,14 @@ import { TicketResult } from './ticket-result'
 
 const NONE = '__none__'
 
+/**
+ * Informativa sui dati sanitari mostrata accanto ai campi «Allergie e
+ * intolleranze» (issue #37). Copy provvisoria: il testo legale definitivo
+ * arriverà dal committente.
+ */
+const ALLERGIES_PRIVACY_NOTICE =
+  'Allergie e intolleranze sono dati relativi alla salute e sono facoltativi. Verranno trattati solo per la gestione dell’evento e saranno visibili agli organizzatori, al personale addetto ai controlli agli ingressi e nell’email di conferma. Lascia il campo vuoto se non vuoi dichiarare nulla. (Testo provvisorio, in attesa dell’informativa definitiva.)'
+
 const POLICY_HINT: Record<EventWithStats['activityPolicy'], (min: number) => string> = {
   all: () => 'Devi selezionare uno slot per ogni attività.',
   min: (min) => `Devi selezionare almeno ${min} attività.`,
@@ -70,6 +78,10 @@ export function RegistrationForm({
   // Figli/Ospiti non sono raccolti né validati — il server assegna l'Etichetta
   // posizionale e ignora eventuali nomi inviati.
   const collectNames = event.collectNames
+  // Allergie e intolleranze (issue #37): un campo facoltativo per ogni blocco
+  // Persona. Con l'impostazione disattiva nessun campo compare e il server
+  // ignora comunque qualsiasi dichiarazione inviata.
+  const collectAllergies = event.collectAllergies
   const registrationResolver = useMemo(
     () => typedZodResolver(makeRegistrationSchema(collectNames)),
     [collectNames],
@@ -89,6 +101,7 @@ export function RegistrationForm({
       eventId: event.id,
       userName: '',
       contactEmail: '',
+      userAllergies: '',
       children: [],
       companions: [],
       selections: [],
@@ -197,6 +210,7 @@ export function RegistrationForm({
         eventId: event.id as Id<'events'>,
         userName: values.userName,
         contactEmail: values.contactEmail,
+        userAllergies: values.userAllergies,
         children: values.children ?? [],
         companions: values.companions ?? [],
         selections: selections.map((s) => ({
@@ -211,6 +225,7 @@ export function RegistrationForm({
           name: p.name,
           category: p.category,
           age: p.age,
+          allergies: p.allergies,
           ticketCode: p.ticketCode,
           qrDataUrl: await generateQrDataUrl(p.ticketCode),
         })),
@@ -467,6 +482,27 @@ export function RegistrationForm({
             )}
           </div>
 
+          {collectAllergies && (
+            <div className="flex flex-col gap-3 rounded-lg border border-border p-4">
+              <div>
+                <p className="font-medium">Allergie e intolleranze</p>
+                <p className="text-sm text-muted-foreground">{ALLERGIES_PRIVACY_NOTICE}</p>
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="userAllergies">Le tue allergie o intolleranze (facoltativo)</Label>
+                <Input
+                  id="userAllergies"
+                  placeholder="Es. lattosio, frutta a guscio"
+                  {...register('userAllergies')}
+                  aria-invalid={!!errors.userAllergies}
+                />
+                {errors.userAllergies && (
+                  <p className="text-sm text-destructive">{errors.userAllergies.message}</p>
+                )}
+              </div>
+            </div>
+          )}
+
           {familyRuleActive && (
             <div className="flex flex-col gap-3 rounded-lg border border-border p-4">
               <div>
@@ -503,7 +539,7 @@ export function RegistrationForm({
               hint={`Fino a ${event.maxChildrenPerRegistration} figli. Riceveranno un proprio QR.`}
               fields={childrenArray.fields}
               canAdd={childrenArray.fields.length < event.maxChildrenPerRegistration}
-              onAdd={() => childrenArray.append({ name: '', age: 0 })}
+              onAdd={() => childrenArray.append({ name: '', age: 0, allergies: '' })}
               onRemove={childrenArray.remove}
               collectNames={collectNames}
               labelSingular="Figlio"
@@ -523,6 +559,11 @@ export function RegistrationForm({
                 </div>
               )}
               register={(index) => register(`children.${index}.name` as const)}
+              registerAllergies={
+                collectAllergies
+                  ? (index) => register(`children.${index}.allergies` as const)
+                  : undefined
+              }
               namePlaceholder="Nome del figlio"
             />
           )}
@@ -533,11 +574,16 @@ export function RegistrationForm({
               hint={`Fino a ${companionsMax} ${companionsLabel.toLowerCase()}. Riceveranno un proprio QR.`}
               fields={companionsArray.fields}
               canAdd={companionsArray.fields.length < companionsMax}
-              onAdd={() => companionsArray.append({ name: '' })}
+              onAdd={() => companionsArray.append({ name: '', allergies: '' })}
               onRemove={companionsArray.remove}
               collectNames={collectNames}
               labelSingular="Ospite"
               register={(index) => register(`companions.${index}.name` as const)}
+              registerAllergies={
+                collectAllergies
+                  ? (index) => register(`companions.${index}.allergies` as const)
+                  : undefined
+              }
               namePlaceholder={companionsNamePlaceholder}
             />
           )}
@@ -641,6 +687,13 @@ interface PersonRepeaterProps {
   onAdd: () => void
   onRemove: (index: number) => void
   register: (index: number) => ReturnType<ReturnType<typeof useForm<RegistrationInput>>['register']>
+  /**
+   * Allergie e intolleranze (issue #37): presente solo quando l'Evento le
+   * chiede; assente = nessun campo allergie in questo blocco Persona.
+   */
+  registerAllergies?: (
+    index: number,
+  ) => ReturnType<ReturnType<typeof useForm<RegistrationInput>>['register']>
   namePlaceholder: string
   /** Raccolta nomi: se false, ogni blocco è intestato dall'Etichetta posizionale invece del nome. */
   collectNames: boolean
@@ -657,6 +710,7 @@ function PersonRepeater({
   onAdd,
   onRemove,
   register,
+  registerAllergies,
   namePlaceholder,
   collectNames,
   labelSingular,
@@ -668,6 +722,15 @@ function PersonRepeater({
         <div>
           <p className="font-medium">{title}</p>
           <p className="text-sm text-muted-foreground">{hint}</p>
+          {/* Allergie e intolleranze (issue #37): l'informativa completa sui dati
+              sanitari è nel blocco dell'Iscritto; qui basta il richiamo, perché i
+              campi di questo blocco sono lontani dal testo esteso. */}
+          {registerAllergies && (
+            <p className="text-sm text-muted-foreground">
+              Puoi indicare allergie o intolleranze per ciascuno: campo facoltativo, sono dati
+              sanitari trattati come descritto sopra.
+            </p>
+          )}
         </div>
         <Button type="button" variant="outline" size="sm" disabled={!canAdd} onClick={onAdd}>
           <Plus className="h-4 w-4" aria-hidden="true" />
@@ -676,30 +739,45 @@ function PersonRepeater({
       </div>
 
       {fields.map((field, index) => (
-        <div key={field.id} className="flex items-start gap-3">
-          {collectNames ? (
-            <div className="grid flex-1 gap-2">
-              <Label htmlFor={`${title}-name-${index}`} className="sr-only">
-                {namePlaceholder}
+        <div key={field.id} className="flex flex-col gap-2">
+          <div className="flex items-start gap-3">
+            {collectNames ? (
+              <div className="grid flex-1 gap-2">
+                <Label htmlFor={`${title}-name-${index}`} className="sr-only">
+                  {namePlaceholder}
+                </Label>
+                <Input id={`${title}-name-${index}`} placeholder={namePlaceholder} {...register(index)} />
+              </div>
+            ) : (
+              <p className="flex-1 self-center text-sm font-medium">
+                {labelSingular} {index + 1}
+              </p>
+            )}
+            {renderExtra?.(index)}
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="mt-0.5"
+              onClick={() => onRemove(index)}
+              aria-label="Rimuovi"
+            >
+              <Trash2 className="h-4 w-4" aria-hidden="true" />
+            </Button>
+          </div>
+          {/* Allergie e intolleranze (issue #37): facoltative, vuoto = nessuna dichiarazione. */}
+          {registerAllergies && (
+            <div className="grid gap-2">
+              <Label htmlFor={`${title}-allergies-${index}`} className="sr-only">
+                Allergie o intolleranze di {labelSingular} {index + 1}
               </Label>
-              <Input id={`${title}-name-${index}`} placeholder={namePlaceholder} {...register(index)} />
+              <Input
+                id={`${title}-allergies-${index}`}
+                placeholder="Allergie o intolleranze (facoltativo)"
+                {...registerAllergies(index)}
+              />
             </div>
-          ) : (
-            <p className="flex-1 self-center text-sm font-medium">
-              {labelSingular} {index + 1}
-            </p>
           )}
-          {renderExtra?.(index)}
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon"
-            className="mt-0.5"
-            onClick={() => onRemove(index)}
-            aria-label="Rimuovi"
-          >
-            <Trash2 className="h-4 w-4" aria-hidden="true" />
-          </Button>
         </div>
       ))}
     </div>

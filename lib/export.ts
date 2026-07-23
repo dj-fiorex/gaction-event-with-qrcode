@@ -8,6 +8,7 @@ interface ExportRow {
   Persona: string
   Categoria: string
   Età: string
+  Allergie: string
   Email: string
   'Codice QR': string
   Attività: string
@@ -57,6 +58,8 @@ export function downloadRegistrationsXlsx(
         Persona: p.name,
         Categoria: CATEGORY_LABEL[p.category],
         Età: p.age != null ? String(p.age) : '-',
+        // Allergie e intolleranze (issue #37): vuoto = nessuna dichiarazione.
+        Allergie: p.allergies ?? '-',
         Email: r.contactEmail,
         'Codice QR': p.ticketCode,
         Attività: activities,
@@ -80,6 +83,7 @@ export function downloadRegistrationsXlsx(
     { wch: 22 },
     { wch: 16 },
     { wch: 6 },
+    { wch: 30 },
     { wch: 26 },
     { wch: 18 },
     { wch: 30 },

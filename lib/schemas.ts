@@ -43,6 +43,8 @@ export const eventSchema = z
     confirmParticipation: z.boolean().default(false),
     /** Raccolta nomi (issue #36): attiva di default (comportamento odierno). */
     collectNames: z.boolean().default(true),
+    /** Allergie e intolleranze (issue #37): disattiva di default (comportamento odierno). */
+    collectAllergies: z.boolean().default(false),
     allowChildren: z.boolean().default(false),
     maxChildrenPerRegistration: z.coerce.number().int().min(0).default(0),
     allowCompanions: z.boolean().default(false),
@@ -88,8 +90,15 @@ export type EventInput = z.infer<typeof eventSchema>
 /* Registrazione (lato pubblico)                                       */
 /* ------------------------------------------------------------------ */
 
+/**
+ * Allergie e intolleranze (issue #37): dichiarazione libera e facoltativa resa
+ * per ogni Persona. Vuota = nessuna allergia dichiarata.
+ */
+export const allergiesInputSchema = z.string().trim().max(300, 'Massimo 300 caratteri').optional()
+
 export const childInputSchema = z.object({
   name: z.string().trim().min(2, 'Inserisci il nome del bambino'),
+  allergies: allergiesInputSchema,
   age: z.coerce
     .number({ message: 'Inserisci un\u2019età valida' })
     .int('L\u2019età deve essere un numero intero')
@@ -99,6 +108,7 @@ export const childInputSchema = z.object({
 
 export const companionInputSchema = z.object({
   name: z.string().trim().min(2, 'Inserisci il nome dell\u2019ospite'),
+  allergies: allergiesInputSchema,
 })
 
 export const slotSelectionSchema = z.object({
@@ -110,6 +120,7 @@ export const registrationSchema = z.object({
   eventId: z.string().min(1),
   userName: z.string().trim().min(2, 'Inserisci nome e cognome'),
   contactEmail: z.string().trim().email('Inserisci un\u2019email valida'),
+  userAllergies: allergiesInputSchema,
   children: z.array(childInputSchema).default([]),
   companions: z.array(companionInputSchema).default([]),
   selections: z.array(slotSelectionSchema).default([]),
@@ -128,9 +139,12 @@ export type RegistrationInput = z.infer<typeof registrationSchema>
  */
 export function makeRegistrationSchema(collectNames = true) {
   if (collectNames) return registrationSchema
+  // Solo il vincolo sul nome cade: età e allergie restano quelle di base, così
+  // i due schemi non possono divergere quando cambia la forma di una Persona.
+  const anyName = z.string().trim()
   return registrationSchema.extend({
-    children: z.array(z.object({ name: z.string().trim(), age: childInputSchema.shape.age })).default([]),
-    companions: z.array(z.object({ name: z.string().trim() })).default([]),
+    children: z.array(childInputSchema.extend({ name: anyName })).default([]),
+    companions: z.array(companionInputSchema.extend({ name: anyName })).default([]),
   })
 }
 

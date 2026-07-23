@@ -157,6 +157,8 @@ export interface EventWithStatsDTO {
   confirmParticipation: boolean
   /** Raccolta nomi (issue #36). true (default) = raccogli i nomi di Figli/Ospiti. */
   collectNames: boolean
+  /** Allergie e intolleranze (issue #37). false (default) = nessun campo nel form. */
+  collectAllergies: boolean
   allowChildren: boolean
   maxChildrenPerRegistration: number
   allowCompanions: boolean
@@ -282,6 +284,7 @@ export async function loadEventWithStats(
     requireAccount: event.requireAccount ?? false,
     confirmParticipation: event.confirmParticipation ?? false,
     collectNames: event.collectNames ?? true,
+    collectAllergies: event.collectAllergies ?? false,
     allowChildren: event.allowChildren,
     maxChildrenPerRegistration: event.maxChildrenPerRegistration,
     allowCompanions: event.allowCompanions,

@@ -9,6 +9,8 @@ const personSummaryValidator = v.object({
   name: v.string(),
   category: v.union(v.literal('user'), v.literal('child'), v.literal('companion')),
   age: v.union(v.number(), v.null()),
+  /** Allergie e intolleranze dichiarate (issue #37). null = nessuna dichiarazione. */
+  allergies: v.union(v.string(), v.null()),
   ticketCode: v.string(),
 })
 
@@ -39,6 +41,7 @@ function summarize(person: Doc<'persons'>) {
     name: person.name,
     category: person.category,
     age: person.age,
+    allergies: person.allergies ?? null,
     ticketCode: person.ticketCode,
   }
 }

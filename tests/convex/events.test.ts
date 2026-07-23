@@ -35,6 +35,7 @@ function buildEventInput(requireAccount: boolean) {
     requireAccount,
     confirmParticipation: false,
     collectNames: true,
+    collectAllergies: false,
     allowChildren: false,
     maxChildrenPerRegistration: 0,
     allowCompanions: false,
@@ -165,6 +166,78 @@ test('events.create defaults collectNames on, and existing events (no field) rea
   )
   const legacyPublic = await t.query(api.events.getPublic, { eventId: legacyId })
   expect(legacyPublic?.collectNames).toBe(true)
+})
+
+/* ------------------------------------------------------------------ */
+/* Allergie e intolleranze (issue #37)                                 */
+/* ------------------------------------------------------------------ */
+
+test('events.create persists collectAllergies=true and exposes it to public queries', async () => {
+  const t = convexTest(schema, modules)
+  const adminId = await createAdmin(t)
+
+  const { id: eventId } = await t.withIdentity({ subject: subjectFor(adminId) }).mutation(
+    api.events.create,
+    { ...buildEventInput(false), collectAllergies: true },
+  )
+
+  const rawEvent = await t.run((ctx) => ctx.db.get(eventId))
+  const publicEvent = await t.query(api.events.getPublic, { eventId })
+
+  expect(rawEvent?.collectAllergies).toBe(true)
+  expect(publicEvent?.collectAllergies).toBe(true)
+})
+
+test('events.create defaults collectAllergies off, and existing events (no field) read as off', async () => {
+  const t = convexTest(schema, modules)
+  const adminId = await createAdmin(t)
+
+  const { id: eventId } = await t.withIdentity({ subject: subjectFor(adminId) }).mutation(
+    api.events.create,
+    buildEventInput(false),
+  )
+  const publicEvent = await t.query(api.events.getPublic, { eventId })
+  expect(publicEvent?.collectAllergies).toBe(false)
+
+  // Legacy event inserted without the field defaults to off in the DTO.
+  const legacyId = await t.run((ctx) =>
+    ctx.db.insert('events', {
+      title: 'Legacy',
+      description: 'Descrizione',
+      location: 'Roma',
+      activityPolicy: 'free',
+      minActivities: 0,
+      allowOverlap: false,
+      checkInToleranceMinutes: 15,
+      allowQrReuse: false,
+      allowChildren: false,
+      maxChildrenPerRegistration: 0,
+      allowCompanions: false,
+      maxCompanionsPerRegistration: 0,
+      checkInAccess: 'password',
+      scanToken: `scan-${Math.random().toString(36).slice(2)}`,
+      checkInPasswordHash: null,
+      scanUnlockToken: null,
+    }),
+  )
+  const legacyPublic = await t.query(api.events.getPublic, { eventId: legacyId })
+  expect(legacyPublic?.collectAllergies).toBe(false)
+})
+
+test('events.update can turn collectAllergies on for an existing event', async () => {
+  const t = convexTest(schema, modules)
+  const adminId = await createAdmin(t)
+  const asAdmin = t.withIdentity({ subject: subjectFor(adminId) })
+
+  const { id: eventId } = await asAdmin.mutation(api.events.create, buildEventInput(false))
+  await asAdmin.mutation(api.events.update, {
+    eventId,
+    ...buildEventInput(false),
+    collectAllergies: true,
+  })
+
+  const publicEvent = await t.query(api.events.getPublic, { eventId })
+  expect(publicEvent?.collectAllergies).toBe(true)
 })
 
 /* ------------------------------------------------------------------ */

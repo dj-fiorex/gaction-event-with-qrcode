@@ -30,6 +30,7 @@ function toEventInput(event: EventWithStats): EventInput {
     requireAccount: event.requireAccount,
     confirmParticipation: event.confirmParticipation,
     collectNames: event.collectNames,
+    collectAllergies: event.collectAllergies,
     allowChildren: event.allowChildren,
     maxChildrenPerRegistration: event.maxChildrenPerRegistration || 2,
     allowCompanions: event.allowCompanions,
