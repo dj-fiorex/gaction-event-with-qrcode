@@ -1,9 +1,9 @@
 'use client'
 
 import { useMemo, useState } from 'react'
-import { useMutation } from 'convex/react'
+import { useConvex, useMutation } from 'convex/react'
 import { Scanner, type IDetectedBarcode } from '@yudiel/react-qr-scanner'
-import { CheckCircle2, Clock, Keyboard, LogOut, Repeat, ScanLine, XCircle } from 'lucide-react'
+import { CheckCircle2, Clock, Eye, Keyboard, LogOut, Repeat, ScanLine, XCircle } from 'lucide-react'
 import { api } from '@/convex/_generated/api'
 import type { Id } from '@/convex/_generated/dataModel'
 import { Badge } from '@/components/ui/badge'
@@ -19,9 +19,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { MomentValue } from '@/components/admin/check-in-moment'
 import { formatDateTime, formatTimeRange } from '@/lib/format'
 import { CATEGORY_LABEL } from '@/lib/person-labels'
-import type { CheckInMode, CheckInResult, EventWithStats } from '@/lib/types'
+import type { PersonStatus } from '@/lib/person-status'
+import type { CheckInResult, EventWithStats, ScannerMode } from '@/lib/types'
 
 type InputMode = 'camera' | 'manual'
 
@@ -43,7 +45,11 @@ interface TicketValidatorProps {
 
 export function TicketValidator({ event, unlockToken }: TicketValidatorProps) {
   const checkIn = useMutation(api.checkins.checkIn)
-  const [selectedMode, setSelectedMode] = useState<CheckInMode>('event')
+  // «Solo verifica» legge una query una tantum, non una sottoscrizione: il
+  // client Convex imperativo evita di tenere viva una subscription per un QR
+  // che l'operatore ha già finito di guardare.
+  const convex = useConvex()
+  const [selectedMode, setSelectedMode] = useState<ScannerMode>('event')
   const [activityId, setActivityId] = useState<string>('')
   const [inputMode, setInputMode] = useState<InputMode>('camera')
   const [scanning, setScanning] = useState(true)
@@ -60,10 +66,34 @@ export function TicketValidator({ event, unlockToken }: TicketValidatorProps) {
     [event],
   )
 
+  // «Solo verifica» chiude la fila: è sempre disponibile, perché leggere lo
+  // stato consolidato non dipende da nessuna impostazione dell'Evento.
+  const modes = useMemo(
+    () => [
+      { value: 'event' as const, label: 'Ingresso evento', icon: null },
+      { value: 'activity' as const, label: 'Accesso attività', icon: null },
+      ...(event.recordExit
+        ? [
+            {
+              value: 'exit' as const,
+              label: 'Uscita',
+              icon: <LogOut className="h-4 w-4" aria-hidden="true" />,
+            },
+          ]
+        : []),
+      {
+        value: 'lookup' as const,
+        label: 'Solo verifica',
+        icon: <Eye className="h-4 w-4" aria-hidden="true" />,
+      },
+    ],
+    [event.recordExit],
+  )
+
   // L'Uscita è offerta solo dagli Eventi con la Registrazione dell'uscita: se
   // l'admin la disattiva mentre lo scanner è aperto, il punto di controllo
   // torna all'ingresso invece di restare su una modalità ormai sparita.
-  const checkMode: CheckInMode =
+  const checkMode: ScannerMode =
     selectedMode === 'exit' && !event.recordExit ? 'event' : selectedMode
 
   const contextReady = checkMode !== 'activity' || activityId.length > 0
@@ -73,14 +103,22 @@ export function TicketValidator({ event, unlockToken }: TicketValidatorProps) {
     if (!trimmed || !contextReady || pending) return
     setPending(true)
     try {
-      const res = await checkIn({
-        eventId: event.id as Id<'events'>,
-        code: trimmed,
-        mode: checkMode,
-        activityId:
-          checkMode === 'activity' ? (activityId as Id<'activities'>) : undefined,
-        unlockToken: unlockToken ?? undefined,
-      })
+      const res =
+        checkMode === 'lookup'
+          ? // «Solo verifica»: una query, che nel runtime Convex non può scrivere.
+            await convex.query(api.checkins.lookup, {
+              eventId: event.id as Id<'events'>,
+              code: trimmed,
+              unlockToken: unlockToken ?? undefined,
+            })
+          : await checkIn({
+              eventId: event.id as Id<'events'>,
+              code: trimmed,
+              mode: checkMode,
+              activityId:
+                checkMode === 'activity' ? (activityId as Id<'activities'>) : undefined,
+              unlockToken: unlockToken ?? undefined,
+            })
       setResult(res)
     } catch {
       setResult({
@@ -117,41 +155,27 @@ export function TicketValidator({ event, unlockToken }: TicketValidatorProps) {
         <CardContent className="flex flex-col gap-4">
           <div className="grid gap-2">
             <Label>Tipo di controllo</Label>
-            <div className={event.recordExit ? 'grid grid-cols-3 gap-2' : 'grid grid-cols-2 gap-2'}>
-              <Button
-                type="button"
-                variant={checkMode === 'event' ? 'default' : 'outline'}
-                onClick={() => {
-                  setSelectedMode('event')
-                  reset()
-                }}
-              >
-                Ingresso evento
-              </Button>
-              <Button
-                type="button"
-                variant={checkMode === 'activity' ? 'default' : 'outline'}
-                onClick={() => {
-                  setSelectedMode('activity')
-                  reset()
-                }}
-              >
-                Accesso attività
-              </Button>
-              {event.recordExit && (
+            <div className="grid grid-cols-2 gap-2">
+              {modes.map((mode) => (
                 <Button
+                  key={mode.value}
                   type="button"
-                  variant={checkMode === 'exit' ? 'default' : 'outline'}
+                  variant={checkMode === mode.value ? 'default' : 'outline'}
                   onClick={() => {
-                    setSelectedMode('exit')
+                    setSelectedMode(mode.value)
                     reset()
                   }}
                 >
-                  <LogOut className="h-4 w-4" aria-hidden="true" />
-                  Uscita
+                  {mode.icon}
+                  {mode.label}
                 </Button>
-              )}
+              ))}
             </div>
+            {checkMode === 'lookup' && (
+              <p className="text-sm text-muted-foreground">
+                Mostra lo stato della persona senza registrare nulla.
+              </p>
+            )}
           </div>
 
           {checkMode === 'activity' && (
@@ -270,27 +294,35 @@ export function TicketValidator({ event, unlockToken }: TicketValidatorProps) {
 }
 
 function ResultCard({ result, onReset }: { result: CheckInResult; onReset: () => void }) {
+  // «Solo verifica» non è né consentito né negato: non ha deciso nulla, ha solo
+  // guardato. Merita un tono neutro, altrimenti l'operatore legge un verde o un
+  // rosso che nessuna scrittura giustifica.
+  const neutral = result.status === 'lookup'
   const positive = POSITIVE.has(result.status)
   const warning = WARNING.has(result.status)
 
-  const tone = positive
-    ? 'border-primary bg-accent text-accent-foreground'
-    : warning
-      ? 'border-amber-500 bg-amber-500/10'
-      : 'border-destructive bg-destructive/10 text-destructive'
+  const tone = neutral
+    ? 'border-border bg-muted/40'
+    : positive
+      ? 'border-primary bg-accent text-accent-foreground'
+      : warning
+        ? 'border-amber-500 bg-amber-500/10'
+        : 'border-destructive bg-destructive/10 text-destructive'
 
   const isExit = result.status.startsWith('exit-')
 
-  const Icon = positive ? CheckCircle2 : warning ? Clock : XCircle
-  const title = positive
-    ? isExit
-      ? 'Uscita registrata'
-      : 'Accesso consentito'
-    : warning
-      ? 'Attenzione'
-      : isExit
-        ? 'Uscita non registrata'
-        : 'Accesso negato'
+  const Icon = neutral ? Eye : positive ? CheckCircle2 : warning ? Clock : XCircle
+  const title = neutral
+    ? 'Solo verifica'
+    : positive
+      ? isExit
+        ? 'Uscita registrata'
+        : 'Accesso consentito'
+      : warning
+        ? 'Attenzione'
+        : isExit
+          ? 'Uscita non registrata'
+          : 'Accesso negato'
 
   return (
     <Card className={tone}>
@@ -354,11 +386,49 @@ function ResultCard({ result, onReset }: { result: CheckInResult; onReset: () =>
           </dl>
         )}
 
+        {result.personStatus && <StatusPanel status={result.personStatus} />}
+
         <Separator />
         <Button variant="outline" size="sm" className="self-start" onClick={onReset}>
           Nuova verifica
         </Button>
       </CardContent>
     </Card>
+  )
+}
+
+const MOMENT_LABEL: Record<keyof PersonStatus, string> = {
+  entry: 'Entrato',
+  activity: 'Visita',
+  exit: 'Uscito',
+}
+
+/**
+ * Stato consolidato (issue #39): «entrato ore X · visita ore Y · uscito ore Z».
+ * Compare dopo ogni scansione, qualunque sia il momento scansionato, così
+ * l'operatore non deve ricostruire il percorso della Persona dalle sue
+ * scansioni precedenti.
+ */
+function StatusPanel({ status }: { status: PersonStatus }) {
+  const moments = (Object.keys(MOMENT_LABEL) as (keyof PersonStatus)[]).map((key) => ({
+    key,
+    label: MOMENT_LABEL[key],
+    moment: status[key],
+  }))
+
+  return (
+    <div className="rounded-md border border-border/60 bg-background/60 p-3">
+      <p className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+        Stato della persona
+      </p>
+      <ul className="flex flex-col gap-1 text-sm sm:flex-row sm:flex-wrap sm:gap-x-5">
+        {moments.map(({ key, label, moment }) => (
+          <li key={key} className="flex items-center gap-1.5">
+            <span className="text-muted-foreground">{label}</span>
+            <MomentValue moment={moment} format="time" />
+          </li>
+        ))}
+      </ul>
+    </div>
   )
 }

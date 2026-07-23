@@ -3,6 +3,8 @@
  * Terminologia allineata a CONTEXT.md (Utente, Persona, Evento, Attività, Slot).
  */
 
+import type { PersonStatus } from './person-status'
+
 /** Policy con cui una Prenotazione viene associata alle Attività dell'Evento. */
 export type ActivityPolicy = 'all' | 'min' | 'free'
 
@@ -138,6 +140,12 @@ export interface Person {
   eventCheckInCount: number
   /** Orario dell'ultimo ingresso all'Evento. */
   eventCheckInLastAt: string | null
+  /** Orario della prima uscita dall'Evento (issue #38). null se mai uscito. */
+  eventCheckOutAt: string | null
+  /** Numero totale di uscite dall'Evento (0 se mai uscito). */
+  eventCheckOutCount: number
+  /** Orario dell'ultima uscita dall'Evento. */
+  eventCheckOutLastAt: string | null
   activityCheckIns: ActivityCheckIn[]
 }
 
@@ -246,6 +254,15 @@ export interface RegisteredPerson {
 /** Momento di Check-in scelto dall'operatore. «exit» solo con recordExit attivo. */
 export type CheckInMode = 'event' | 'activity' | 'exit'
 
+/**
+ * Punto di controllo selezionato nello scanner: i tre momenti che scrivono più
+ * «Solo verifica» (issue #39), che legge lo stato consolidato senza registrare
+ * nulla e per questo non è un `CheckInMode`. Il letterale è `lookup` come la
+ * query e come l'esito: un solo nome in tutto il codice, «Solo verifica» resta
+ * l'etichetta mostrata all'operatore.
+ */
+export type ScannerMode = CheckInMode | 'lookup'
+
 export type CheckInStatus =
   | 'event-valid'
   | 'event-already'
@@ -260,6 +277,8 @@ export type CheckInStatus =
   | 'too-late'
   | 'wrong-event'
   | 'not-found'
+  /** «Solo verifica» (issue #39): Persona letta, nessuna registrazione. */
+  | 'lookup'
 
 export interface CheckInPersonSummary {
   name: string
@@ -274,6 +293,11 @@ export interface CheckInResult {
   status: CheckInStatus
   message: string
   person?: CheckInPersonSummary
+  /**
+   * Stato consolidato della Persona (issue #39): presente ogni volta che la
+   * scansione la risolve, a prescindere dall'esito e dal momento scansionato.
+   */
+  personStatus?: PersonStatus
   eventTitle?: string
   activityTitle?: string
   slotStart?: string

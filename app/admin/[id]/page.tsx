@@ -22,6 +22,7 @@ import { CheckInAccessCard } from '@/components/admin/check-in-access-card'
 import { DeclinesCard } from '@/components/admin/declines-card'
 import { EmbedCard } from '@/components/admin/embed-card'
 import { EventActivityMonitor } from '@/components/admin/event-activity-monitor'
+import { EventPersonsTable } from '@/components/admin/event-persons-table'
 import { ExportButton } from '@/components/admin/export-button'
 import { PdfDownloadButton } from '@/components/admin/pdf-download-button'
 import { Badge } from '@/components/ui/badge'
@@ -293,6 +294,16 @@ function EventDetailContent() {
         />
 
         <DeclinesCard declines={declines ?? []} />
+
+        <section className="flex flex-col gap-3">
+          <div>
+            <h2 className="text-lg font-semibold tracking-tight">Persone</h2>
+            <p className="text-sm text-muted-foreground">
+              Stato di ogni persona: ingresso all&apos;evento, visita alle attività e uscita.
+            </p>
+          </div>
+          <EventPersonsTable registrations={registrations ?? []} />
+        </section>
 
         <section className="flex flex-col gap-3">
           <div>

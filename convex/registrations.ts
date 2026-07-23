@@ -311,6 +311,12 @@ async function buildRegistrationDTO(
       eventCheckInAt: person.eventCheckInAt,
       eventCheckInCount: person.eventCheckInCount,
       eventCheckInLastAt: person.eventCheckInLastAt,
+      // Uscita (issue #38): normalizzata a null/0 per l'admin, così lo stato
+      // consolidato (issue #39) ha la stessa forma dell'ingresso e le righe
+      // pre-#38 non richiedono un caso speciale nella UI.
+      eventCheckOutAt: person.eventCheckOutAt ?? null,
+      eventCheckOutCount: person.eventCheckOutCount ?? 0,
+      eventCheckOutLastAt: person.eventCheckOutLastAt ?? null,
       activityCheckIns: checkIns.map((c) => ({
         activityId: c.activityId,
         slotId: c.slotId,
