@@ -28,6 +28,7 @@ import {
 } from '@/lib/schemas'
 import { typedZodResolver } from '@/lib/zod-resolver'
 import { formatTimeRange, formatDateRange } from '@/lib/format'
+import { buildTicketsEmailPdf } from '@/lib/pdf/email-attachment'
 import { generateQrDataUrl } from '@/lib/qr-client'
 import { intervalsOverlap } from '@/lib/slots'
 import type { EventWithStats, RegisteredPerson, SlotWithAvailability } from '@/lib/types'
@@ -234,13 +235,24 @@ export function RegistrationForm({
       setTickets(registeredPersons)
       toast.success('Registrazione completata')
 
-      void sendTickets({
-        eventTitle: result.eventTitle,
-        eventLocation: result.eventLocation,
-        contactEmail: result.contactEmail,
-        collectNames: event.collectNames,
-        persons: registeredPersons,
-      }).catch(() => undefined)
+      // L'email allega lo stesso PDF del pulsante «Scarica PDF» (una pagina
+      // per Persona); se la generazione fallisce parte comunque coi soli QR.
+      void (async () => {
+        const pdf = await buildTicketsEmailPdf(registeredPersons, {
+          title: event.title,
+          location: event.location,
+          dateRange: formatDateRange(event.startsAt, event.endsAt),
+          imageUrl: event.imageUrl,
+        })
+        await sendTickets({
+          eventTitle: result.eventTitle,
+          eventLocation: result.eventLocation,
+          contactEmail: result.contactEmail,
+          collectNames: event.collectNames,
+          persons: registeredPersons,
+          pdf,
+        })
+      })().catch(() => undefined)
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Registrazione non riuscita')
     } finally {

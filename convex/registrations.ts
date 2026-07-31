@@ -440,7 +440,8 @@ const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
  * l'eventuale correzione del destinatario.
  *
  * Restituisce il payload dell'email — gli stessi campi che `emails.sendTickets`
- * riceve dopo una nuova Prenotazione, meno i QR — costruito dalle Persone
+ * riceve dopo una nuova Prenotazione, meno i QR, più date e copertina
+ * dell'Evento per l'header del PDF allegato — costruito dalle Persone
  * attuali della Prenotazione, così il reinvio riflette etichette, età e allergie
  * di oggi e non quelle del giorno dell'iscrizione. I QR sono rigenerati dal
  * client a partire dai `ticketCode`, che restano quelli originali: i biglietti
@@ -480,9 +481,23 @@ export const prepareTicketResend = mutation({
       .withIndex('by_registration', (q) => q.eq('registrationId', registration._id))
       .collect()
 
+    // Date e copertina servono al client per l'header del PDF allegato:
+    // derivate dalle Attività e dallo storage come in eventWithStats.
+    const activities = await ctx.db
+      .query('activities')
+      .withIndex('by_event', (q) => q.eq('eventId', event._id))
+      .collect()
+    const starts = activities.map((a) => new Date(a.start).getTime())
+    const ends = activities.map((a) => new Date(a.end).getTime())
+
     return {
       eventTitle: event.title,
       eventLocation: event.location,
+      eventStartsAt: starts.length ? new Date(Math.min(...starts)).toISOString() : null,
+      eventEndsAt: ends.length ? new Date(Math.max(...ends)).toISOString() : null,
+      eventImageUrl: event.imageStorageId
+        ? await ctx.storage.getUrl(event.imageStorageId)
+        : null,
       contactEmail,
       collectNames: event.collectNames ?? true,
       persons: persons.map((person) => ({

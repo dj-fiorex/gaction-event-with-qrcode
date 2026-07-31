@@ -1280,6 +1280,10 @@ test('prepareTicketResend builds the email payload from the Prenotazione current
     eventLocation: 'Roma',
     contactEmail: 'guest@example.com',
     collectNames: true,
+    // Header del PDF allegato: date derivate dalle Attività, copertina assente.
+    eventStartsAt: '2026-07-07T09:00:00.000Z',
+    eventEndsAt: '2026-07-07T10:00:00.000Z',
+    eventImageUrl: null,
   })
   expect(payload.persons).toEqual([
     {

@@ -5,7 +5,7 @@ import { TicketsDocument, type TicketPdfEvent } from './ticket-document'
 import type { RegisteredPerson } from '@/lib/types'
 
 /** Rende un testo sicuro per un nome file: solo alfanumerici e trattini. */
-function slugify(value: string): string {
+export function slugify(value: string): string {
   return (
     value
       .normalize('NFD')
@@ -57,18 +57,30 @@ async function fetchCoverAsJpegDataUrl(url: string): Promise<string | undefined>
   }
 }
 
+/**
+ * Renderizza il PDF dei biglietti (una pagina per Persona) come Blob.
+ * Con `includeCover: false` la copertina viene omessa anche se presente:
+ * serve all'allegato email quando il file supererebbe i limiti di invio.
+ */
+export async function renderTicketsPdfBlob(
+  persons: RegisteredPerson[],
+  event: TicketPdfEvent,
+  { includeCover = true }: { includeCover?: boolean } = {},
+): Promise<Blob> {
+  const coverDataUrl =
+    includeCover && event.imageUrl
+      ? await fetchCoverAsJpegDataUrl(event.imageUrl)
+      : undefined
+  const resolvedEvent: TicketPdfEvent = { ...event, coverDataUrl }
+  return pdf(<TicketsDocument persons={persons} event={resolvedEvent} />).toBlob()
+}
+
 async function triggerPdfDownload(
   persons: RegisteredPerson[],
   event: TicketPdfEvent,
   fileName: string,
 ): Promise<void> {
-  const coverDataUrl = event.imageUrl
-    ? await fetchCoverAsJpegDataUrl(event.imageUrl)
-    : undefined
-  const resolvedEvent: TicketPdfEvent = { ...event, coverDataUrl }
-  const blob = await pdf(
-    <TicketsDocument persons={persons} event={resolvedEvent} />,
-  ).toBlob()
+  const blob = await renderTicketsPdfBlob(persons, event)
   const url = URL.createObjectURL(blob)
   const anchor = document.createElement('a')
   anchor.href = url

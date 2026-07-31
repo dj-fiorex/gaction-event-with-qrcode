@@ -19,6 +19,8 @@ import {
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { formatDateRange } from '@/lib/format'
+import { buildTicketsEmailPdf } from '@/lib/pdf/email-attachment'
 import { toRegisteredPersons } from '@/lib/qr-client'
 
 interface ResendTicketsDialogProps {
@@ -61,12 +63,20 @@ export function ResendTicketsDialog({ registrationId, contactEmail }: ResendTick
       // I QR sono rigenerati qui dai ticketCode originali, come alla prima
       // registrazione: il biglietto già in mano all'Utente resta valido.
       const persons = await toRegisteredPersons(payload.persons)
+      // Stesso allegato della prima email: il PDF con una pagina per Persona.
+      const pdf = await buildTicketsEmailPdf(persons, {
+        title: payload.eventTitle,
+        location: payload.eventLocation,
+        dateRange: formatDateRange(payload.eventStartsAt, payload.eventEndsAt),
+        imageUrl: payload.eventImageUrl,
+      })
       const result = await sendTickets({
         eventTitle: payload.eventTitle,
         eventLocation: payload.eventLocation,
         contactEmail: payload.contactEmail,
         collectNames: payload.collectNames,
         persons,
+        pdf,
       })
 
       if (!result.delivered && !result.simulated) {
@@ -107,7 +117,8 @@ export function ResendTicketsDialog({ registrationId, contactEmail }: ResendTick
         <DialogHeader>
           <DialogTitle>Reinvia i biglietti</DialogTitle>
           <DialogDescription>
-            Rimanda l&rsquo;email con un QR per ogni persona della prenotazione. Se correggi
+            Rimanda l&rsquo;email con un QR per ogni persona della prenotazione e il PDF dei
+            biglietti in allegato. Se correggi
             l&rsquo;indirizzo, viene salvato sulla prenotazione e usato anche per le
             comunicazioni future.
           </DialogDescription>

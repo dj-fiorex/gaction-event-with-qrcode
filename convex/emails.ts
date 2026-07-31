@@ -76,6 +76,18 @@ export const sendTickets = action({
     /** Raccolta nomi dell'Evento: false ⇒ i blocchi mostrano l'Etichetta posizionale. */
     collectNames: v.boolean(),
     persons: v.array(emailPerson),
+    /**
+     * PDF dei biglietti (una pagina per Persona), renderizzato dal client come
+     * per il pulsante «Scarica PDF». Il base64 arriva spezzato in blocchi
+     * perché Convex limita ogni singola stringa a 1 MiB. Assente = nessun
+     * allegato PDF (l'email resta valida con i soli QR inline).
+     */
+    pdf: v.optional(
+      v.object({
+        filename: v.string(),
+        base64Chunks: v.array(v.string()),
+      }),
+    ),
   },
   returns: v.object({ delivered: v.boolean(), simulated: v.boolean() }),
   handler: async (_ctx, args) => {
@@ -98,6 +110,7 @@ export const sendTickets = action({
             <h2 style="margin:0 0 8px;font-size:18px;color:#0f172a;">${escapeHtml(args.eventTitle)}</h2>
             <p style="margin:4px 0;color:#475569;"><strong>Dove:</strong> ${escapeHtml(args.eventLocation)}</p>
             <p style="margin:12px 0;color:#475569;">Ogni persona ha un proprio QR code. Presentatelo all'ingresso e a ogni attività prenotata.</p>
+            ${args.pdf ? `<p style="margin:12px 0;color:#475569;">In allegato trovate anche il <strong>PDF dei biglietti</strong>, con una pagina per persona, pronto da stampare.</p>` : ''}
             ${args.persons.map((p, index) => personBlock(p, index, args.collectNames)).join('')}
           </div>
         </div>`
@@ -107,11 +120,16 @@ export const sendTickets = action({
         to: args.contactEmail,
         subject: `Ticket per ${args.eventTitle}`,
         html,
-        attachments: args.persons.map((p, index) => ({
-          filename: `qr-${index + 1}.png`,
-          content: p.qrDataUrl.split(',')[1] ?? '',
-          contentId: `qr-${index}`,
-        })),
+        attachments: [
+          ...args.persons.map((p, index) => ({
+            filename: `qr-${index + 1}.png`,
+            content: p.qrDataUrl.split(',')[1] ?? '',
+            contentId: `qr-${index}`,
+          })),
+          ...(args.pdf
+            ? [{ filename: args.pdf.filename, content: args.pdf.base64Chunks.join('') }]
+            : []),
+        ],
       })
       console.log('[email] Email inviata con Resend:', res)
       return { delivered: true, simulated: false }
