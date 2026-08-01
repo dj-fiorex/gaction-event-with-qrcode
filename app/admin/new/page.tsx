@@ -1,14 +1,20 @@
 'use client'
 
 import Link from 'next/link'
+import { redirect } from 'next/navigation'
 import { ArrowLeft } from 'lucide-react'
 import { AuthGate } from '@/components/auth/auth-gate'
 import { AdminHeader } from '@/components/admin/admin-header'
 import { EventForm } from '@/components/admin/event-form'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { eventCreationDisabled } from '@/lib/feature-flags'
 
 export default function NewEventPage() {
+  if (eventCreationDisabled) {
+    redirect('/admin')
+  }
+
   return (
     <AuthGate require="admin">
       {() => (

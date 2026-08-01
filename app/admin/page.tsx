@@ -13,6 +13,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { eventCreationDisabled } from '@/lib/feature-flags'
 
 interface StatCardProps {
   label: string
@@ -116,10 +117,12 @@ function AdminDashboard() {
                         Consulta disponibilità e gestisci gli eventi.
                       </CardDescription>
                     </div>
-                    <Button nativeButton={false} size="sm" render={<Link href="/admin/new" />}>
-                      <Plus className="h-4 w-4" aria-hidden="true" />
-                      Nuovo evento
-                    </Button>
+                    {!eventCreationDisabled && (
+                      <Button nativeButton={false} size="sm" render={<Link href="/admin/new" />}>
+                        <Plus className="h-4 w-4" aria-hidden="true" />
+                        Nuovo evento
+                      </Button>
+                    )}
                   </CardHeader>
                   <CardContent>
                     <AdminEventList events={events} />
