@@ -142,7 +142,11 @@ export const getPasswordResetStateInternal = internalQuery({
       .query('users')
       .withIndex('email', (q) => q.eq('email', args.email))
       .unique()
-    return { canReset: (user?.role ?? 'staff') === 'member' }
+    // Il reset è aperto a ogni ruolo: admin, assistenti e membri hanno tutti un
+    // account `password` (createStaffAccount / seedFirstAdmin / signUpMember).
+    // Resta falso per le email inesistenti, così il flow non rivela quali
+    // indirizzi hanno un account.
+    return { canReset: user !== null }
   },
 })
 

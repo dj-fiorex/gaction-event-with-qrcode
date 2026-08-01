@@ -206,6 +206,67 @@ test('accounts.requestPasswordReset starts the password reset flow for members',
   ).toHaveLength(1)
 })
 
+test('accounts.requestPasswordReset starts the password reset flow for admins', async () => {
+  const t = convexTest(schema, modules)
+  await t.action(api.accounts.seedFirstAdmin, {
+    email: 'admin@example.com',
+    password: 'password123',
+    name: 'Admin Uno',
+  })
+
+  await t.action(api.accounts.requestPasswordReset, {
+    email: 'admin@example.com',
+  })
+
+  const verificationCodes = await t.run((ctx) => ctx.db.query('authVerificationCodes').collect())
+  expect(
+    verificationCodes.filter((code) => code.provider === 'member-password-reset'),
+  ).toHaveLength(1)
+})
+
+test('accounts.requestPasswordReset starts the password reset flow for staff', async () => {
+  const t = convexTest(schema, modules)
+  const { userId: adminId } = await t.action(api.accounts.seedFirstAdmin, {
+    email: 'admin2@example.com',
+    password: 'password123',
+    name: 'Admin Due',
+  })
+
+  await t.withIdentity({ subject: subjectFor(adminId) }).action(api.accounts.createStaffAccount, {
+    email: 'staff@example.com',
+    password: 'password123',
+    name: 'Assistente',
+    role: 'staff',
+  })
+
+  await t.action(api.accounts.requestPasswordReset, {
+    email: 'staff@example.com',
+  })
+
+  const verificationCodes = await t.run((ctx) => ctx.db.query('authVerificationCodes').collect())
+  expect(
+    verificationCodes.filter((code) => code.provider === 'member-password-reset'),
+  ).toHaveLength(1)
+})
+
+test('accounts.requestPasswordReset stays silent for an unknown email', async () => {
+  const t = convexTest(schema, modules)
+  await t.action(api.accounts.signUpMember, {
+    email: 'known@example.com',
+    password: 'password123',
+    name: 'Known User',
+  })
+
+  await t.action(api.accounts.requestPasswordReset, {
+    email: 'unknown@example.com',
+  })
+
+  const verificationCodes = await t.run((ctx) => ctx.db.query('authVerificationCodes').collect())
+  expect(
+    verificationCodes.filter((code) => code.provider === 'member-password-reset'),
+  ).toHaveLength(0)
+})
+
 test('password reset replaces the old secret with the new one', async () => {
   const t = convexTest(schema, modules)
   await t.action(api.accounts.signUpMember, {

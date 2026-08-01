@@ -223,7 +223,7 @@ export const sendMemberPasswordResetEmail = internalAction({
           </div>
           <div style="padding:24px;">
             <p style="margin:0 0 12px;color:#475569;">
-              Abbiamo ricevuto una richiesta di reset per il tuo account Membro.
+              Abbiamo ricevuto una richiesta di reset per il tuo account.
             </p>
             <p style="margin:0 0 20px;color:#475569;">
               Il link resta valido fino al <strong>${args.expiresAt}</strong>.

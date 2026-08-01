@@ -37,7 +37,7 @@ export function PasswordResetCard({
         email: String(formData.get('email') ?? ''),
       })
       setSuccessMessage(
-        "Se l'indirizzo appartiene a un Membro, riceverai un'email con il link per reimpostare la password.",
+        "Se l'indirizzo è associato a un account, riceverai un'email con il link per reimpostare la password.",
       )
     } catch (submitError) {
       setError(
@@ -86,8 +86,8 @@ export function PasswordResetCard({
         <CardTitle>{resetMode ? 'Imposta una nuova password' : 'Password dimenticata'}</CardTitle>
         <CardDescription>
           {resetMode
-            ? 'Scegli una nuova password per rientrare nel tuo account Membro.'
-            : "Inserisci l'email del tuo account Membro per ricevere il link di reset."}
+            ? 'Scegli una nuova password per rientrare nel tuo account.'
+            : "Inserisci l'email del tuo account per ricevere il link di reset."}
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
