@@ -676,12 +676,6 @@ export function RegistrationForm({
             })}
           </div>
 
-          {familyBranchMissing && (
-            <p className="text-sm text-destructive">
-              Rispondi alla domanda sui figli minorenni prima di confermare.
-            </p>
-          )}
-
           <Button type="submit" disabled={submitting || familyBranchMissing} className="w-full">
             {submitting ? 'Registrazione in corso…' : `Conferma registrazione (${personsNeeded} persone)`}
           </Button>
