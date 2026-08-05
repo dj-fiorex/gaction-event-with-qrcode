@@ -1,0 +1,28 @@
+<!--
+  Fixture di regressione per l'incorporamento in un frammento «nudo».
+
+  Riproduce il documento che i costruttori di siti generano per lo snippet: Wix
+  («Incorpora un widget») salva il codice incollato in un file servito da un
+  proprio dominio (`<dominio-con-trattini>.filesusr.com/html/<hash>.html`) e lo
+  mostra dentro un iframe. Quel file contiene SOLO il tag `<script>`, senza
+  `<html>`, `<head>` o `<body>`.
+
+  Il parser colloca in `<head>` uno `<script>` che apre il documento. Prima della
+  correzione embed.js inseriva l'iframe accanto allo script, quindi dentro
+  `<head>`: lì un iframe non riceve alcun box di layout (0×0) e, con
+  `loading="lazy"`, la pagina incorporata non veniva mai nemmeno richiesta. Il
+  widget restava vuoto, senza errori — a differenza di `embed-test.html`, dove lo
+  script sta dentro `<body>` e questo caso non viene mai esercitato.
+
+  Verifica attesa (documento aperto, poi devtools sul frammento):
+    - l'iframe si trova in `<body>`, non in `<head>`;
+    - `getBoundingClientRect().height` è maggiore di 0;
+    - `/embed/eventi/<id>` compare fra le richieste di rete;
+    - se l'origine di questa pagina non è autorizzata, dopo 5s la console mostra
+      l'errore `[gaction-embed]` con l'origine da aggiungere.
+
+  Sostituisci l'id con un Evento avente `embedEnabled` a true e l'origine da cui
+  servi questo file fra le sue Origini Autorizzate. Questo file NON va reso
+  well-formed: la sua utilità sta proprio nell'essere un frammento.
+-->
+<script src="/embed.js" data-event-id="SOSTITUISCI_CON_EVENT_ID" async></script>

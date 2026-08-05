@@ -74,6 +74,15 @@ Una Prenotazione è collegata a un Membro **solo tramite FK esplicita** (`regist
 ### Storico partecipazioni
 Vista nella [[Membro|area personale]] (`/profilo`): l'elenco degli Eventi che il Membro ha **prenotato** (via `registrations.userId`), ciascuno annotato con lo **stato di check-in reale** della sua Persona (presente/assente all'Evento, ed eventualmente a quali Attività/Slot). «Partecipazione» = Prenotazione **più** esito del [[Check-in]]; include quindi anche i no-show, marcati come tali.
 
+### Incorporamento
+Il form di registrazione di un Evento reso **su un sito terzo**, tramite uno snippet `<script>` che il sito ospitante inserisce nella propria pagina e che a sua volta apre il form in un iframe. È abilitato per Evento (`embedEnabled`) e vincolato alle [[Origine Autorizzata|Origini Autorizzate]]. Chi prenota da lì compila lo stesso form del sito principale, con i limiti descritti in [[Prenotazione riservata agli account (requireAccount)]].
+
+### Origine Autorizzata
+Origine (schema + host + porta) ammessa a **incorniciare** il form incorporato di un Evento; l'elenco è deciso dall'admin per Evento e diventa la direttiva CSP `frame-ancestors`. Tre proprietà sono facili da sbagliare e falliscono in silenzio — il form non viene reso e non compare alcun errore sul sito ospitante:
+- **Vale l'intera catena degli antenati, non solo il sito visitato.** I costruttori di siti non incollano lo snippet nella pagina: lo salvano su un dominio proprio e lo mostrano in un iframe, che diventa così un antenato intermedio da autorizzare a sua volta (in Wix `<dominio-con-trattini>.filesusr.com`).
+- **`www` e apex sono origini distinte.** Autorizzare l'apex di un sito che reindirizza a `www` produce una voce che non può mai corrispondere a nulla.
+- **Non è un confine di riservatezza.** La pagina incorporata resta raggiungibile e utilizzabile direttamente da chiunque conosca l'id dell'Evento: l'elenco protegge dal clickjacking e dall'uso del marchio altrui, non dall'accesso. Vedi ADR `0006`.
+
 ### Permetti sovrapposizioni
 Booleano a livello di Evento impostato dall'admin. Se falso, il sistema impedisce a una Prenotazione di selezionare Slot che si sovrappongono nel tempo. Se vero, gli Slot sovrapposti sono consentiti.
 
