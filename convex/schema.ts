@@ -95,6 +95,16 @@ export default defineSchema({
      */
     recordExit: v.optional(v.boolean()),
     /**
+     * Testo dell'email di conferma (issue #42): oggetto in chiaro e corpo in
+     * markdown, componibili per Evento. Assenti o vuoti = comportamento
+     * odierno (oggetto «Ticket per {title}» e corpo generato dal codice),
+     * quindi nessun backfill per gli Eventi esistenti. L'oggetto è un campo a
+     * sé e non una chiave del frontmatter: un'indentazione sbagliata non deve
+     * poter togliere in silenzio l'oggetto a un'email che parte comunque.
+     */
+    emailSubject: v.optional(v.string()),
+    emailBody: v.optional(v.string()),
+    /**
      * Origini autorizzate a incorporare il form (CSP frame-ancestors).
      * Ogni voce è un'origine esatta (https://www.partner.com) o un wildcard di
      * sottodominio (https://*.partner.com). Vuoto = nessun sito autorizzato.

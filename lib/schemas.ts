@@ -47,6 +47,12 @@ export const eventSchema = z
     collectAllergies: z.boolean().default(false),
     /** Registrazione dell'uscita (issue #38): disattiva di default. */
     recordExit: z.boolean().default(false),
+    /**
+     * Testo dell'email di conferma (issue #42): oggetto in chiaro e corpo in
+     * markdown. Vuoti = ripiego sul testo odierno, nessun backfill.
+     */
+    emailSubject: z.string().trim().max(200, 'Oggetto troppo lungo').optional(),
+    emailBody: z.string().optional(),
     allowChildren: z.boolean().default(false),
     maxChildrenPerRegistration: z.coerce.number().int().min(0).default(0),
     allowCompanions: z.boolean().default(false),

@@ -236,7 +236,8 @@ export function RegistrationForm({
       toast.success('Registrazione completata')
 
       // L'email allega lo stesso PDF del pulsante «Scarica PDF» (una pagina
-      // per Persona); se la generazione fallisce parte comunque coi soli QR.
+      // per Persona); se la generazione fallisce l'email parte comunque senza
+      // allegato — il Riepilogo porta i codici biglietto.
       void (async () => {
         const pdf = await buildTicketsEmailPdf(registeredPersons, {
           title: event.title,
@@ -244,12 +245,10 @@ export function RegistrationForm({
           dateRange: formatDateRange(event.startsAt, event.endsAt),
           imageUrl: event.imageUrl,
         })
+        // L'action legge Evento, copy, Persone e destinatario dalla
+        // Prenotazione: dal browser viaggia solo il PDF.
         await sendTickets({
-          eventTitle: result.eventTitle,
-          eventLocation: result.eventLocation,
-          contactEmail: result.contactEmail,
-          collectNames: event.collectNames,
-          persons: registeredPersons,
+          registrationId: result.registrationId,
           pdf,
         })
       })().catch(() => undefined)

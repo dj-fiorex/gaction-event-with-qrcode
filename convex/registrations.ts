@@ -439,13 +439,12 @@ const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
  * Prepara il reinvio dell'email dei biglietti di una Prenotazione e persiste
  * l'eventuale correzione del destinatario.
  *
- * Restituisce il payload dell'email — gli stessi campi che `emails.sendTickets`
- * riceve dopo una nuova Prenotazione, meno i QR, più date e copertina
- * dell'Evento per l'header del PDF allegato — costruito dalle Persone
- * attuali della Prenotazione, così il reinvio riflette etichette, età e allergie
- * di oggi e non quelle del giorno dell'iscrizione. I QR sono rigenerati dal
- * client a partire dai `ticketCode`, che restano quelli originali: i biglietti
- * già in mano all'Utente continuano a valere.
+ * Restituisce quel che serve al client per costruire il PDF allegato: le
+ * Persone attuali della Prenotazione, più titolo, luogo, date e copertina
+ * dell'Evento per l'header del PDF. Il testo dell'email non passa più di qui —
+ * lo compone `emails.sendTickets` rileggendo la Prenotazione (issue #42). I QR
+ * sono rigenerati dal client a partire dai `ticketCode`, che restano quelli
+ * originali: i biglietti già in mano all'Utente continuano a valere.
  *
  * Il destinatario di sostituzione è facoltativo: omesso, si riusa l'email
  * memorizzata. Se invece è diverso da quella memorizzata viene scritto sulla
@@ -499,7 +498,10 @@ export const prepareTicketResend = mutation({
         ? await ctx.storage.getUrl(event.imageStorageId)
         : null,
       contactEmail,
-      collectNames: event.collectNames ?? true,
+      // Il testo dell'email non si costruisce più da qui (lo compone
+      // `emails.sendTickets` rileggendo la Prenotazione): questi campi restano
+      // perché sono la forma che `toRegisteredPersons` chiede per rigenerare i
+      // QR e comporre il PDF allegato, la stessa del primo invio.
       persons: persons.map((person) => ({
         name: person.name,
         category: person.category,

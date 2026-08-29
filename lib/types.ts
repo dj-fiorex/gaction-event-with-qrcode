@@ -87,6 +87,13 @@ export interface Event {
    * odierno (solo ingresso evento e accesso attività).
    */
   recordExit: boolean
+  /**
+   * Testo dell'email di conferma (issue #42): oggetto in chiaro e corpo in
+   * markdown, scritti dall'admin. Stringa vuota = ripiego sul testo odierno.
+   * Solo per operatori: vuoti lato pubblico.
+   */
+  emailSubject: string
+  emailBody: string
   allowChildren: boolean
   maxChildrenPerRegistration: number
   allowCompanions: boolean

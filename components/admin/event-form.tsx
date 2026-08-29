@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import dynamic from 'next/dynamic'
 import { useRouter } from 'next/navigation'
 import { Controller, useFieldArray, useForm } from 'react-hook-form'
 import { Plus, Trash2 } from 'lucide-react'
@@ -23,6 +24,21 @@ import type { Id } from '@/convex/_generated/dataModel'
 import { eventSchema, type EventInput } from '@/lib/schemas'
 import { typedZodResolver } from '@/lib/zod-resolver'
 import { EventImageField } from '@/components/admin/event-image-field'
+
+/**
+ * Editor del Testo dell'email di conferma (issue #42). Caricato solo nel
+ * browser e solo quando il form è aperto: porta con sé CodeMirror e
+ * `mjml-browser`, che non hanno nulla da fare nel bundle iniziale né in SSR.
+ */
+const EmailBodyEditor = dynamic(
+  () => import('@/components/admin/email-body-editor').then((m) => m.EmailBodyEditor),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="h-96 animate-pulse rounded-md border border-border bg-muted/40" />
+    ),
+  },
+)
 
 const emptyActivity = {
   title: '',
@@ -47,6 +63,8 @@ const defaultValues: EventInput = {
   collectNames: true,
   collectAllergies: false,
   recordExit: false,
+  emailSubject: '',
+  emailBody: '',
   allowChildren: false,
   maxChildrenPerRegistration: 2,
   allowCompanions: false,
@@ -648,6 +666,42 @@ export function EventForm({
           </p>
         </div>
       </div>
+
+      {/* Testo dell'email di conferma (issue #42) */}
+      <fieldset className="flex flex-col gap-4 rounded-lg border border-border p-4">
+        <div>
+          <legend className="font-medium">Email di conferma</legend>
+          <p className="text-sm text-muted-foreground">
+            Oggetto e corpo dell&rsquo;email inviata dopo una prenotazione. Il corpo si scrive in
+            markdown e l&rsquo;anteprima a fianco è quella che arriva davvero. Sotto al testo viene
+            aggiunto il riepilogo della prenotazione, con i codici biglietto; i QR code viaggiano
+            nel PDF allegato. Lasciando i campi vuoti si usa il testo predefinito.
+          </p>
+        </div>
+
+        <div className="grid gap-2">
+          <Label htmlFor="emailSubject">Oggetto</Label>
+          <Input
+            id="emailSubject"
+            placeholder="Ticket per {nome evento}"
+            {...register('emailSubject')}
+            aria-invalid={!!errors.emailSubject}
+          />
+          <FieldError message={errors.emailSubject?.message} />
+        </div>
+
+        <div className="grid gap-2">
+          <Label htmlFor="emailBody">Corpo</Label>
+          <Controller
+            control={control}
+            name="emailBody"
+            render={({ field }) => (
+              <EmailBodyEditor value={field.value ?? ''} onChange={field.onChange} />
+            )}
+          />
+          <FieldError message={errors.emailBody?.message} />
+        </div>
+      </fieldset>
 
       <div className="flex items-center gap-2">
         <Button

@@ -53,13 +53,11 @@ export function ResendTicketsDialog({ registrationId, contactEmail }: ResendTick
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     setSending(true)
+    const id = registrationId as Id<'registrations'>
     try {
       // La mutation valida il destinatario, persiste l'eventuale correzione e
       // restituisce il payload costruito dalle Persone attuali.
-      const payload = await prepareResend({
-        registrationId: registrationId as Id<'registrations'>,
-        contactEmail: email,
-      })
+      const payload = await prepareResend({ registrationId: id, contactEmail: email })
       // I QR sono rigenerati qui dai ticketCode originali, come alla prima
       // registrazione: il biglietto già in mano all'Utente resta valido.
       const persons = await toRegisteredPersons(payload.persons)
@@ -70,14 +68,9 @@ export function ResendTicketsDialog({ registrationId, contactEmail }: ResendTick
         dateRange: formatDateRange(payload.eventStartsAt, payload.eventEndsAt),
         imageUrl: payload.eventImageUrl,
       })
-      const result = await sendTickets({
-        eventTitle: payload.eventTitle,
-        eventLocation: payload.eventLocation,
-        contactEmail: payload.contactEmail,
-        collectNames: payload.collectNames,
-        persons,
-        pdf,
-      })
+      // L'action rilegge la Prenotazione: il testo, le etichette, le età e le
+      // allergie dell'email sono quelli attuali, come al primo invio.
+      const result = await sendTickets({ registrationId: id, pdf })
 
       if (!result.delivered && !result.simulated) {
         // Il dialog resta aperto: l'indirizzo è già stato salvato, ma l'email
@@ -117,8 +110,8 @@ export function ResendTicketsDialog({ registrationId, contactEmail }: ResendTick
         <DialogHeader>
           <DialogTitle>Reinvia i biglietti</DialogTitle>
           <DialogDescription>
-            Rimanda l&rsquo;email con un QR per ogni persona della prenotazione e il PDF dei
-            biglietti in allegato. Se correggi
+            Rimanda l&rsquo;email di conferma dell&rsquo;evento, con il riepilogo della
+            prenotazione e il PDF dei biglietti in allegato. Se correggi
             l&rsquo;indirizzo, viene salvato sulla prenotazione e usato anche per le
             comunicazioni future.
           </DialogDescription>

@@ -32,6 +32,8 @@ function toEventInput(event: EventWithStats): EventInput {
     collectNames: event.collectNames,
     collectAllergies: event.collectAllergies,
     recordExit: event.recordExit,
+    emailSubject: event.emailSubject,
+    emailBody: event.emailBody,
     allowChildren: event.allowChildren,
     maxChildrenPerRegistration: event.maxChildrenPerRegistration || 2,
     allowCompanions: event.allowCompanions,

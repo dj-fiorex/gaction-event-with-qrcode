@@ -14,6 +14,8 @@ import {
 } from './model'
 import { generateSlots } from '../lib/slots'
 import { parseAllowedOrigins } from '../lib/embed'
+// Stessa regola per chi scrive il campo e per chi lo rilegge per comporre l'email.
+import { normalizeEmailCopy } from '../lib/email-content'
 
 const activityInput = v.object({
   title: v.string(),
@@ -38,6 +40,8 @@ const eventInput = {
   collectNames: v.boolean(),
   collectAllergies: v.boolean(),
   recordExit: v.boolean(),
+  emailSubject: v.optional(v.string()),
+  emailBody: v.optional(v.string()),
   allowChildren: v.boolean(),
   maxChildrenPerRegistration: v.number(),
   allowCompanions: v.boolean(),
@@ -258,6 +262,8 @@ export const create = mutation({
       collectNames: args.collectNames,
       collectAllergies: args.collectAllergies,
       recordExit: args.recordExit,
+      emailSubject: normalizeEmailCopy(args.emailSubject),
+      emailBody: normalizeEmailCopy(args.emailBody),
       allowChildren: args.allowChildren,
       maxChildrenPerRegistration: args.allowChildren ? args.maxChildrenPerRegistration : 0,
       allowCompanions: args.allowCompanions,
@@ -326,6 +332,8 @@ export const update = mutation({
       collectNames: args.collectNames,
       collectAllergies: args.collectAllergies,
       recordExit: args.recordExit,
+      emailSubject: normalizeEmailCopy(args.emailSubject),
+      emailBody: normalizeEmailCopy(args.emailBody),
       allowChildren: args.allowChildren,
       maxChildrenPerRegistration: args.allowChildren ? args.maxChildrenPerRegistration : 0,
       allowCompanions: args.allowCompanions,

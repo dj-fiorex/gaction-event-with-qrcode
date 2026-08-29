@@ -204,6 +204,13 @@ export interface EventWithStatsDTO {
   collectAllergies: boolean
   /** Registrazione dell'uscita (issue #38). false (default) = nessuna modalità Uscita. */
   recordExit: boolean
+  /**
+   * Testo dell'email di conferma (issue #42): oggetto in chiaro e corpo in
+   * markdown. Vuoti = ripiego sul testo odierno. Solo operatori
+   * (includeScanToken): vuoti lato pubblico.
+   */
+  emailSubject: string
+  emailBody: string
   allowChildren: boolean
   maxChildrenPerRegistration: number
   allowCompanions: boolean
@@ -331,6 +338,10 @@ export async function loadEventWithStats(
     collectNames: event.collectNames ?? true,
     collectAllergies: event.collectAllergies ?? false,
     recordExit: event.recordExit ?? false,
+    // Testo dell'email di conferma (issue #42): configurazione da pannello
+    // admin, non esposta al pubblico — come scanToken e allowedOrigins.
+    emailSubject: opts.includeScanToken ? (event.emailSubject ?? '') : '',
+    emailBody: opts.includeScanToken ? (event.emailBody ?? '') : '',
     allowChildren: event.allowChildren,
     maxChildrenPerRegistration: event.maxChildrenPerRegistration,
     allowCompanions: event.allowCompanions,

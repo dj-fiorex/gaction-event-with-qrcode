@@ -1279,7 +1279,6 @@ test('prepareTicketResend builds the email payload from the Prenotazione current
     eventTitle: 'Evento test',
     eventLocation: 'Roma',
     contactEmail: 'guest@example.com',
-    collectNames: true,
     // Header del PDF allegato: date derivate dalle Attività, copertina assente.
     eventStartsAt: '2026-07-07T09:00:00.000Z',
     eventEndsAt: '2026-07-07T10:00:00.000Z',
@@ -1333,7 +1332,6 @@ test('prepareTicketResend reflects the current Persone, including positional lab
       contactEmail: 'guest@example.com',
     })
 
-  expect(payload.collectNames).toBe(false)
   expect(payload.persons.map((p) => p.name)).toEqual(['Mario Rossi', 'Figlio 1'])
 })
 
