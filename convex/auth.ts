@@ -35,6 +35,15 @@ async function sha256Hex(input: string) {
   return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, '0')).join('')
 }
 
+/**
+ * Usata SOLO dai test (`tests/convex/accounts.test.ts`), che hanno bisogno di un
+ * codice di reset in chiaro: in produzione i codici li genera convex-auth dentro
+ * `signIn({ flow: 'reset' })` e ne salva solo lo sha256, quindi non sono
+ * recuperabili. L'hash qui e' lo stesso formato usato da convex-auth
+ * (sha256 esadecimale minuscolo), percio' il codice prodotto e' verificabile
+ * dal flow reale. Nota: la scadenza reale e' `maxAge` del provider Email
+ * (1 ora), non `PASSWORD_RESET_CODE_EXPIRY_MS`.
+ */
 export const issuePasswordResetCodeInternal = internalMutation({
   args: {
     accountId: v.id('authAccounts'),
@@ -69,30 +78,42 @@ export const issuePasswordResetCodeInternal = internalMutation({
   },
 })
 
+/**
+ * `sendVerificationRequest` va passato *dentro* `Email()`, non sovrascritto sul
+ * literal esterno. Al sign-in convex-auth materializza il provider con
+ * `merge(provider, provider.options)` e `options` e' esattamente l'oggetto
+ * passato a `Email()`: un override esterno viene rimpiazzato silenziosamente e
+ * l'email non parte mai (il codice di verifica viene comunque creato).
+ * `id` e `authorize` restano invece sul literal esterno: `options` non li
+ * contiene, e `merge` ignora i valori `undefined`.
+ */
 export const MemberPasswordResetProvider = {
-  ...Email<DataModel>({ sendVerificationRequest: async () => {} }),
+  ...Email<DataModel>({
+    // Il tipo del parametro di `Email()` dichiara la firma Auth.js a 1 argomento,
+    // ma convex-auth invoca sempre `(params, ctx)` (vedi signIn.ts).
+    sendVerificationRequest: (async (
+      { identifier, url, expires }: { identifier: string; url: string; expires: Date },
+      ctx: GenericActionCtxWithAuthConfig<DataModel>,
+    ) => {
+      const result: { delivered: boolean; simulated: boolean } = await ctx.runAction(
+        internal.emails.sendMemberPasswordResetEmail,
+        {
+          email: identifier,
+          resetUrl: url,
+          expiresAt: expires.toLocaleString('it-IT', {
+            dateStyle: 'short',
+            timeStyle: 'short',
+            timeZone: 'Europe/Rome',
+          }),
+        },
+      )
+      if (!result.delivered && !result.simulated) {
+        throw new Error("Invio dell'email di reset non riuscito")
+      }
+    }) as unknown as EmailConfig['sendVerificationRequest'],
+  }),
   id: PASSWORD_RESET_PROVIDER,
   authorize: undefined,
-  async sendVerificationRequest(
-    { identifier, url, expires }: { identifier: string; url: string; expires: Date },
-    ctx: GenericActionCtxWithAuthConfig<DataModel>,
-  ) {
-    const result: { delivered: boolean; simulated: boolean } = await ctx.runAction(
-      internal.emails.sendMemberPasswordResetEmail,
-      {
-        email: identifier,
-        resetUrl: url,
-        expiresAt: expires.toLocaleString('it-IT', {
-          dateStyle: 'short',
-          timeStyle: 'short',
-          timeZone: 'Europe/Rome',
-        }),
-      },
-    )
-    if (!result.delivered && !result.simulated) {
-      throw new Error("Invio dell'email di reset non riuscito")
-    }
-  },
 } as unknown as EmailConfig<DataModel>
 
 /**

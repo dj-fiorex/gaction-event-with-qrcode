@@ -72,7 +72,14 @@ export const sendTickets = action({
             }
           : {}),
       })
-      console.log('[email] Email inviata con Resend:', res)
+      // Il SDK Resend NON lancia sugli errori API: ritorna { data, error }.
+      // Senza questo controllo ogni rifiuto (dominio, destinatario, quota)
+      // veniva riportato come "inviato" e spariva senza traccia.
+      if (res.error) {
+        console.error("[email] Resend ha rifiutato l'invio:", res.error)
+        return { delivered: false, simulated: false }
+      }
+      console.log('[email] Email inviata con Resend:', res.data)
       return { delivered: true, simulated: false }
     } catch (error) {
       console.log('[v0] Errore invio email Resend:', error)
@@ -124,12 +131,17 @@ export const sendMemberVerificationEmail = internalAction({
           </div>
         </div>`
 
-      await resend.emails.send({
+      const res = await resend.emails.send({
         from: FROM_ADDRESS,
         to: args.email,
         subject: 'Verifica la tua email',
         html,
       })
+      // Il SDK Resend NON lancia sugli errori API: ritorna { data, error }.
+      if (res.error) {
+        console.error("[email] Resend ha rifiutato l'email di verifica:", res.error)
+        return { delivered: false, simulated: false }
+      }
       return { delivered: true, simulated: false }
     } catch (error) {
       console.log('[v0] Errore invio email verifica Resend:', error)
@@ -181,12 +193,17 @@ export const sendMemberPasswordResetEmail = internalAction({
           </div>
         </div>`
 
-      await resend.emails.send({
+      const res = await resend.emails.send({
         from: FROM_ADDRESS,
         to: args.email,
         subject: 'Reimposta la tua password',
         html,
       })
+      // Il SDK Resend NON lancia sugli errori API: ritorna { data, error }.
+      if (res.error) {
+        console.error("[email] Resend ha rifiutato l'email di reset:", res.error)
+        return { delivered: false, simulated: false }
+      }
       return { delivered: true, simulated: false }
     } catch (error) {
       console.log('[v0] Errore invio email reset Resend:', error)

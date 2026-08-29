@@ -10,30 +10,38 @@ import { internal } from './_generated/api'
 
 const EMAIL_VERIFICATION_REDIRECT = '/verifica-email'
 
+/**
+ * Come per `MemberPasswordResetProvider`: `sendVerificationRequest` deve stare
+ * dentro `Email()`, perche' convex-auth materializza il provider con
+ * `merge(provider, provider.options)` e `options` sovrascrive il literal esterno.
+ */
 export const MemberVerificationProvider = {
-  ...Email<DataModel>({ sendVerificationRequest: async () => {} }),
+  ...Email<DataModel>({
+    // Il tipo del parametro di `Email()` dichiara la firma Auth.js a 1 argomento,
+    // ma convex-auth invoca sempre `(params, ctx)` (vedi signIn.ts).
+    sendVerificationRequest: (async (
+      { identifier, url, expires }: { identifier: string; url: string; expires: Date },
+      ctx: GenericActionCtxWithAuthConfig<DataModel>,
+    ) => {
+      const result: { delivered: boolean; simulated: boolean } = await ctx.runAction(
+        internal.emails.sendMemberVerificationEmail,
+        {
+          email: identifier,
+          verificationUrl: url,
+          expiresAt: expires.toLocaleString('it-IT', {
+            dateStyle: 'short',
+            timeStyle: 'short',
+            timeZone: 'Europe/Rome',
+          }),
+        },
+      )
+      if (!result.delivered && !result.simulated) {
+        throw new Error("Invio dell'email di verifica non riuscito")
+      }
+    }) as unknown as EmailConfig['sendVerificationRequest'],
+  }),
   id: 'member-email-verification',
   authorize: undefined,
-  async sendVerificationRequest(
-    { identifier, url, expires }: { identifier: string; url: string; expires: Date },
-    ctx: GenericActionCtxWithAuthConfig<DataModel>,
-  ) {
-    const result: { delivered: boolean; simulated: boolean } = await ctx.runAction(
-      internal.emails.sendMemberVerificationEmail,
-      {
-        email: identifier,
-        verificationUrl: url,
-        expiresAt: expires.toLocaleString('it-IT', {
-          dateStyle: 'short',
-          timeStyle: 'short',
-          timeZone: 'Europe/Rome',
-        }),
-      },
-    )
-    if (!result.delivered && !result.simulated) {
-      throw new Error("Invio dell'email di verifica non riuscito")
-    }
-  },
 } as unknown as EmailConfig<DataModel>
 
 export async function requestMemberEmailVerification(
