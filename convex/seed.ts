@@ -1,5 +1,5 @@
 import { action, internalMutation, internalQuery } from './_generated/server'
-import { v } from 'convex/values'
+import { ConvexError, v } from 'convex/values'
 import { getAuthUserId, createAccount } from '@convex-dev/auth/server'
 import { internal } from './_generated/api'
 import { generateSlots } from '../lib/slots'
@@ -235,7 +235,7 @@ export const bootstrap = action({
         userId: callerId,
       })
       if (!isAdmin) {
-        throw new Error('Bootstrap già eseguito: accesso riservato agli amministratori')
+        throw new ConvexError('Bootstrap già eseguito: accesso riservato agli amministratori')
       }
     }
 
@@ -243,10 +243,10 @@ export const bootstrap = action({
     let createdAdmin = false
     if (!adminExists) {
       if (args.adminPassword.length < 8) {
-        throw new Error('La password admin deve avere almeno 8 caratteri')
+        throw new ConvexError('La password admin deve avere almeno 8 caratteri')
       }
       if (await ctx.runQuery(internal.seed.emailExists, { email })) {
-        throw new Error('Esiste già un account con questa email')
+        throw new ConvexError('Esiste già un account con questa email')
       }
       await createAccount(ctx, {
         provider: 'password',

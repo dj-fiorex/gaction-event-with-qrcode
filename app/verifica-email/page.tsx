@@ -8,6 +8,7 @@ import { CheckCircle2, Loader2, MailWarning } from 'lucide-react'
 import { api } from '@/convex/_generated/api'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { messageFromError } from '@/lib/errors'
 
 function VerifyEmailContent() {
   const searchParams = useSearchParams()
@@ -33,7 +34,7 @@ function VerifyEmailContent() {
       .catch((error) => {
         if (cancelled) return
         setStatus('error')
-        setMessage(error instanceof Error ? error.message : 'Verifica non riuscita.')
+        setMessage(messageFromError(error, 'Verifica non riuscita.'))
       })
 
     return () => {

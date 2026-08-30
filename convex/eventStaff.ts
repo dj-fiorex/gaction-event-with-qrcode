@@ -1,5 +1,5 @@
 import { mutation, query } from './_generated/server'
-import { v } from 'convex/values'
+import { ConvexError, v } from 'convex/values'
 import { requireAdmin } from './model'
 
 /** Assistenti associati a un Evento (solo admin). */
@@ -26,7 +26,7 @@ export const setForEvent = mutation({
   handler: async (ctx, { eventId, userIds }) => {
     await requireAdmin(ctx)
     const event = await ctx.db.get(eventId)
-    if (!event) throw new Error('Evento non trovato')
+    if (!event) throw new ConvexError('Evento non trovato')
 
     const existing = await ctx.db
       .query('eventStaff')
@@ -44,7 +44,7 @@ export const setForEvent = mutation({
         const user = await ctx.db.get(userId)
         if (!user) continue
         if (user.role === 'member') {
-          throw new Error('Puoi associare all\'evento solo account admin o staff')
+          throw new ConvexError('Puoi associare all\'evento solo account admin o staff')
         }
         await ctx.db.insert('eventStaff', { eventId, userId })
       }

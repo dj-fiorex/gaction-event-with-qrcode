@@ -1,6 +1,6 @@
 import { getAuthUserId } from '@convex-dev/auth/server'
 import type { GenericActionCtxWithAuthConfig } from '@convex-dev/auth/server'
-import { v } from 'convex/values'
+import { ConvexError, v } from 'convex/values'
 import type { DataModel } from './_generated/dataModel'
 import { internal } from './_generated/api'
 import { action, internalMutation } from './_generated/server'
@@ -91,7 +91,7 @@ export const resend = action({
   returns: v.null(),
   handler: async (ctx) => {
     const userId = await getAuthUserId(ctx)
-    if (!userId) throw new Error('Non autenticato')
+    if (!userId) throw new ConvexError('Non autenticato')
 
     const state: {
       email: string | null
@@ -99,8 +99,8 @@ export const resend = action({
       emailVerified: boolean
     } | null = await ctx.runQuery(internal.accounts.getVerificationStateInternal, { userId })
 
-    if (!state || !state.email) throw new Error('Account senza email verificabile')
-    if (state.role !== 'member') throw new Error('La verifica email non è richiesta per questo account')
+    if (!state || !state.email) throw new ConvexError('Account senza email verificabile')
+    if (state.role !== 'member') throw new ConvexError('La verifica email non è richiesta per questo account')
     if (state.emailVerified) return null
 
     await requestMemberEmailVerification(

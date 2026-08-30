@@ -13,6 +13,7 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { parseAllowedOrigins } from '@/lib/embed'
+import { messageFromError } from '@/lib/errors'
 
 interface EmbedCardProps {
   eventId: string
@@ -58,7 +59,7 @@ export function EmbedCard({ eventId, embedEnabled, allowedOrigins }: EmbedCardPr
       setOriginsText(result.allowedOrigins.join('\n'))
       toast.success('Impostazioni di incorporamento salvate')
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Salvataggio non riuscito')
+      toast.error(messageFromError(error, 'Salvataggio non riuscito'))
     } finally {
       setSaving(false)
     }

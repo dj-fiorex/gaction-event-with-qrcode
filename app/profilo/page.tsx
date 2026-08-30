@@ -14,6 +14,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Separator } from '@/components/ui/separator'
+import { messageFromError } from '@/lib/errors'
 
 function FullPageLoader({ label }: { label: string }) {
   return (
@@ -162,7 +163,7 @@ function ProfiloContent() {
       await resendVerification({})
       setResendFeedback('Abbiamo inviato un nuovo link di verifica alla tua email.')
     } catch (err) {
-      setResendFeedback(err instanceof Error ? err.message : 'Invio non riuscito.')
+      setResendFeedback(messageFromError(err, 'Invio non riuscito.'))
     } finally {
       setResendPending(false)
     }
@@ -176,7 +177,7 @@ function ProfiloContent() {
       await updateName({ name: nameInput })
       setEditing(false)
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Aggiornamento non riuscito.')
+      setError(messageFromError(err, 'Aggiornamento non riuscito.'))
     } finally {
       setPending(false)
     }

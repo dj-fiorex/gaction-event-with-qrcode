@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { messageFromError } from '@/lib/errors'
 
 export function PasswordResetCard({
   initialCode,
@@ -40,9 +41,7 @@ export function PasswordResetCard({
         "Se l'indirizzo è associato a un account, riceverai un'email con il link per reimpostare la password.",
       )
     } catch (submitError) {
-      setError(
-        submitError instanceof Error ? submitError.message : 'Invio email di reset non riuscito.',
-      )
+      setError(messageFromError(submitError, 'Invio email di reset non riuscito.'))
     } finally {
       setPending(false)
     }
@@ -63,9 +62,7 @@ export function PasswordResetCard({
       })
       setSuccessMessage('Password aggiornata. Ora puoi accedere con la nuova password.')
     } catch (submitError) {
-      setError(
-        submitError instanceof Error ? submitError.message : 'Reimpostazione password non riuscita.',
-      )
+      setError(messageFromError(submitError, 'Reimpostazione password non riuscita.'))
     } finally {
       setPending(false)
     }

@@ -1,4 +1,4 @@
-import { v } from 'convex/values'
+import { ConvexError, v } from 'convex/values'
 import { mutation, query } from './_generated/server'
 import type { Doc, Id } from './_generated/dataModel'
 import {
@@ -58,23 +58,23 @@ export const register = mutation({
   },
   handler: async (ctx, args) => {
     const event = await ctx.db.get(args.eventId)
-    if (!event) throw new Error('Evento non trovato')
+    if (!event) throw new ConvexError('Evento non trovato')
 
     const caller = await getCurrentUser(ctx)
 
     if (event.requireAccount && args.embed) {
-      throw new Error(REQUIRE_ACCOUNT_EMBED_ERROR)
+      throw new ConvexError(REQUIRE_ACCOUNT_EMBED_ERROR)
     }
 
     if (args.embed && !event.embedEnabled) {
-      throw new Error('L\u2019incorporamento non è abilitato per questo evento')
+      throw new ConvexError('L\u2019incorporamento non è abilitato per questo evento')
     }
 
     if (event.requireAccount) {
-      if (!caller) throw new Error(REQUIRE_ACCOUNT_LOGIN_ERROR)
-      if (caller.role !== 'member') throw new Error(REQUIRE_ACCOUNT_ROLE_ERROR)
+      if (!caller) throw new ConvexError(REQUIRE_ACCOUNT_LOGIN_ERROR)
+      if (caller.role !== 'member') throw new ConvexError(REQUIRE_ACCOUNT_ROLE_ERROR)
       if (caller.emailVerificationTime === undefined || !caller.email) {
-        throw new Error(REQUIRE_ACCOUNT_VERIFICATION_ERROR)
+        throw new ConvexError(REQUIRE_ACCOUNT_VERIFICATION_ERROR)
       }
     }
 
@@ -93,7 +93,7 @@ export const register = mutation({
     const companions = event.allowCompanions ? args.companions : []
 
     if (children.length > event.maxChildrenPerRegistration) {
-      throw new Error(`Puoi aggiungere al massimo ${event.maxChildrenPerRegistration} figli`)
+      throw new ConvexError(`Puoi aggiungere al massimo ${event.maxChildrenPerRegistration} figli`)
     }
 
     // Regola del nucleo familiare (issue #35): con almeno un Figlio effettivamente
@@ -107,7 +107,7 @@ export const register = mutation({
     if (companions.length > companionsCap) {
       // «Ospite» ha sostituito «Accompagnatore» in tutta la UI e nei documenti
       // (CONTEXT.md / issue #36), a prescindere dalla regola del nucleo familiare.
-      throw new Error(`Puoi aggiungere al massimo ${companionsCap} ospiti`)
+      throw new ConvexError(`Puoi aggiungere al massimo ${companionsCap} ospiti`)
     }
 
     // Carica gli slot selezionati e verifica che appartengano all'Evento.
@@ -115,12 +115,12 @@ export const register = mutation({
     const activityIds = new Set<string>()
     for (const sel of args.selections) {
       if (activityIds.has(sel.activityId)) {
-        throw new Error('Puoi selezionare un solo slot per attività')
+        throw new ConvexError('Puoi selezionare un solo slot per attività')
       }
       activityIds.add(sel.activityId)
       const slot = await ctx.db.get(sel.slotId)
       if (!slot || slot.eventId !== event._id || slot.activityId !== sel.activityId) {
-        throw new Error('Selezione attività non valida')
+        throw new ConvexError('Selezione attività non valida')
       }
       selectedSlots.set(sel.slotId, slot)
     }
@@ -132,13 +132,13 @@ export const register = mutation({
 
     // Policy di selezione.
     if (event.activityPolicy === 'all' && activityIds.size !== activities.length) {
-      throw new Error('Devi selezionare uno slot per ogni attività')
+      throw new ConvexError('Devi selezionare uno slot per ogni attività')
     }
     if (event.activityPolicy === 'min' && args.selections.length < event.minActivities) {
-      throw new Error(`Devi selezionare almeno ${event.minActivities} attività`)
+      throw new ConvexError(`Devi selezionare almeno ${event.minActivities} attività`)
     }
     if (event.activityPolicy === 'free' && args.selections.length === 0) {
-      throw new Error('Seleziona almeno un\u2019attività')
+      throw new ConvexError('Seleziona almeno un\u2019attività')
     }
 
     // Sovrapposizioni.
@@ -147,7 +147,7 @@ export const register = mutation({
       for (let i = 0; i < chosen.length; i++) {
         for (let j = i + 1; j < chosen.length; j++) {
           if (intervalsOverlap(chosen[i].start, chosen[i].end, chosen[j].start, chosen[j].end)) {
-            throw new Error('Hai selezionato slot che si sovrappongono nel tempo')
+            throw new ConvexError('Hai selezionato slot che si sovrappongono nel tempo')
           }
         }
       }
@@ -172,7 +172,7 @@ export const register = mutation({
       const available = slot.capacity - taken
       if (personsCount > available) {
         const activity = await ctx.db.get(slot.activityId)
-        throw new Error(
+        throw new ConvexError(
           `Posti insufficienti per "${activity?.title ?? 'attività'}": restano ${available} posti nello slot scelto`,
         )
       }
@@ -202,7 +202,7 @@ export const register = mutation({
       // Il limite è applicato server-side: il form lo duplica, ma la mutation
       // non si fida della validazione del client.
       if (trimmed.length > MAX_ALLERGIES_LENGTH) {
-        throw new Error(
+        throw new ConvexError(
           `La dichiarazione di allergie e intolleranze non può superare i ${MAX_ALLERGIES_LENGTH} caratteri`,
         )
       }
@@ -459,17 +459,17 @@ export const prepareTicketResend = mutation({
   handler: async (ctx, args) => {
     await requireAdmin(ctx)
     const registration = await ctx.db.get(args.registrationId)
-    if (!registration) throw new Error('Prenotazione non trovata')
+    if (!registration) throw new ConvexError('Prenotazione non trovata')
 
     const event = await ctx.db.get(registration.eventId)
-    if (!event) throw new Error('Evento non trovato')
+    if (!event) throw new ConvexError('Evento non trovato')
 
     // Solo un destinatario di sostituzione viene validato: quello memorizzato
     // esiste già ed è la destinazione di default, non un dato in ingresso.
     let contactEmail = registration.contactEmail
     if (args.contactEmail !== undefined) {
       contactEmail = args.contactEmail.trim()
-      if (!EMAIL_PATTERN.test(contactEmail)) throw new Error('Indirizzo email non valido')
+      if (!EMAIL_PATTERN.test(contactEmail)) throw new ConvexError('Indirizzo email non valido')
       if (contactEmail !== registration.contactEmail) {
         await ctx.db.patch(registration._id, { contactEmail })
       }
@@ -528,7 +528,7 @@ export const cancel = mutation({
   handler: async (ctx, { registrationId }) => {
     await requireAdmin(ctx)
     const registration = await ctx.db.get(registrationId)
-    if (!registration) throw new Error('Prenotazione non trovata')
+    if (!registration) throw new ConvexError('Prenotazione non trovata')
 
     const persons = await ctx.db
       .query('persons')

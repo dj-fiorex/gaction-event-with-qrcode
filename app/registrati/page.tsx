@@ -13,6 +13,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { messageFromError } from '@/lib/errors'
 
 /** Reindirizza automaticamente se l'utente è già autenticato. */
 function RegistrationRedirect() {
@@ -63,9 +64,7 @@ function RegistrationForm() {
 
       router.replace(redirect ?? '/profilo')
     } catch (submitError) {
-      setError(
-        submitError instanceof Error ? submitError.message : 'Registrazione non riuscita.',
-      )
+      setError(messageFromError(submitError, 'Registrazione non riuscita.'))
       setPending(false)
     }
   }

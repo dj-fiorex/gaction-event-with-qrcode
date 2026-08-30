@@ -1,5 +1,5 @@
 import { mutation, query } from './_generated/server'
-import { v, type Infer } from 'convex/values'
+import { ConvexError, v, type Infer } from 'convex/values'
 import type { Doc, Id } from './_generated/dataModel'
 import type { MutationCtx, QueryCtx } from './_generated/server'
 import { canOperateEvent, verifyCheckInPassword } from './model'
@@ -84,7 +84,7 @@ function summarize(person: Doc<'persons'>) {
  */
 async function consolidate(ctx: QueryCtx, personId: Doc<'persons'>['_id']): Promise<PersonStatus> {
   const person = await ctx.db.get(personId)
-  if (!person) throw new Error('Persona non trovata')
+  if (!person) throw new ConvexError('Persona non trovata')
   const activityCheckIns = await ctx.db
     .query('activityCheckIns')
     .withIndex('by_person', (q) => q.eq('personId', personId))
@@ -134,7 +134,7 @@ export const checkIn = mutation({
     }
     const authorized = await canOperateEvent(ctx, targetEvent, args.unlockToken ?? null)
     if (!authorized) {
-      throw new Error('Accesso non autorizzato')
+      throw new ConvexError('Accesso non autorizzato')
     }
 
     const person = await ctx.db
@@ -420,7 +420,7 @@ export const lookup = query({
     }
     const authorized = await canOperateEvent(ctx, event, args.unlockToken ?? null)
     if (!authorized) {
-      throw new Error('Accesso non autorizzato')
+      throw new ConvexError('Accesso non autorizzato')
     }
 
     const person = await ctx.db

@@ -9,6 +9,7 @@ import { api } from '@/convex/_generated/api'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
 import { createCroppedImageBlob } from '@/lib/image-crop'
+import { messageFromError } from '@/lib/errors'
 
 const ASPECT = 16 / 9
 const OUTPUT_MIME = 'image/webp'
@@ -102,7 +103,7 @@ export function EventImageField({
       setRawSrc(null)
       setAreaPixels(null)
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Errore durante il caricamento')
+      toast.error(messageFromError(error, 'Errore durante il caricamento'))
     } finally {
       setUploading(false)
     }

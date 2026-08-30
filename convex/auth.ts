@@ -2,7 +2,7 @@ import { Email } from '@convex-dev/auth/providers/Email'
 import { Password } from '@convex-dev/auth/providers/Password'
 import { convexAuth } from '@convex-dev/auth/server'
 import type { EmailConfig, GenericActionCtxWithAuthConfig } from '@convex-dev/auth/server'
-import { v } from 'convex/values'
+import { ConvexError, v } from 'convex/values'
 import type { DataModel } from './_generated/dataModel'
 import { internal } from './_generated/api'
 import { internalMutation } from './_generated/server'
@@ -108,7 +108,7 @@ export const MemberPasswordResetProvider = {
         },
       )
       if (!result.delivered && !result.simulated) {
-        throw new Error("Invio dell'email di reset non riuscito")
+        throw new ConvexError("Invio dell'email di reset non riuscito")
       }
     }) as unknown as EmailConfig['sendVerificationRequest'],
   }),

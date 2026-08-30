@@ -34,6 +34,7 @@ import { intervalsOverlap } from '@/lib/slots'
 import type { EventWithStats, RegisteredPerson, SlotWithAvailability } from '@/lib/types'
 import { useCurrentUser } from '@/lib/use-current-user'
 import { TicketResult } from './ticket-result'
+import { messageFromError } from '@/lib/errors'
 
 const NONE = '__none__'
 
@@ -253,7 +254,7 @@ export function RegistrationForm({
         })
       })().catch(() => undefined)
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Registrazione non riuscita')
+      toast.error(messageFromError(error, 'Registrazione non riuscita'))
     } finally {
       setSubmitting(false)
     }
@@ -293,7 +294,7 @@ export function RegistrationForm({
       })
       setDeclined(true)
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Invio non riuscito')
+      toast.error(messageFromError(error, 'Invio non riuscito'))
     } finally {
       setDecliningSubmitting(false)
     }

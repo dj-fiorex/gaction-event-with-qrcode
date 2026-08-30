@@ -1,5 +1,5 @@
 import { action, mutation, query, internalQuery, internalMutation } from './_generated/server'
-import { v } from 'convex/values'
+import { ConvexError, v } from 'convex/values'
 import { getAuthUserId, createAccount } from '@convex-dev/auth/server'
 import type { GenericActionCtxWithAuthConfig } from '@convex-dev/auth/server'
 import type { DataModel } from './_generated/dataModel'
@@ -170,11 +170,11 @@ export const seedFirstAdmin = action({
   returns: v.object({ userId: v.id('users') }),
   handler: async (ctx, args): Promise<{ userId: import('./_generated/dataModel').Id<'users'> }> => {
     if (await ctx.runQuery(internal.accounts.hasAnyUser, {})) {
-      throw new Error('Esiste già almeno un account: registrazione bootstrap disabilitata')
+      throw new ConvexError('Esiste già almeno un account: registrazione bootstrap disabilitata')
     }
     const email = args.email.trim().toLowerCase()
-    if (!email) throw new Error('Email obbligatoria')
-    if (args.password.length < 8) throw new Error('La password deve avere almeno 8 caratteri')
+    if (!email) throw new ConvexError('Email obbligatoria')
+    if (args.password.length < 8) throw new ConvexError('La password deve avere almeno 8 caratteri')
 
     const result = await createAccount(ctx, {
       provider: 'password',
@@ -207,13 +207,13 @@ export const createStaffAccount = action({
     const isAdmin = await ctx.runQuery(internal.accounts.requireAdminInternal, {
       userId: callerId,
     })
-    if (!isAdmin) throw new Error('Accesso riservato agli amministratori')
+    if (!isAdmin) throw new ConvexError('Accesso riservato agli amministratori')
 
     const email = args.email.trim().toLowerCase()
-    if (!email) throw new Error('Email obbligatoria')
-    if (args.password.length < 8) throw new Error('La password deve avere almeno 8 caratteri')
+    if (!email) throw new ConvexError('Email obbligatoria')
+    if (args.password.length < 8) throw new ConvexError('La password deve avere almeno 8 caratteri')
     if (await ctx.runQuery(internal.accounts.emailExists, { email })) {
-      throw new Error('Esiste già un account con questa email')
+      throw new ConvexError('Esiste già un account con questa email')
     }
 
     const result = await createAccount(ctx, {
@@ -237,7 +237,7 @@ export const setRole = mutation({
   handler: async (ctx, args) => {
     const admin = await requireAdmin(ctx)
     if (admin._id === args.userId && args.role !== 'admin') {
-      throw new Error('Non puoi rimuovere il tuo stesso ruolo admin')
+      throw new ConvexError('Non puoi rimuovere il tuo stesso ruolo admin')
     }
     await ctx.db.patch(args.userId, { role: args.role })
     return null
@@ -250,7 +250,7 @@ export const remove = mutation({
   returns: v.null(),
   handler: async (ctx, args) => {
     const admin = await requireAdmin(ctx)
-    if (admin._id === args.userId) throw new Error('Non puoi eliminare il tuo account')
+    if (admin._id === args.userId) throw new ConvexError('Non puoi eliminare il tuo account')
 
     const assocs = await ctx.db
       .query('eventStaff')
@@ -284,9 +284,9 @@ export const updateName = mutation({
   returns: v.null(),
   handler: async (ctx, args) => {
     const userId = await getAuthUserId(ctx)
-    if (!userId) throw new Error('Non autenticato')
+    if (!userId) throw new ConvexError('Non autenticato')
     const trimmed = args.name.trim()
-    if (trimmed.length < 2) throw new Error('Il nome deve avere almeno 2 caratteri')
+    if (trimmed.length < 2) throw new ConvexError('Il nome deve avere almeno 2 caratteri')
     await ctx.db.patch(userId, { name: trimmed })
     return null
   },
@@ -340,11 +340,11 @@ export const signUpMember = action({
   returns: v.object({ userId: v.id('users') }),
   handler: async (ctx, args): Promise<{ userId: import('./_generated/dataModel').Id<'users'> }> => {
     const email = args.email.trim().toLowerCase()
-    if (!email) throw new Error('Email obbligatoria')
-    if (args.name.trim().length < 2) throw new Error('Inserisci nome e cognome')
-    if (args.password.length < 8) throw new Error('La password deve avere almeno 8 caratteri')
+    if (!email) throw new ConvexError('Email obbligatoria')
+    if (args.name.trim().length < 2) throw new ConvexError('Inserisci nome e cognome')
+    if (args.password.length < 8) throw new ConvexError('La password deve avere almeno 8 caratteri')
     if (await ctx.runQuery(internal.accounts.emailExists, { email })) {
-      throw new Error('Esiste già un account con questa email')
+      throw new ConvexError('Esiste già un account con questa email')
     }
 
     const result = await createAccount(ctx, {
@@ -366,7 +366,7 @@ export const requestPasswordReset = action({
   returns: v.null(),
   handler: async (ctx, args) => {
     const email = args.email.trim().toLowerCase()
-    if (!email) throw new Error('Email obbligatoria')
+    if (!email) throw new ConvexError('Email obbligatoria')
 
     const { canReset }: { canReset: boolean } = await ctx.runQuery(
       internal.accounts.getPasswordResetStateInternal,
@@ -396,7 +396,7 @@ export const completePasswordReset = action({
   returns: v.null(),
   handler: async (ctx, args) => {
     const email = args.email.trim().toLowerCase()
-    if (!email) throw new Error('Email obbligatoria')
+    if (!email) throw new ConvexError('Email obbligatoria')
 
     await ctx.runAction(api.auth.signIn, {
       provider: 'password',

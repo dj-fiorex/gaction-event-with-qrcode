@@ -22,6 +22,7 @@ import { downloadAllTickets } from '@/lib/pdf/download-tickets'
 import { formatDateRange, formatDateTime } from '@/lib/format'
 import { toRegisteredPersons } from '@/lib/qr-client'
 import type { EventWithStats, Registration } from '@/lib/types'
+import { messageFromError } from '@/lib/errors'
 
 interface RegistrationsTableProps {
   registrations: Registration[]
@@ -45,7 +46,7 @@ export function RegistrationsTable({ registrations, events }: RegistrationsTable
       await cancelRegistration({ registrationId: id as Id<'registrations'> })
       toast.success('Prenotazione annullata')
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Annullamento non riuscito')
+      toast.error(messageFromError(error, 'Annullamento non riuscito'))
     } finally {
       setCancelingId(null)
     }

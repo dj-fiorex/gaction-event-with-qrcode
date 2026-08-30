@@ -28,6 +28,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
+import { messageFromError } from '@/lib/errors'
 
 interface Account {
   id: Id<'users'>
@@ -66,7 +67,7 @@ export function AccountManager({ accounts, currentUserId }: AccountManagerProps)
       toast.success(`Account ${values.email} creato`)
       reset()
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Creazione non riuscita')
+      toast.error(messageFromError(error, 'Creazione non riuscita'))
     }
   })
 
@@ -75,7 +76,7 @@ export function AccountManager({ accounts, currentUserId }: AccountManagerProps)
       await setRole({ userId, role })
       toast.success('Ruolo aggiornato')
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Aggiornamento non riuscito')
+      toast.error(messageFromError(error, 'Aggiornamento non riuscito'))
     }
   }
 
@@ -85,7 +86,7 @@ export function AccountManager({ accounts, currentUserId }: AccountManagerProps)
       await removeAccount({ userId })
       toast.success('Account eliminato')
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Eliminazione non riuscita')
+      toast.error(messageFromError(error, 'Eliminazione non riuscita'))
     }
   }
 

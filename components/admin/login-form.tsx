@@ -10,6 +10,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { messageFromError } from '@/lib/errors'
 
 export function LoginForm() {
   const { signIn } = useAuthActions()
@@ -41,9 +42,7 @@ export function LoginForm() {
     } catch (submitError) {
       setError(
         needsBootstrap
-          ? submitError instanceof Error
-            ? submitError.message
-            : 'Creazione account non riuscita.'
+          ? messageFromError(submitError, 'Creazione account non riuscita.')
           : 'Credenziali non valide. Riprova.',
       )
       setPending(false)

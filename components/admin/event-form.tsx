@@ -24,6 +24,7 @@ import type { Id } from '@/convex/_generated/dataModel'
 import { eventSchema, type EventInput } from '@/lib/schemas'
 import { typedZodResolver } from '@/lib/zod-resolver'
 import { EventImageField } from '@/components/admin/event-image-field'
+import { messageFromError } from '@/lib/errors'
 
 /**
  * Editor del Testo dell'email di conferma (issue #42). Caricato solo nel
@@ -149,7 +150,7 @@ export function EventForm({
     } catch (error) {
       const fallback =
         mode === 'edit' ? 'Errore durante il salvataggio' : 'Errore durante la creazione'
-      toast.error(error instanceof Error ? error.message : fallback)
+      toast.error(messageFromError(error, fallback))
     } finally {
       setSubmitting(false)
     }

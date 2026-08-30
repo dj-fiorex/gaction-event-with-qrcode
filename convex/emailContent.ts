@@ -1,4 +1,4 @@
-import { v } from 'convex/values'
+import { ConvexError, v } from 'convex/values'
 import { internalQuery } from './_generated/server'
 import { buildTicketsEmailMarkdown, ticketsEmailSubject } from '../lib/email-content'
 
@@ -30,10 +30,10 @@ export const ticketEmailDocument = internalQuery({
   }),
   handler: async (ctx, args) => {
     const registration = await ctx.db.get(args.registrationId)
-    if (!registration) throw new Error('Prenotazione non trovata')
+    if (!registration) throw new ConvexError('Prenotazione non trovata')
 
     const event = await ctx.db.get(registration.eventId)
-    if (!event) throw new Error('Evento non trovato')
+    if (!event) throw new ConvexError('Evento non trovato')
 
     const persons = await ctx.db
       .query('persons')

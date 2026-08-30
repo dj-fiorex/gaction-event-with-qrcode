@@ -13,6 +13,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import type { CheckInAccess } from '@/lib/types'
+import { messageFromError } from '@/lib/errors'
 
 interface CheckInAccessCardProps {
   eventId: string
@@ -65,7 +66,7 @@ export function CheckInAccessCard({
       await rotateScanToken({ eventId: eventId as Id<'events'> })
       toast.success('Nuovo link generato')
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Rigenerazione non riuscita')
+      toast.error(messageFromError(error, 'Rigenerazione non riuscita'))
     } finally {
       setRotating(false)
     }
@@ -78,7 +79,7 @@ export function CheckInAccessCard({
       toast.success(hasCheckInPassword ? 'Password aggiornata' : 'Password impostata')
       setPassword('')
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Salvataggio non riuscito')
+      toast.error(messageFromError(error, 'Salvataggio non riuscito'))
     } finally {
       setSavingPassword(false)
     }

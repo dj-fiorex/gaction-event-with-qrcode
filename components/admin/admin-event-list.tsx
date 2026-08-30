@@ -11,6 +11,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { formatDateRange } from '@/lib/format'
 import type { EventWithStats } from '@/lib/types'
+import { messageFromError } from '@/lib/errors'
 
 interface AdminEventListProps {
   events: EventWithStats[]
@@ -35,7 +36,7 @@ export function AdminEventList({ events }: AdminEventListProps) {
       await removeEvent({ eventId: id as Id<'events'> })
       toast.success('Evento eliminato')
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Eliminazione non riuscita')
+      toast.error(messageFromError(error, 'Eliminazione non riuscita'))
     } finally {
       setDeletingId(null)
     }

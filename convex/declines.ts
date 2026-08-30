@@ -1,4 +1,4 @@
-import { v } from 'convex/values'
+import { ConvexError, v } from 'convex/values'
 import { mutation, query } from './_generated/server'
 import { getCurrentUser, normalizeEmail, requireAdmin, requireEmailUnusedForEvent } from './model'
 
@@ -22,8 +22,8 @@ export const decline = mutation({
   },
   handler: async (ctx, args) => {
     const event = await ctx.db.get(args.eventId)
-    if (!event) throw new Error('Evento non trovato')
-    if (!event.confirmParticipation) throw new Error(DECLINE_NOT_ENABLED_ERROR)
+    if (!event) throw new ConvexError('Evento non trovato')
+    if (!event.confirmParticipation) throw new ConvexError(DECLINE_NOT_ENABLED_ERROR)
 
     // Come in register: per un Membro loggato vale l'email dell'account, non
     // quella digitata — altrimenti la stessa persona può rispondere due volte
@@ -56,7 +56,7 @@ export const remove = mutation({
   handler: async (ctx, { declineId }) => {
     await requireAdmin(ctx)
     const decline = await ctx.db.get(declineId)
-    if (!decline) throw new Error('Rinuncia non trovata')
+    if (!decline) throw new ConvexError('Rinuncia non trovata')
     await ctx.db.delete(declineId)
     return { success: true }
   },

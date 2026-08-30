@@ -22,6 +22,7 @@ import { Label } from '@/components/ui/label'
 import { formatDateRange } from '@/lib/format'
 import { buildTicketsEmailPdf } from '@/lib/pdf/email-attachment'
 import { toRegisteredPersons } from '@/lib/qr-client'
+import { messageFromError } from '@/lib/errors'
 
 interface ResendTicketsDialogProps {
   registrationId: string
@@ -86,7 +87,7 @@ export function ResendTicketsDialog({ registrationId, contactEmail }: ResendTick
       )
       setOpen(false)
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Invio non riuscito')
+      toast.error(messageFromError(error, 'Invio non riuscito'))
     } finally {
       setSending(false)
     }

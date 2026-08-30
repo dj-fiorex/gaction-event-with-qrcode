@@ -1,4 +1,4 @@
-import { v } from 'convex/values'
+import { ConvexError, v } from 'convex/values'
 import { internalQuery, mutation, query } from './_generated/server'
 import type { MutationCtx } from './_generated/server'
 import type { Id } from './_generated/dataModel'
@@ -234,14 +234,14 @@ export const create = mutation({
     await requireAdmin(ctx)
 
     const error = validateEventInput(args)
-    if (error) throw new Error(error)
+    if (error) throw new ConvexError(error)
 
     let checkInPasswordHash: string | null = null
     let scanUnlockToken: string | null = null
     if (args.checkInAccess === 'password') {
       const pwd = (args.checkInPassword ?? '').trim()
       if (pwd.length < 4) {
-        throw new Error('Imposta una password (min 4 caratteri) per l\u2019accesso protetto al check-in')
+        throw new ConvexError('Imposta una password (min 4 caratteri) per l\u2019accesso protetto al check-in')
       }
       checkInPasswordHash = await hashCheckInPassword(pwd)
       scanUnlockToken = randomToken()
@@ -291,10 +291,10 @@ export const update = mutation({
   handler: async (ctx, { eventId, ...args }) => {
     await requireAdmin(ctx)
     const existing = await ctx.db.get(eventId)
-    if (!existing) throw new Error('Evento non trovato')
+    if (!existing) throw new ConvexError('Evento non trovato')
 
     const error = validateEventInput(args)
-    if (error) throw new Error(error)
+    if (error) throw new ConvexError(error)
 
     let checkInPasswordHash = existing.checkInPasswordHash
     let scanUnlockToken = existing.scanUnlockToken
@@ -308,7 +308,7 @@ export const update = mutation({
         scanUnlockToken = randomToken()
       }
       if (!checkInPasswordHash) {
-        throw new Error('Imposta una password per l\u2019accesso protetto al check-in')
+        throw new ConvexError('Imposta una password per l\u2019accesso protetto al check-in')
       }
     }
 
@@ -369,7 +369,7 @@ export const remove = mutation({
   handler: async (ctx, { eventId }) => {
     await requireAdmin(ctx)
     const event = await ctx.db.get(eventId)
-    if (!event) throw new Error('Evento non trovato')
+    if (!event) throw new ConvexError('Evento non trovato')
 
     // Cascade delete.
     const collections = ['activities', 'slots', 'registrations', 'persons', 'slotSelections'] as const
@@ -415,7 +415,7 @@ export const rotateScanToken = mutation({
   handler: async (ctx, { eventId }) => {
     await requireAdmin(ctx)
     const event = await ctx.db.get(eventId)
-    if (!event) throw new Error('Evento non trovato')
+    if (!event) throw new ConvexError('Evento non trovato')
     const scanToken = randomToken()
     await ctx.db.patch(eventId, { scanToken })
     return { scanToken }
@@ -434,17 +434,17 @@ export const setEmbedSettings = mutation({
   },
   handler: async (ctx, { eventId, embedEnabled, allowedOrigins }) => {
     const event = await ctx.db.get(eventId)
-    if (!event) throw new Error('Evento non trovato')
+    if (!event) throw new ConvexError('Evento non trovato')
     await requireCanOperate(ctx, event)
 
     const { valid, invalid } = parseAllowedOrigins(allowedOrigins)
     if (invalid.length > 0) {
-      throw new Error(
+      throw new ConvexError(
         `Origini non valide: ${invalid.join(', ')}. Usa il formato https://sito.com o https://*.sito.com`,
       )
     }
     if (embedEnabled && valid.length === 0) {
-      throw new Error('Aggiungi almeno un dominio autorizzato per abilitare l\u2019incorporamento')
+      throw new ConvexError('Aggiungi almeno un dominio autorizzato per abilitare l\u2019incorporamento')
     }
 
     await ctx.db.patch(eventId, { embedEnabled, allowedOrigins: valid })
@@ -475,9 +475,9 @@ export const setCheckInPassword = mutation({
   handler: async (ctx, { eventId, password }) => {
     await requireAdmin(ctx)
     const event = await ctx.db.get(eventId)
-    if (!event) throw new Error('Evento non trovato')
+    if (!event) throw new ConvexError('Evento non trovato')
     const trimmed = password.trim()
-    if (trimmed.length < 4) throw new Error('La password deve avere almeno 4 caratteri')
+    if (trimmed.length < 4) throw new ConvexError('La password deve avere almeno 4 caratteri')
     await ctx.db.patch(eventId, {
       checkInPasswordHash: await hashCheckInPassword(trimmed),
       scanUnlockToken: randomToken(),

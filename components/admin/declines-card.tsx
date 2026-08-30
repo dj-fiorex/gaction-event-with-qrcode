@@ -18,6 +18,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { formatDateTime } from '@/lib/format'
 import type { Decline } from '@/lib/types'
+import { messageFromError } from '@/lib/errors'
 
 interface DeclinesCardProps {
   declines: Decline[]
@@ -41,7 +42,7 @@ export function DeclinesCard({ declines }: DeclinesCardProps) {
       await removeDecline({ declineId: id as Id<'declines'> })
       toast.success('Rinuncia rimossa')
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Rimozione non riuscita')
+      toast.error(messageFromError(error, 'Rimozione non riuscita'))
     } finally {
       setRemovingId(null)
     }

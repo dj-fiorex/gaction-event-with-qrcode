@@ -1,3 +1,4 @@
+import { ConvexError } from 'convex/values'
 import { getAuthUserId } from '@convex-dev/auth/server'
 import type { Doc, Id } from './_generated/dataModel'
 import type { MutationCtx, QueryCtx } from './_generated/server'
@@ -74,13 +75,13 @@ export async function requireEmailUnusedForEvent(
   const alreadyRegistered = registrations.some(
     (r) => normalizeEmail(r.contactEmail) === normalizedEmail,
   )
-  if (alreadyRegistered) throw new Error(EMAIL_ALREADY_REGISTERED_ERROR)
+  if (alreadyRegistered) throw new ConvexError(EMAIL_ALREADY_REGISTERED_ERROR)
 
   const decline = await ctx.db
     .query('declines')
     .withIndex('by_event_email', (q) => q.eq('eventId', eventId).eq('email', normalizedEmail))
     .unique()
-  if (decline) throw new Error(EMAIL_ALREADY_DECLINED_ERROR)
+  if (decline) throw new ConvexError(EMAIL_ALREADY_DECLINED_ERROR)
 }
 
 /* ------------------------------------------------------------------ */
@@ -99,7 +100,7 @@ export async function requireUser(
   ctx: QueryCtx | MutationCtx,
 ): Promise<Doc<'users'>> {
   const user = await getCurrentUser(ctx)
-  if (!user) throw new Error('Non autenticato')
+  if (!user) throw new ConvexError('Non autenticato')
   return user
 }
 
@@ -107,7 +108,7 @@ export async function requireAdmin(
   ctx: QueryCtx | MutationCtx,
 ): Promise<Doc<'users'>> {
   const user = await requireUser(ctx)
-  if (user.role !== 'admin') throw new Error('Accesso riservato agli amministratori')
+  if (user.role !== 'admin') throw new ConvexError('Accesso riservato agli amministratori')
   return user
 }
 
@@ -150,7 +151,7 @@ export async function requireCanOperate(
 ): Promise<Doc<'users'>> {
   const user = await requireUser(ctx)
   if (!(await canOperateEvent(ctx, event))) {
-    throw new Error('Non sei autorizzato a gestire questo evento')
+    throw new ConvexError('Non sei autorizzato a gestire questo evento')
   }
   return user
 }

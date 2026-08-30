@@ -1,3 +1,4 @@
+import { ConvexError } from 'convex/values'
 import { Email } from '@convex-dev/auth/providers/Email'
 import {
   retrieveAccount,
@@ -36,7 +37,7 @@ export const MemberVerificationProvider = {
         },
       )
       if (!result.delivered && !result.simulated) {
-        throw new Error("Invio dell'email di verifica non riuscito")
+        throw new ConvexError("Invio dell'email di verifica non riuscito")
       }
     }) as unknown as EmailConfig['sendVerificationRequest'],
   }),
@@ -91,7 +92,7 @@ export async function requestMemberEmailVerification(
     },
   )
   if (!result.delivered && !result.simulated) {
-    throw new Error("Invio dell'email di verifica non riuscito")
+    throw new ConvexError("Invio dell'email di verifica non riuscito")
   }
 }
 
@@ -103,6 +104,6 @@ export async function completeMemberEmailVerification(
     code: args.code,
   })
   if (!completed) {
-    throw new Error('Link di verifica non valido o scaduto')
+    throw new ConvexError('Link di verifica non valido o scaduto')
   }
 }
