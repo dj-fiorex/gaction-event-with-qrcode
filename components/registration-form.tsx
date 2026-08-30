@@ -7,7 +7,6 @@ import { useFieldArray, useForm } from 'react-hook-form'
 import { Plus, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import {
@@ -52,6 +51,19 @@ const POLICY_HINT: Record<EventWithStats['activityPolicy'], (min: number) => str
   free: () => 'Seleziona le attività a cui vuoi partecipare.',
 }
 
+/**
+ * Form pubblico di registrazione a un Evento.
+ *
+ * Presentazione senza contenitori: niente Card attorno al form e niente
+ * riquadri attorno ai gruppi di campi. I gruppi sono separati da ritmo
+ * verticale (largo tra le sezioni, stretto tra i campi di una sezione) e da
+ * intestazioni vere — h2 per lo stato, h3 per le sezioni. Vale per tutti gli
+ * stati che questo componente rende nello stesso slot (form, rinuncia,
+ * avvisi) e per l'esito in TicketResult.
+ *
+ * Aggiungendo una sezione non reintrodurre bordi o fondi: la separazione la
+ * fanno spazio e tipografia.
+ */
 export function RegistrationForm({
   event,
   embed = false,
@@ -355,58 +367,54 @@ export function RegistrationForm({
 
   if (event.confirmParticipation && participationAnswer === 'no') {
     return (
-      <Card>
-        <CardHeader>
-          <CardTitle>Non parteciperò</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <form onSubmit={onDeclineSubmit} className="flex flex-col gap-5" noValidate>
-            <div className="grid gap-2">
-              <Label htmlFor="declineName">Il tuo nome e cognome</Label>
-              <Input
-                id="declineName"
-                {...registerDecline('name')}
-                aria-invalid={!!declineErrors.name}
-              />
-              {declineErrors.name && (
-                <p className="text-sm text-destructive">{declineErrors.name.message}</p>
-              )}
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="declineEmail">Email</Label>
-              <Input
-                id="declineEmail"
-                type="email"
-                {...registerDecline('email')}
-                readOnly={contactEmailLocked}
-                aria-invalid={!!declineErrors.email}
-                className={contactEmailLocked ? 'bg-muted' : undefined}
-              />
-              {declineErrors.email && (
-                <p className="text-sm text-destructive">{declineErrors.email.message}</p>
-              )}
-              {contactEmailLocked && (
-                <p className="text-sm text-muted-foreground">
-                  La risposta vale per l'email del tuo account Membro.
-                </p>
-              )}
-            </div>
-            <div className="flex gap-2">
-              <Button
-                type="button"
-                variant="outline"
-                className="flex-1"
-                onClick={() => setParticipationAnswer(null)}
-              >
-                Indietro
-              </Button>
-              <Button type="submit" className="flex-1" disabled={decliningSubmitting}>
-                {decliningSubmitting ? 'Invio…' : 'Conferma non partecipazione'}
-              </Button>
-            </div>
-          </form>
-        </CardContent>
-      </Card>
+      <section className="flex flex-col gap-6">
+        <h2 className="text-xl font-semibold tracking-tight">Non parteciperò</h2>
+        <form onSubmit={onDeclineSubmit} className="flex flex-col gap-4" noValidate>
+          <div className="grid gap-2">
+            <Label htmlFor="declineName">Il tuo nome e cognome</Label>
+            <Input
+              id="declineName"
+              {...registerDecline('name')}
+              aria-invalid={!!declineErrors.name}
+            />
+            {declineErrors.name && (
+              <p className="text-sm text-destructive">{declineErrors.name.message}</p>
+            )}
+          </div>
+          <div className="grid gap-2">
+            <Label htmlFor="declineEmail">Email</Label>
+            <Input
+              id="declineEmail"
+              type="email"
+              {...registerDecline('email')}
+              readOnly={contactEmailLocked}
+              aria-invalid={!!declineErrors.email}
+              className={contactEmailLocked ? 'bg-muted' : undefined}
+            />
+            {declineErrors.email && (
+              <p className="text-sm text-destructive">{declineErrors.email.message}</p>
+            )}
+            {contactEmailLocked && (
+              <p className="text-sm text-muted-foreground">
+                La risposta vale per l'email del tuo account Membro.
+              </p>
+            )}
+          </div>
+          <div className="mt-2 flex gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              className="flex-1"
+              onClick={() => setParticipationAnswer(null)}
+            >
+              Indietro
+            </Button>
+            <Button type="submit" className="flex-1" disabled={decliningSubmitting}>
+              {decliningSubmitting ? 'Invio…' : 'Conferma non partecipazione'}
+            </Button>
+          </div>
+        </form>
+      </section>
     )
   }
 
@@ -482,14 +490,14 @@ export function RegistrationForm({
   }
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Registrati all&apos;evento</CardTitle>
-      </CardHeader>
-      <CardContent>
-        <form onSubmit={onSubmit} className="flex flex-col gap-5" noValidate>
-          <input type="hidden" {...register('eventId')} />
+    <section className="flex flex-col gap-6">
+      <h2 className="text-xl font-semibold tracking-tight">Registrati all&apos;evento</h2>
+      {/* gap-8 tra le sezioni, gap-4 dentro una sezione: senza riquadri è
+          questo scarto a dire dove finisce un gruppo e comincia il prossimo. */}
+      <form onSubmit={onSubmit} className="flex flex-col gap-8" noValidate>
+        <input type="hidden" {...register('eventId')} />
 
+        <div className="flex flex-col gap-4">
           <div className="grid gap-2">
             <Label htmlFor="userName">Il tuo nome e cognome</Label>
             <Input id="userName" {...register('userName')} aria-invalid={!!errors.userName} />
@@ -515,123 +523,118 @@ export function RegistrationForm({
               </p>
             )}
           </div>
+        </div>
 
-          {collectAllergies && (
-            <div className="flex flex-col gap-3 rounded-lg border border-border p-4">
-              <div>
-                <p className="font-medium">Allergie e intolleranze</p>
-                <p className="text-sm text-muted-foreground">{ALLERGIES_PRIVACY_NOTICE}</p>
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor="userAllergies">Le tue allergie o intolleranze (facoltativo)</Label>
-                <Input
-                  id="userAllergies"
-                  placeholder="Es. lattosio, frutta a guscio"
-                  {...register('userAllergies')}
-                  aria-invalid={!!errors.userAllergies}
-                />
-                {errors.userAllergies && (
-                  <p className="text-sm text-destructive">{errors.userAllergies.message}</p>
-                )}
-              </div>
-            </div>
-          )}
-
-          {familyRuleActive && (
-            <div className="flex flex-col gap-3 rounded-lg border border-border p-4">
-              <div>
-                <p className="font-medium">Hai figli minorenni a carico?</p>
-                <p className="text-sm text-muted-foreground">
-                  In base alla risposta ti mostriamo solo le sezioni valide per la tua
-                  prenotazione.
-                </p>
-              </div>
-              <div className="flex flex-col gap-2 sm:flex-row">
-                <Button
-                  type="button"
-                  variant={familyBranch === 'children' ? 'default' : 'outline'}
-                  className="flex-1"
-                  onClick={() => selectFamilyBranch('children')}
-                >
-                  Sì, ho figli a carico
-                </Button>
-                <Button
-                  type="button"
-                  variant={familyBranch === 'no-children' ? 'default' : 'outline'}
-                  className="flex-1"
-                  onClick={() => selectFamilyBranch('no-children')}
-                >
-                  No, non ho figli a carico
-                </Button>
-              </div>
-            </div>
-          )}
-
-          {showChildren && (
-            <PersonRepeater
-              title="Figli"
-              hint={`Fino a ${event.maxChildrenPerRegistration} figli. Riceveranno un proprio QR.`}
-              fields={childrenArray.fields}
-              canAdd={childrenArray.fields.length < event.maxChildrenPerRegistration}
-              onAdd={() => childrenArray.append({ name: '', age: 0, allergies: '' })}
-              onRemove={childrenArray.remove}
-              collectNames={collectNames}
-              labelSingular="Figlio"
-              renderExtra={(index) => (
-                <div className="grid w-24 gap-2">
-                  <Label htmlFor={`child-age-${index}`} className="sr-only">
-                    Età
-                  </Label>
-                  <Input
-                    id={`child-age-${index}`}
-                    type="number"
-                    min={0}
-                    max={17}
-                    placeholder="Età"
-                    {...register(`children.${index}.age` as const, { valueAsNumber: true })}
-                  />
-                </div>
+        {collectAllergies && (
+          <section>
+            <h3 className="text-base font-semibold">Allergie e intolleranze</h3>
+            <p className="mt-1 text-sm text-muted-foreground">{ALLERGIES_PRIVACY_NOTICE}</p>
+            <div className="mt-4 grid gap-2">
+              <Label htmlFor="userAllergies">Le tue allergie o intolleranze (facoltativo)</Label>
+              <Input
+                id="userAllergies"
+                placeholder="Es. lattosio, frutta a guscio"
+                {...register('userAllergies')}
+                aria-invalid={!!errors.userAllergies}
+              />
+              {errors.userAllergies && (
+                <p className="text-sm text-destructive">{errors.userAllergies.message}</p>
               )}
-              register={(index) => register(`children.${index}.name` as const)}
-              registerAllergies={
-                collectAllergies
-                  ? (index) => register(`children.${index}.allergies` as const)
-                  : undefined
-              }
-              namePlaceholder="Nome del figlio"
-            />
-          )}
-
-          {showCompanions && (
-            <PersonRepeater
-              title={companionsLabel}
-              hint={`Fino a ${companionsMax} ${companionsLabel.toLowerCase()}. Riceveranno un proprio QR.`}
-              fields={companionsArray.fields}
-              canAdd={companionsArray.fields.length < companionsMax}
-              onAdd={() => companionsArray.append({ name: '', allergies: '' })}
-              onRemove={companionsArray.remove}
-              collectNames={collectNames}
-              labelSingular="Ospite"
-              register={(index) => register(`companions.${index}.name` as const)}
-              registerAllergies={
-                collectAllergies
-                  ? (index) => register(`companions.${index}.allergies` as const)
-                  : undefined
-              }
-              namePlaceholder={companionsNamePlaceholder}
-            />
-          )}
-
-          {/* Selezione attività / slot */}
-          <div className="flex flex-col gap-3 rounded-lg border border-border p-4">
-            <div>
-              <p className="font-medium">Attività</p>
-              <p className="text-sm text-muted-foreground">
-                {POLICY_HINT[event.activityPolicy](event.minActivities)} Lo slot scelto vale per tutte
-                le {personsNeeded} persone della prenotazione.
-              </p>
             </div>
+          </section>
+        )}
 
+        {familyRuleActive && (
+          <section>
+            <h3 className="text-base font-semibold">Hai figli minorenni a carico?</h3>
+            <p className="mt-1 text-sm text-muted-foreground">
+              In base alla risposta ti mostriamo solo le sezioni valide per la tua prenotazione.
+            </p>
+            <div className="mt-4 flex flex-col gap-2 sm:flex-row">
+              <Button
+                type="button"
+                variant={familyBranch === 'children' ? 'default' : 'outline'}
+                className="flex-1"
+                onClick={() => selectFamilyBranch('children')}
+              >
+                Sì, ho figli a carico
+              </Button>
+              <Button
+                type="button"
+                variant={familyBranch === 'no-children' ? 'default' : 'outline'}
+                className="flex-1"
+                onClick={() => selectFamilyBranch('no-children')}
+              >
+                No, non ho figli a carico
+              </Button>
+            </div>
+          </section>
+        )}
+
+        {showChildren && (
+          <PersonRepeater
+            title="Figli"
+            hint={`Fino a ${event.maxChildrenPerRegistration} figli. Riceveranno un proprio QR.`}
+            fields={childrenArray.fields}
+            canAdd={childrenArray.fields.length < event.maxChildrenPerRegistration}
+            onAdd={() => childrenArray.append({ name: '', age: 0, allergies: '' })}
+            onRemove={childrenArray.remove}
+            collectNames={collectNames}
+            labelSingular="Figlio"
+            renderExtra={(index) => (
+              <div className="grid w-24 gap-2">
+                <Label htmlFor={`child-age-${index}`} className="sr-only">
+                  Età
+                </Label>
+                <Input
+                  id={`child-age-${index}`}
+                  type="number"
+                  min={0}
+                  max={17}
+                  placeholder="Età"
+                  {...register(`children.${index}.age` as const, { valueAsNumber: true })}
+                />
+              </div>
+            )}
+            register={(index) => register(`children.${index}.name` as const)}
+            registerAllergies={
+              collectAllergies
+                ? (index) => register(`children.${index}.allergies` as const)
+                : undefined
+            }
+            namePlaceholder="Nome del figlio"
+          />
+        )}
+
+        {showCompanions && (
+          <PersonRepeater
+            title={companionsLabel}
+            hint={`Fino a ${companionsMax} ${companionsLabel.toLowerCase()}. Riceveranno un proprio QR.`}
+            fields={companionsArray.fields}
+            canAdd={companionsArray.fields.length < companionsMax}
+            onAdd={() => companionsArray.append({ name: '', allergies: '' })}
+            onRemove={companionsArray.remove}
+            collectNames={collectNames}
+            labelSingular="Ospite"
+            register={(index) => register(`companions.${index}.name` as const)}
+            registerAllergies={
+              collectAllergies
+                ? (index) => register(`companions.${index}.allergies` as const)
+                : undefined
+            }
+            namePlaceholder={companionsNamePlaceholder}
+          />
+        )}
+
+        {/* Selezione attività / slot */}
+        <section>
+          <h3 className="text-base font-semibold">Attività</h3>
+          <p className="mt-1 text-sm text-muted-foreground">
+            {POLICY_HINT[event.activityPolicy](event.minActivities)} Lo slot scelto vale per tutte
+            le {personsNeeded} persone della prenotazione.
+          </p>
+
+          <div className="mt-4 flex flex-col gap-4">
             {event.activities.map((activity) => {
               const selected = slotByActivity[activity.id] ?? ''
               const items = [
@@ -675,13 +678,13 @@ export function RegistrationForm({
               )
             })}
           </div>
+        </section>
 
-          <Button type="submit" disabled={submitting || familyBranchMissing} className="w-full">
-            {submitting ? 'Registrazione in corso…' : `Conferma registrazione (${personsNeeded} persone)`}
-          </Button>
-        </form>
-      </CardContent>
-    </Card>
+        <Button type="submit" disabled={submitting || familyBranchMissing} className="w-full">
+          {submitting ? 'Registrazione in corso…' : `Conferma registrazione (${personsNeeded} persone)`}
+        </Button>
+      </form>
+    </section>
   )
 }
 
@@ -695,15 +698,13 @@ function RegistrationNotice({
   children?: React.ReactNode
 }) {
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>{title}</CardTitle>
-      </CardHeader>
-      <CardContent className="flex flex-col gap-4">
-        <p className="text-sm text-muted-foreground">{description}</p>
-        {children}
-      </CardContent>
-    </Card>
+    <section className="flex flex-col gap-6">
+      <div>
+        <h2 className="text-xl font-semibold tracking-tight">{title}</h2>
+        <p className="mt-1 text-sm text-muted-foreground text-pretty">{description}</p>
+      </div>
+      {children}
+    </section>
   )
 }
 
@@ -745,16 +746,16 @@ function PersonRepeater({
   renderExtra,
 }: PersonRepeaterProps) {
   return (
-    <div className="flex flex-col gap-3 rounded-lg border border-border p-4">
-      <div className="flex items-center justify-between">
+    <section>
+      <div className="flex items-start justify-between gap-3">
         <div>
-          <p className="font-medium">{title}</p>
-          <p className="text-sm text-muted-foreground">{hint}</p>
+          <h3 className="text-base font-semibold">{title}</h3>
+          <p className="mt-1 text-sm text-muted-foreground">{hint}</p>
           {/* Allergie e intolleranze (issue #37): l'informativa completa sui dati
               sanitari è nel blocco dell'Iscritto; qui basta il richiamo, perché i
               campi di questo blocco sono lontani dal testo esteso. */}
           {registerAllergies && (
-            <p className="text-sm text-muted-foreground">
+            <p className="mt-1 text-sm text-muted-foreground">
               Puoi indicare allergie o intolleranze per ciascuno: campo facoltativo, sono dati
               sanitari trattati come descritto sopra.
             </p>
@@ -766,48 +767,59 @@ function PersonRepeater({
         </Button>
       </div>
 
-      {fields.map((field, index) => (
-        <div key={field.id} className="flex flex-col gap-2">
-          <div className="flex items-start gap-3">
-            {collectNames ? (
-              <div className="grid flex-1 gap-2">
-                <Label htmlFor={`${title}-name-${index}`} className="sr-only">
-                  {namePlaceholder}
-                </Label>
-                <Input id={`${title}-name-${index}`} placeholder={namePlaceholder} {...register(index)} />
-              </div>
-            ) : (
-              <p className="flex-1 self-center text-sm font-medium">
+      {/* Senza riquadri, a separare una Persona dalla successiva sono
+          l'Etichetta posizionale che le fa da intestazione e il doppio dello
+          spazio rispetto a quello tra i campi della stessa Persona. */}
+      <div className="mt-4 flex flex-col gap-6">
+        {fields.map((field, index) => (
+          <div key={field.id} className="flex flex-col gap-2">
+            <div className="flex items-center justify-between gap-3">
+              <p className="text-sm font-medium">
                 {labelSingular} {index + 1}
               </p>
-            )}
-            {renderExtra?.(index)}
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              className="mt-0.5"
-              onClick={() => onRemove(index)}
-              aria-label="Rimuovi"
-            >
-              <Trash2 className="h-4 w-4" aria-hidden="true" />
-            </Button>
-          </div>
-          {/* Allergie e intolleranze (issue #37): facoltative, vuoto = nessuna dichiarazione. */}
-          {registerAllergies && (
-            <div className="grid gap-2">
-              <Label htmlFor={`${title}-allergies-${index}`} className="sr-only">
-                Allergie o intolleranze di {labelSingular} {index + 1}
-              </Label>
-              <Input
-                id={`${title}-allergies-${index}`}
-                placeholder="Allergie o intolleranze (facoltativo)"
-                {...registerAllergies(index)}
-              />
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                onClick={() => onRemove(index)}
+                aria-label={`Rimuovi ${labelSingular} ${index + 1}`}
+              >
+                <Trash2 className="h-4 w-4" aria-hidden="true" />
+              </Button>
             </div>
-          )}
-        </div>
-      ))}
-    </div>
+            {(collectNames || renderExtra) && (
+              <div className="flex items-start gap-3">
+                {collectNames && (
+                  <div className="grid flex-1 gap-2">
+                    <Label htmlFor={`${title}-name-${index}`} className="sr-only">
+                      {namePlaceholder}
+                    </Label>
+                    <Input
+                      id={`${title}-name-${index}`}
+                      placeholder={namePlaceholder}
+                      {...register(index)}
+                    />
+                  </div>
+                )}
+                {renderExtra?.(index)}
+              </div>
+            )}
+            {/* Allergie e intolleranze (issue #37): facoltative, vuoto = nessuna dichiarazione. */}
+            {registerAllergies && (
+              <div className="grid gap-2">
+                <Label htmlFor={`${title}-allergies-${index}`} className="sr-only">
+                  Allergie o intolleranze di {labelSingular} {index + 1}
+                </Label>
+                <Input
+                  id={`${title}-allergies-${index}`}
+                  placeholder="Allergie o intolleranze (facoltativo)"
+                  {...registerAllergies(index)}
+                />
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+    </section>
   )
 }

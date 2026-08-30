@@ -48,7 +48,7 @@ Dichiarazione libera e facoltativa resa per **ogni Persona** della Prenotazione 
 Impostazione a livello di Evento decisa dall'admin. Se attiva (default), il form chiede il nome di ogni Figlio e Ospite. Se disattiva, Figli e Ospiti sono identificati solo dall'[[Etichetta posizionale]] (più l'età per i Figli), per minimizzare i dati personali raccolti.
 
 ### Etichetta posizionale
-Identificativo progressivo per categoria — «Figlio 1», «Figlio 2», «Ospite 1» — assegnato alle Persone di una Prenotazione quando l'Evento non prevede la [[Raccolta nomi]]. Compare ovunque comparirebbe il nome: email di conferma, biglietti, scanner, pannello admin, export.
+Identificativo progressivo per categoria — «Figlio 1», «Figlio 2», «Ospite 1» — che ogni Persona di una Prenotazione ha sempre, per la posizione che occupa nella lista della sua categoria. Nel form intesta il blocco di campi di quella Persona, che i nomi si raccolgano o no. Quando l'Evento non prevede la [[Raccolta nomi]] è **anche** l'identità con cui la Persona compare ovunque comparirebbe il nome: email di conferma, biglietti, scanner, pannello admin, export.
 
 ### Conferma di partecipazione
 Impostazione a livello di Evento decisa dall'admin. Se attiva, il form pubblico chiede per prima cosa «Confermi la partecipazione? sì/no»: il «sì» prosegue con la normale Prenotazione, il «no» registra una [[Rinuncia]]. Se disattiva, il form si comporta come oggi (chi non partecipa semplicemente non si iscrive).

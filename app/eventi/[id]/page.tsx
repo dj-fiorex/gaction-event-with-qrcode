@@ -84,11 +84,14 @@ export default function EventPage() {
                 {event.description}
               </p>
 
+              {/* Presentazione senza contenitori: su mobile questa lista si
+                  tocca con il form di registrazione, anch'esso piatto. Non
+                  reintrodurre riquadri qui. */}
               <section className="mt-8">
                 <h2 className="text-lg font-semibold">Attività in programma</h2>
-                <ul className="mt-3 flex flex-col gap-3">
+                <ul className="mt-4 flex flex-col gap-4">
                   {event.activities.map((activity) => (
-                    <li key={activity.id} className="rounded-lg border border-border p-4">
+                    <li key={activity.id}>
                       <div className="flex flex-wrap items-center justify-between gap-2">
                         <p className="font-medium">{activity.title}</p>
                         <Badge variant="secondary">
