@@ -42,9 +42,12 @@ function activitiesLabel(
   event: EventWithStats | undefined,
   selections: { activityId: string }[],
 ): string {
-  if (!event) return '-'
+  if (!event) return '\u2014'
   return selections
-    .map((s) => event.activities.find((a) => a.id === s.activityId)?.title ?? s.activityId)
+    // Una selezione verso un'Attività che non esiste più (ADR 0008) non ha un
+    // titolo da stampare: l'id grezzo del documento non dice nulla a chi legge
+    // il foglio e traboccava nella colonna accanto.
+    .map((s) => event.activities.find((a) => a.id === s.activityId)?.title ?? '—')
     .join(', ')
 }
 

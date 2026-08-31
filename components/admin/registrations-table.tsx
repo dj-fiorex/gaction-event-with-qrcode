@@ -89,7 +89,9 @@ export function RegistrationsTable({ registrations, events }: RegistrationsTable
               0,
             )
             const activities = r.selections
-              .map((s) => event?.activities.find((a) => a.id === s.activityId)?.title ?? s.activityId)
+              // Selezione verso un'Attività che non esiste più (ADR 0008):
+              // un id di documento non è un'informazione per un umano.
+              .map((s) => event?.activities.find((a) => a.id === s.activityId)?.title ?? '—')
               .join(', ')
 
             return (

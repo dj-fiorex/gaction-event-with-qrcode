@@ -52,3 +52,20 @@ export function formatDateRange(startIso: string | null, endIso: string | null):
   if (!endIso) return `${day}, ${formatTime(startIso)}`
   return `${day}, ${formatTimeRange(startIso, endIso)}`
 }
+
+/**
+ * Inverso di `toDatetimeLocalValue`: dall'ora locale digitata in un
+ * `<input type="datetime-local">` all'istante ISO da persistere.
+ *
+ * Un valore `datetime-local` non porta con sé il fuso, e l'unico che conosce
+ * quello di chi sta scrivendo è il browser: la conversione va fatta qui, non
+ * sul server, che leggendo la stessa stringa la interpreterebbe come UTC e
+ * sposterebbe gli orari di un offset a ogni salvataggio (ADR 0008: gli Slot
+ * si riconoscono per finestra oraria, e una finestra spostata è una finestra
+ * nuova). Un valore non interpretabile torna com'è: a rifiutarlo è la
+ * validazione, non un formatter.
+ */
+export function fromDatetimeLocalValue(value: string): string {
+  const parsed = new Date(value)
+  return Number.isNaN(parsed.getTime()) ? value : parsed.toISOString()
+}

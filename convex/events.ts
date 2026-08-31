@@ -1,6 +1,6 @@
-import { ConvexError, v } from 'convex/values'
+import { ConvexError, v, type Infer } from 'convex/values'
 import { internalQuery, mutation, query } from './_generated/server'
-import type { MutationCtx } from './_generated/server'
+import type { MutationCtx, QueryCtx } from './_generated/server'
 import type { Id } from './_generated/dataModel'
 import { activityPolicy, checkInAccess } from './schema'
 import {
@@ -18,6 +18,12 @@ import { parseAllowedOrigins } from '../lib/embed'
 import { normalizeEmailCopy } from '../lib/email-content'
 
 const activityInput = v.object({
+  /**
+   * Identità dell'Attività attraverso la modifica (ADR 0008): il form rimanda
+   * l'id di ogni Attività già persistita, le nuove arrivano senza. È
+   * `optional` e non `union(..., null)` perché `create` non ne ha nessuna.
+   */
+  id: v.optional(v.id('activities')),
   title: v.string(),
   start: v.string(),
   end: v.string(),
@@ -131,6 +137,83 @@ export const getForAdmin = query({
   },
 })
 
+/** Persone di un insieme di Prenotazioni. */
+async function countPersons(
+  ctx: QueryCtx,
+  registrationIds: Set<Id<'registrations'>>,
+): Promise<number> {
+  let total = 0
+  for (const registrationId of registrationIds) {
+    const persons = await ctx.db
+      .query('persons')
+      .withIndex('by_registration', (q) => q.eq('registrationId', registrationId))
+      .collect()
+    total += persons.length
+  }
+  return total
+}
+
+/**
+ * Quante Prenotazioni e quante Persone perderebbero la selezione se ciascuna
+ * Attività — o una sua singola fascia — sparisse (ADR 0008). Alimenta l'avviso
+ * che il form di modifica mostra prima di salvare: togliere un'Attività
+ * prenotata, o cambiarne durata e orari fino a spostarne le fasce, non è
+ * un'operazione che l'admin debba scoprire dopo.
+ *
+ * Le fasce senza Prenotazioni non compaiono: l'avviso non ha nulla da dirne.
+ * Solo admin.
+ */
+export const activityRegistrationImpact = query({
+  args: { eventId: v.id('events') },
+  handler: async (ctx, { eventId }) => {
+    await requireAdmin(ctx)
+
+    const activities = await ctx.db
+      .query('activities')
+      .withIndex('by_event', (q) => q.eq('eventId', eventId))
+      .collect()
+    activities.sort((a, b) => a.order - b.order)
+
+    const impact = []
+    for (const activity of activities) {
+      const slots = await ctx.db
+        .query('slots')
+        .withIndex('by_activity', (q) => q.eq('activityId', activity._id))
+        .collect()
+      slots.sort((a, b) => a.order - b.order)
+
+      // Una Prenotazione sceglie un solo Slot per Attività, ma il conteggio
+      // passa comunque da un Set: due selezioni sulla stessa Attività sarebbero
+      // pur sempre una Prenotazione sola per chi legge l'avviso.
+      const perActivity = new Set<Id<'registrations'>>()
+      const perSlot = []
+      for (const slot of slots) {
+        const selections = await ctx.db
+          .query('slotSelections')
+          .withIndex('by_slot', (q) => q.eq('slotId', slot._id))
+          .collect()
+        const registrationIds = new Set(selections.map((s) => s.registrationId))
+        for (const registrationId of registrationIds) perActivity.add(registrationId)
+        if (registrationIds.size === 0) continue
+        perSlot.push({
+          start: slot.start,
+          end: slot.end,
+          registrations: registrationIds.size,
+          persons: await countPersons(ctx, registrationIds),
+        })
+      }
+
+      impact.push({
+        activityId: activity._id,
+        registrations: perActivity.size,
+        persons: await countPersons(ctx, perActivity),
+        slots: perSlot,
+      })
+    }
+    return impact
+  },
+})
+
 /** Risolve un Evento dal token del link di scansione. */
 export const getByScanToken = query({
   args: { token: v.string() },
@@ -155,42 +238,150 @@ function normalizeMinActivities(policy: 'all' | 'min' | 'free', min: number, cou
   return min
 }
 
-async function insertActivitiesAndSlots(
+/** Un'Attività così come la manda il form: derivata dal validator, mai riscritta a mano. */
+type ActivityInput = Infer<typeof activityInput>
+
+/**
+ * Cancella uno Slot e le selezioni che lo prenotavano.
+ *
+ * «Si cancella l'impegno, non il fatto» (ADR 0008): sparisce la riga di
+ * `slotSelections`, che è un'obbligazione verso uno Slot che non esiste più.
+ * La Prenotazione, le sue Persone, i loro biglietti e i check-in già
+ * registrati non vengono toccati: restano validi all'Ingresso e sulle altre
+ * Attività, e continuano a contare nella Visita dello Stato consolidato.
+ */
+async function deleteSlotWithSelections(ctx: MutationCtx, slotId: Id<'slots'>): Promise<void> {
+  const selections = await ctx.db
+    .query('slotSelections')
+    .withIndex('by_slot', (q) => q.eq('slotId', slotId))
+    .collect()
+  for (const selection of selections) await ctx.db.delete(selection._id)
+  await ctx.db.delete(slotId)
+}
+
+/**
+ * Riallinea gli Slot di un'Attività alla sua finestra oraria conservandone
+ * l'identità: uno Slot rigenerato che coincide per `start`/`end` con uno
+ * esistente ne conserva il documento e l'id, quindi anche il posto occupato
+ * dalle Prenotazioni. Spariscono solo gli Slot che la nuova finestra non
+ * copre più.
+ */
+async function syncSlots(
   ctx: MutationCtx,
   eventId: Id<'events'>,
-  activities: Array<{
-    title: string
-    start: string
-    end: string
-    slotDurationMinutes: number
-    capacityPerSlot: number
-  }>,
+  activityId: Id<'activities'>,
+  activity: { start: string; end: string; slotDurationMinutes: number; capacityPerSlot: number },
 ): Promise<void> {
-  for (let index = 0; index < activities.length; index++) {
-    const a = activities[index]
-    const start = new Date(a.start).toISOString()
-    const end = new Date(a.end).toISOString()
-    const activityId = await ctx.db.insert('activities', {
-      eventId,
-      title: a.title,
-      start,
-      end,
-      slotDurationMinutes: a.slotDurationMinutes,
-      capacityPerSlot: a.capacityPerSlot,
-      order: index,
-    })
-    const generated = generateSlots(activityId, start, end, a.slotDurationMinutes, a.capacityPerSlot)
-    for (let s = 0; s < generated.length; s++) {
-      const slot = generated[s]
-      await ctx.db.insert('slots', {
-        eventId,
-        activityId,
-        start: slot.start,
-        end: slot.end,
-        capacity: slot.capacity,
-        order: s,
-      })
+  const existing = await ctx.db
+    .query('slots')
+    .withIndex('by_activity', (q) => q.eq('activityId', activityId))
+    .collect()
+  const byWindow = new Map(existing.map((s) => [`${s.start}|${s.end}`, s]))
+  const kept = new Set<Id<'slots'>>()
+
+  const generated = generateSlots(
+    activityId,
+    activity.start,
+    activity.end,
+    activity.slotDurationMinutes,
+    activity.capacityPerSlot,
+  )
+  for (let order = 0; order < generated.length; order++) {
+    const slot = generated[order]
+    const match = byWindow.get(`${slot.start}|${slot.end}`)
+    if (match) {
+      kept.add(match._id)
+      await ctx.db.patch(match._id, { capacity: slot.capacity, order })
+      continue
     }
+    await ctx.db.insert('slots', {
+      eventId,
+      activityId,
+      start: slot.start,
+      end: slot.end,
+      capacity: slot.capacity,
+      order,
+    })
+  }
+
+  for (const slot of existing) {
+    if (kept.has(slot._id)) continue
+    await deleteSlotWithSelections(ctx, slot._id)
+  }
+}
+
+/** Cancella un'Attività, i suoi Slot e le selezioni che li prenotavano. */
+async function deleteActivityWithSlots(
+  ctx: MutationCtx,
+  activityId: Id<'activities'>,
+): Promise<void> {
+  const slots = await ctx.db
+    .query('slots')
+    .withIndex('by_activity', (q) => q.eq('activityId', activityId))
+    .collect()
+  for (const slot of slots) await deleteSlotWithSelections(ctx, slot._id)
+  await ctx.db.delete(activityId)
+}
+
+/**
+ * Allinea Attività e Slot di un Evento alla lista inviata dal form.
+ *
+ * Non è più «cancella e reinserisci» (ADR 0008): è un diff fra la lista
+ * inviata e quella persistita. Patcha le Attività che il form ha rimandato
+ * con il proprio id, inserisce quelle nuove e cancella solo quelle che
+ * l'admin ha davvero tolto. Un id che non appartiene a questo Evento — form
+ * aperto su un'altra scheda, o payload manomesso — non identifica nulla e
+ * l'Attività viene inserita come nuova: mai patchare il documento di un
+ * Evento altrui.
+ *
+ * `create` la chiama sullo stesso percorso: senza Attività persistite il diff
+ * degenera in soli inserimenti.
+ */
+async function syncActivitiesAndSlots(
+  ctx: MutationCtx,
+  eventId: Id<'events'>,
+  activities: ActivityInput[],
+): Promise<void> {
+  const existing = await ctx.db
+    .query('activities')
+    .withIndex('by_event', (q) => q.eq('eventId', eventId))
+    .collect()
+  const byId = new Map(existing.map((a) => [a._id, a]))
+  const kept = new Set<Id<'activities'>>()
+
+  for (let order = 0; order < activities.length; order++) {
+    const activity = activities[order]
+    const fields = {
+      title: activity.title,
+      start: new Date(activity.start).toISOString(),
+      end: new Date(activity.end).toISOString(),
+      slotDurationMinutes: activity.slotDurationMinutes,
+      capacityPerSlot: activity.capacityPerSlot,
+      order,
+    }
+
+    // Un id già consumato non identifica una seconda Attività: due voci con lo
+    // stesso id fonderebbero in una sola, portandosi via le selezioni dell'altra.
+    const persisted =
+      activity.id && !kept.has(activity.id) ? byId.get(activity.id) : undefined
+    let activityId: Id<'activities'>
+    if (persisted) {
+      activityId = persisted._id
+      kept.add(activityId)
+      await ctx.db.patch(activityId, fields)
+    } else {
+      activityId = await ctx.db.insert('activities', { eventId, ...fields })
+    }
+
+    await syncSlots(ctx, eventId, activityId, fields)
+  }
+
+  // Solo le Attività che l'admin ha davvero tolto: con esse i loro Slot e le
+  // selezioni che li prenotavano. I `activityCheckIns` restano deliberatamente
+  // in tabella — sono storia, non puntatori vivi (ADR 0008).
+  for (const activity of existing) {
+    if (kept.has(activity._id)) continue
+    await deleteActivityWithSlots(ctx, activity._id)
   }
 }
 
@@ -276,15 +467,17 @@ export const create = mutation({
       scanUnlockToken,
     })
 
-    await insertActivitiesAndSlots(ctx, eventId, args.activities)
+    await syncActivitiesAndSlots(ctx, eventId, args.activities)
     return { id: eventId }
   },
 })
 
 /**
- * Aggiorna un Evento. Attività e Slot vengono rigenerati: le vecchie
- * selezioni/check-in che puntavano a slot rimossi diventano orfane, coerente
- * con l'avviso in UI ("gli slot vengono rigenerati").
+ * Aggiorna un Evento. Attività e Slot conservano la propria identità
+ * attraverso la modifica (ADR 0008): salvare senza toccare il programma non
+ * sposta una virgola delle Prenotazioni. È l'unico punto che può distruggere
+ * dati di Prenotazioni altrui, quindi la cura è concentrata in
+ * `syncActivitiesAndSlots`.
  */
 export const update = mutation({
   args: { eventId: v.id('events'), ...eventInput },
@@ -345,20 +538,7 @@ export const update = mutation({
       scanUnlockToken,
     })
 
-    // Rigenera attività e slot.
-    const oldActivities = await ctx.db
-      .query('activities')
-      .withIndex('by_event', (q) => q.eq('eventId', eventId))
-      .collect()
-    for (const a of oldActivities) {
-      const oldSlots = await ctx.db
-        .query('slots')
-        .withIndex('by_activity', (q) => q.eq('activityId', a._id))
-        .collect()
-      for (const s of oldSlots) await ctx.db.delete(s._id)
-      await ctx.db.delete(a._id)
-    }
-    await insertActivitiesAndSlots(ctx, eventId, args.activities)
+    await syncActivitiesAndSlots(ctx, eventId, args.activities)
 
     return { id: eventId }
   },

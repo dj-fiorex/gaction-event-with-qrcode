@@ -22,6 +22,13 @@ import { useMutation } from 'convex/react'
 import { api } from '@/convex/_generated/api'
 import type { Id } from '@/convex/_generated/dataModel'
 import { eventSchema, type EventInput } from '@/lib/schemas'
+import {
+  activityRemovalWarning,
+  type ActivityImpact,
+  type LostSelection,
+} from '@/lib/activity-removal'
+import { fromDatetimeLocalValue, formatTimeRange } from '@/lib/format'
+import { generateSlots } from '@/lib/slots'
 import { typedZodResolver } from '@/lib/zod-resolver'
 import { EventImageField } from '@/components/admin/event-image-field'
 import { messageFromError } from '@/lib/errors'
@@ -91,6 +98,13 @@ interface EventFormProps {
   initialImageUrl?: string | null
   /** In "edit": indica se l'Evento ha già una password di check-in impostata. */
   hasCheckInPassword?: boolean
+  /**
+   * In "edit": quante Prenotazioni e Persone perderebbero la selezione se
+   * l'Attività — o una sua fascia — sparisse (ADR 0008). `undefined` finché il
+   * conteggio non è arrivato dal server: finché è così il salvataggio resta
+   * bloccato, perché salvare senza saperlo è salvare senza avvisare.
+   */
+  activityImpact?: ActivityImpact[]
 }
 
 export function EventForm({
@@ -99,6 +113,7 @@ export function EventForm({
   initialValues,
   initialImageUrl,
   hasCheckInPassword,
+  activityImpact,
 }: EventFormProps) {
   const router = useRouter()
   const createEvent = useMutation(api.events.create)
@@ -119,6 +134,12 @@ export function EventForm({
 
   const { fields, append, remove } = useFieldArray({ control, name: 'activities' })
 
+  /**
+   * In modifica il salvataggio aspetta il conteggio: senza, l'avviso non
+   * saprebbe chi sta per perdere la selezione e si salverebbe in silenzio.
+   */
+  const impactPending = mode === 'edit' && activityImpact === undefined
+
   const activityPolicy = watch('activityPolicy')
   const allowChildren = watch('allowChildren')
   const allowCompanions = watch('allowCompanions')
@@ -131,7 +152,58 @@ export function EventForm({
     if (!nextValue) setValue('maxCompanionsWithChildren', undefined)
   }
 
+  /**
+   * Ciò che il salvataggio farebbe sparire davvero, con l'impatto su chi
+   * l'aveva prenotato (ADR 0008): un'Attività che il form non rimanda più, e
+   * — per quelle che restano — le fasce prenotate che i nuovi orari o la nuova
+   * Durata non generano più. Tutto il resto conserva la propria identità e non
+   * ha nulla da segnalare.
+   */
+  function lostSelections(values: EventInput): LostSelection[] {
+    const impactById = new Map(activityImpact?.map((i) => [i.activityId, i]))
+    const submittedById = new Map(
+      values.activities.flatMap((a) => (a.id ? [[a.id, a] as const] : [])),
+    )
+
+    const lost: LostSelection[] = []
+    for (const initial of initialValues?.activities ?? []) {
+      if (!initial.id) continue
+      const impact = impactById.get(initial.id)
+      const submitted = submittedById.get(initial.id)
+
+      if (!submitted) {
+        lost.push({ label: `«${initial.title}»`, impact })
+        continue
+      }
+      if (!impact) continue
+
+      // Le finestre che l'Attività genererebbe salvando: una fascia prenotata
+      // che non è più fra queste sparisce, e con lei le sue selezioni.
+      const windows = new Set(
+        generateSlots(
+          initial.id,
+          fromDatetimeLocalValue(submitted.start),
+          fromDatetimeLocalValue(submitted.end),
+          submitted.slotDurationMinutes,
+          submitted.capacityPerSlot,
+        ).map((slot) => `${slot.start}|${slot.end}`),
+      )
+      for (const slot of impact.slots) {
+        if (windows.has(`${slot.start}|${slot.end}`)) continue
+        lost.push({
+          label: `«${submitted.title}», fascia ${formatTimeRange(slot.start, slot.end)}`,
+          impact: slot,
+        })
+      }
+    }
+    return lost
+  }
+
   const onSubmit = handleSubmit(async (values) => {
+    // L'admin deve sapere chi colpisce prima di salvare, non dopo.
+    const warning = activityRemovalWarning(lostSelections(values))
+    if (warning && !window.confirm(warning)) return
+
     setSubmitting(true)
     try {
       const payload = {
@@ -139,6 +211,17 @@ export function EventForm({
         imageStorageId: values.imageStorageId
           ? (values.imageStorageId as Id<'_storage'>)
           : undefined,
+        activities: values.activities.map(({ id, start, end, ...activity }) => ({
+          ...activity,
+          // Il fuso lo conosce solo il browser: un valore `datetime-local`
+          // interpretato dal server, che gira in UTC, sposterebbe gli orari di
+          // un offset a ogni salvataggio — e uno Slot spostato è uno Slot nuovo.
+          start: fromDatetimeLocalValue(start),
+          end: fromDatetimeLocalValue(end),
+          // L'id torna al server solo se il form l'ha ricevuto: un'Attività
+          // appena aggiunta ha il campo vuoto e va inserita, non riconosciuta.
+          ...(id ? { id: id as Id<'activities'> } : {}),
+        })),
       }
       if (mode === 'edit' && eventId) {
         await updateEvent({ eventId: eventId as Id<'events'>, ...payload })
@@ -206,6 +289,18 @@ export function EventForm({
 
         {fields.map((field, index) => (
           <div key={field.id} className="flex flex-col gap-3 rounded-md border border-border/60 p-3">
+            {/* Identità dell'Attività (ADR 0008): rimandata al server perché la
+                riconosca invece di ricrearla. Vuota = Attività nuova. Passa da
+                un Controller e non da `register` perché il valore non è
+                digitabile: dopo un riordino o una rimozione dev'essere quello
+                che lo stato del form dice, non quello rimasto nel DOM. */}
+            <Controller
+              control={control}
+              name={`activities.${index}.id` as const}
+              render={({ field }) => (
+                <input type="hidden" name={field.name} value={field.value ?? ''} readOnly />
+              )}
+            />
             <div className="flex items-center justify-between gap-2">
               <span className="text-sm font-medium text-muted-foreground">Attività {index + 1}</span>
               {fields.length > 1 && (
@@ -713,7 +808,7 @@ export function EventForm({
         >
           Annulla
         </Button>
-        <Button type="submit" disabled={submitting}>
+        <Button type="submit" disabled={submitting || impactPending}>
           <Plus className="h-4 w-4" aria-hidden="true" />
           {submitting
             ? mode === 'edit'

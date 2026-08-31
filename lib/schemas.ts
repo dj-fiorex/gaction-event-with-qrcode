@@ -6,6 +6,11 @@ import { z } from 'zod'
 
 export const activityInputSchema = z
   .object({
+    /**
+     * Identità dell'Attività attraverso la modifica (ADR 0008): presente per
+     * le Attività già persistite, assente per quelle appena aggiunte nel form.
+     */
+    id: z.string().optional(),
     title: z.string().trim().min(2, 'Inserisci il nome dell\u2019attività'),
     start: z.string().min(1, 'Inserisci l\u2019inizio'),
     end: z.string().min(1, 'Inserisci la fine'),

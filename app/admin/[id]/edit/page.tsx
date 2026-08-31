@@ -42,6 +42,9 @@ function toEventInput(event: EventWithStats): EventInput {
     checkInAccess: event.checkInAccess,
     checkInPassword: '',
     activities: event.activities.map((activity) => ({
+      // Identità dell'Attività (ADR 0008): senza id il salvataggio la
+      // ricreerebbe da capo, sganciando le Prenotazioni già fatte.
+      id: activity.id,
       title: activity.title,
       start: toDatetimeLocalValue(activity.start),
       end: toDatetimeLocalValue(activity.end),
@@ -55,6 +58,9 @@ function EditEventContent() {
   const params = useParams<{ id: string }>()
   const eventId = params.id as Id<'events'>
   const event = useQuery(api.events.getForAdmin, { eventId })
+  // Chi perderebbe la selezione se un'Attività o una sua fascia sparisse:
+  // serve all'avviso che il form mostra prima di salvare (ADR 0008).
+  const activityImpact = useQuery(api.events.activityRegistrationImpact, { eventId })
 
   return (
     <div className="min-h-svh bg-muted/40">
@@ -81,7 +87,12 @@ function EditEventContent() {
           <CardHeader>
             <CardTitle>Dettagli evento</CardTitle>
             <CardDescription>
-              Salvando, gli slot delle attività vengono rigenerati in base ai nuovi orari.
+              Attività e slot conservano la propria identità: salvando senza toccare il programma
+              non cambia nulla per chi ha già prenotato. Le selezioni si perdono solo per le
+              attività e le fasce che spariscono davvero — un&rsquo;attività rimossa, oppure orari
+              o durata che non generano più quella fascia — e prima di salvare vieni avvisato di
+              quante prenotazioni e persone colpisce. Le prenotazioni, i biglietti e i check-in
+              già registrati restano validi.
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -100,6 +111,7 @@ function EditEventContent() {
                 initialValues={toEventInput(event)}
                 initialImageUrl={event.imageUrl}
                 hasCheckInPassword={event.hasCheckInPassword}
+                activityImpact={activityImpact}
               />
             )}
           </CardContent>
