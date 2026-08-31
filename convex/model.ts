@@ -229,6 +229,13 @@ export interface EventWithStatsDTO {
   embedEnabled: boolean
   /** Origini autorizzate a incorporare. Popolate solo per operatori (includeScanToken). */
   allowedOrigins: string[]
+  /**
+   * Intestazione del form incorporato. Pubblici, a differenza di
+   * `allowedOrigins`: è l'embed stesso a leggerli, e l'embed interroga
+   * `getPublic`.
+   */
+  embedShowTitle: boolean
+  embedShowLocation: boolean
   registrationsCount: number
   personsCount: number
   startsAt: string | null
@@ -405,6 +412,10 @@ export async function loadEventWithStats(
     hasCheckInPassword: event.checkInPasswordHash !== null,
     embedEnabled: event.embedEnabled ?? false,
     allowedOrigins: opts.includeScanToken ? (event.allowedOrigins ?? []) : [],
+    // Assenti = si vedono: gli Eventi creati prima di questa impostazione non
+    // devono perdere l'intestazione al deploy.
+    embedShowTitle: event.embedShowTitle ?? true,
+    embedShowLocation: event.embedShowLocation ?? true,
     registrationsCount: registrations.length,
     personsCount: persons.length,
     ...resolveEventDates(event, activities),

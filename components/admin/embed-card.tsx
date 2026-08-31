@@ -19,11 +19,21 @@ interface EmbedCardProps {
   eventId: string
   embedEnabled: boolean
   allowedOrigins: string[]
+  embedShowTitle: boolean
+  embedShowLocation: boolean
 }
 
-export function EmbedCard({ eventId, embedEnabled, allowedOrigins }: EmbedCardProps) {
+export function EmbedCard({
+  eventId,
+  embedEnabled,
+  allowedOrigins,
+  embedShowTitle,
+  embedShowLocation,
+}: EmbedCardProps) {
   const setEmbedSettings = useMutation(api.events.setEmbedSettings)
   const [enabled, setEnabled] = useState(embedEnabled)
+  const [showTitle, setShowTitle] = useState(embedShowTitle)
+  const [showLocation, setShowLocation] = useState(embedShowLocation)
   const [originsText, setOriginsText] = useState(allowedOrigins.join('\n'))
   const [origin, setOrigin] = useState('')
   const [copied, setCopied] = useState(false)
@@ -55,6 +65,8 @@ export function EmbedCard({ eventId, embedEnabled, allowedOrigins }: EmbedCardPr
         eventId: eventId as Id<'events'>,
         embedEnabled: enabled,
         allowedOrigins: valid,
+        embedShowTitle: showTitle,
+        embedShowLocation: showLocation,
       })
       setOriginsText(result.allowedOrigins.join('\n'))
       toast.success('Impostazioni di incorporamento salvate')
@@ -125,6 +137,45 @@ export function EmbedCard({ eventId, embedEnabled, allowedOrigins }: EmbedCardPr
             </p>
           )}
         </div>
+
+        {/* Intestazione del form incorporato. Le caselle restano attive anche a
+            incorporamento spento: si configura prima, si accende poi. */}
+        <fieldset className="grid gap-3 border-t border-border pt-4">
+          <legend className="sr-only">Intestazione del form incorporato</legend>
+          <p className="text-sm text-muted-foreground">
+            Il sito che ospita il form di solito dice già lui di che evento si tratta e dove:
+            togli qui ciò che sarebbe una ripetizione. Nascondere è solo visivo — chi usa uno
+            screen reader continua a sentire il titolo dell&apos;evento.
+          </p>
+
+          <Label className="flex items-start gap-3">
+            <Checkbox
+              checked={showTitle}
+              onCheckedChange={(value) => setShowTitle(value === true)}
+              className="mt-0.5"
+            />
+            <span className="flex flex-col gap-0.5">
+              <span className="font-medium">Mostra il titolo</span>
+              <span className="text-sm text-muted-foreground">
+                Il nome dell&apos;evento sopra il form incorporato.
+              </span>
+            </span>
+          </Label>
+
+          <Label className="flex items-start gap-3">
+            <Checkbox
+              checked={showLocation}
+              onCheckedChange={(value) => setShowLocation(value === true)}
+              className="mt-0.5"
+            />
+            <span className="flex flex-col gap-0.5">
+              <span className="font-medium">Mostra il luogo</span>
+              <span className="text-sm text-muted-foreground">
+                Il luogo dell&apos;evento sotto il titolo.
+              </span>
+            </span>
+          </Label>
+        </fieldset>
 
         <div>
           <Button type="button" onClick={handleSave} disabled={saving}>

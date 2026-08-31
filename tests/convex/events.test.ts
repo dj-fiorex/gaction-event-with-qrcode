@@ -666,3 +666,37 @@ test('a derived end that would precede the declared start is dropped, not printe
   // La dichiarazione resta intatta in tabella: a tacere è solo la lettura.
   expect(publicEvent?.declaredStartsAt).toBe('2026-07-07T20:00:00.000Z')
 })
+
+test('embedShowTitle/embedShowLocation: assenti si vedono, setEmbedSettings li spegne', async () => {
+  const t = convexTest(schema, modules)
+  const adminId = await createAdmin(t)
+  const asAdmin = t.withIdentity({ subject: subjectFor(adminId) })
+
+  const { id: eventId } = await asAdmin.mutation(api.events.create, buildEventInput(false))
+
+  // Nessun backfill: `create` non scrive i due campi, e l'Evento deve comunque
+  // mostrare l'intestazione. È l'unico modo in cui questa impostazione può far
+  // danno — un default sbagliato spegnerebbe l'intestazione a ogni Evento già
+  // pubblicato, senza che nessuno abbia toccato nulla.
+  const raw = await t.run((ctx) => ctx.db.get(eventId))
+  expect(raw?.embedShowTitle).toBeUndefined()
+  expect(raw?.embedShowLocation).toBeUndefined()
+
+  const before = await t.query(api.events.getPublic, { eventId })
+  expect(before?.embedShowTitle).toBe(true)
+  expect(before?.embedShowLocation).toBe(true)
+
+  await asAdmin.mutation(api.events.setEmbedSettings, {
+    eventId,
+    embedEnabled: true,
+    allowedOrigins: ['https://www.partner.com'],
+    embedShowTitle: false,
+    embedShowLocation: false,
+  })
+
+  // Pubblici a differenza di `allowedOrigins`: è l'embed a leggerli, e l'embed
+  // interroga `getPublic`.
+  const after = await t.query(api.events.getPublic, { eventId })
+  expect(after?.embedShowTitle).toBe(false)
+  expect(after?.embedShowLocation).toBe(false)
+})

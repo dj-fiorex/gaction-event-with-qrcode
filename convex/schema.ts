@@ -121,6 +121,17 @@ export default defineSchema({
      */
     allowedOrigins: v.optional(v.array(v.string())),
     /**
+     * Intestazione del form incorporato: Titolo e Luogo sono spegnibili
+     * separatamente, perché il sito ospitante di solito li dice già lui e
+     * ripeterli dentro l'iframe è rumore. Assenti o true = si vedono
+     * (comportamento odierno), quindi nessun backfill: un default a false
+     * spegnerebbe l'intestazione a ogni Evento già pubblicato. Nascondere è
+     * solo visivo — il titolo resta come `<h1>` sr-only, altrimenti dentro
+     * l'iframe non resterebbe nulla a dire a quale Evento ci si iscrive.
+     */
+    embedShowTitle: v.optional(v.boolean()),
+    embedShowLocation: v.optional(v.boolean()),
+    /**
      * Informativa privacy dell'Evento (ADR 0012). Assente o vuota = nessuna
      * casella nel form e nessun vincolo nelle mutation, quindi gli Eventi
      * esistenti non richiedono backfill. Modificabile in ogni momento: ciò che
