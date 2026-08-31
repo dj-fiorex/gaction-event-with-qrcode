@@ -123,6 +123,15 @@ function EventDetailContent() {
       ? `${POLICY_LABEL.min} (min ${event.minActivities})`
       : POLICY_LABEL[event.activityPolicy]
 
+  /**
+   * Le impostazioni che parlano di Attività — policy, minimo, sovrapposizioni,
+   * tolleranza — e il tetto di posti hanno senso solo se un'Attività c'è
+   * (ADR 0010). Senza, non si annunciano: la capienza è un concetto dello
+   * Slot, e i numeri veri l'admin li legge in «Persone totali dentro» e
+   * «Registrazioni».
+   */
+  const hasActivities = event.activities.length > 0
+
   return (
     <div className="min-h-svh bg-muted/40">
       <AdminHeader role="admin" />
@@ -156,7 +165,9 @@ function EventDetailContent() {
                   <h1 className="text-2xl font-semibold tracking-tight text-balance">
                     {event.title}
                   </h1>
-                <Badge variant="secondary">{POLICY_LABEL[event.activityPolicy]}</Badge>
+                {hasActivities && (
+                  <Badge variant="secondary">{POLICY_LABEL[event.activityPolicy]}</Badge>
+                )}
                 {event.soldOut && <Badge variant="destructive">Esaurito</Badge>}
               </div>
               <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-muted-foreground">
@@ -220,8 +231,8 @@ function EventDetailContent() {
             icon={<Layers className="h-5 w-5" aria-hidden="true" />}
           />
           <StatCard
-            label="Posti liberi / totali"
-            value={`${event.totalAvailable}/${event.totalCapacity}`}
+            label={hasActivities ? 'Posti liberi / totali' : 'Posti'}
+            value={hasActivities ? `${event.totalAvailable}/${event.totalCapacity}` : 'Illimitati'}
             icon={<CheckCircle2 className="h-5 w-5" aria-hidden="true" />}
           />
         </div>
@@ -235,15 +246,19 @@ function EventDetailContent() {
             <dl className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
               <InfoRow label="Luogo" value={event.location} />
               <InfoRow label="Data e orario" value={formatDateRange(event.startsAt, event.endsAt)} />
-              <InfoRow label="Politica attività" value={policyDescription} />
-              <InfoRow
-                label="Sovrapposizione slot"
-                value={event.allowOverlap ? 'Consentita' : 'Non consentita'}
-              />
-              <InfoRow
-                label="Tolleranza check-in"
-                value={`${event.checkInToleranceMinutes} min`}
-              />
+              {hasActivities && (
+                <>
+                  <InfoRow label="Politica attività" value={policyDescription} />
+                  <InfoRow
+                    label="Sovrapposizione slot"
+                    value={event.allowOverlap ? 'Consentita' : 'Non consentita'}
+                  />
+                  <InfoRow
+                    label="Tolleranza check-in"
+                    value={`${event.checkInToleranceMinutes} min`}
+                  />
+                </>
+              )}
               <InfoRow
                 label="Bambini"
                 value={
@@ -272,10 +287,12 @@ function EventDetailContent() {
                 label="Allergie e intolleranze"
                 value={event.collectAllergies ? 'Richieste a ogni persona' : 'Non richieste'}
               />
-              <InfoRow
-                label="Posti occupati"
-                value={`${event.totalTaken}/${event.totalCapacity}`}
-              />
+              {hasActivities && (
+                <InfoRow
+                  label="Posti occupati"
+                  value={`${event.totalTaken}/${event.totalCapacity}`}
+                />
+              )}
             </dl>
           </CardContent>
         </Card>

@@ -60,7 +60,11 @@ export function AdminEventList({ events }: AdminEventListProps) {
           <div className="flex flex-col gap-1">
             <div className="flex flex-wrap items-center gap-2">
               <span className="font-medium">{event.title}</span>
-              <Badge variant="secondary">{POLICY_LABEL[event.activityPolicy]}</Badge>
+              {/* Senza Attività la policy non ha referente e non si annuncia
+                  (ADR 0010): è normalizzata a «libera», non scelta. */}
+              {event.activities.length > 0 && (
+                <Badge variant="secondary">{POLICY_LABEL[event.activityPolicy]}</Badge>
+              )}
             </div>
             <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-muted-foreground">
               <span className="flex items-center gap-1">

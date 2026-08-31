@@ -15,7 +15,7 @@ Un partecipante fisico all'Evento. Occupa un posto e riceve **1 QR code**. NON �
 - **Ospite** — persona adulta al seguito (nome solo con [[Raccolta nomi]] attiva). Ammessi solo se l'admin lo consente per l'Evento, entro un massimo **per Prenotazione**. _Evitare: Accompagnatore (termine storico, sostituito da Ospite nella UI e nei documenti)._
 
 ### Evento
-Un raduno a cui gli Utenti si iscrivono. Genera **1 QR code per ogni Persona** (non per Attività). L'admin configura per ogni Evento se sono ammessi Figli (con max) e se sono ammessi Ospiti (con max).
+Un raduno a cui gli Utenti si iscrivono. Genera **1 QR code per ogni Persona** (non per Attività). L'admin configura per ogni Evento se sono ammessi Figli (con max) e se sono ammessi Ospiti (con max). Le [[Attività]] sono **facoltative**: un Evento può non averne nessuna — una cena, un'assemblea, un open day — e allora non ha fasce orarie, non ha [[Policy di selezione Attività|policy di selezione]] e **non ha tetto di posti**, perché la capienza è un concetto dello [[Slot]]. Non è uno stato di bozza: un Evento senza Attività è pubblico e prenotabile come ogni altro (ADR `0010`).
 
 ### Immagine dell'Evento
 Immagine **opzionale** di copertina dell'Evento, mostrata come hero nella pagina pubblica e come copertina nella `EventCard`, sempre in frame **16:9**. L'admin la carica ritagliandola client-side (react-easy-crop, aspect 16:9); i byte vivono su **Convex file storage** e sono referenziati da `imageStorageId` (`v.optional(v.id("_storage"))`). Il DTO risolve lo storageId in un URL esposto come `imageUrl` (`string | null`); quando assente si usa il fallback statico. Vedi ADR `0002`.
@@ -24,7 +24,7 @@ Immagine **opzionale** di copertina dell'Evento, mostrata come hero nella pagina
 Quando l'Evento comincia ed eventualmente finisce. L'admin può **dichiararla** sull'Evento — inizio e fine indipendenti, la fine richiede l'inizio ed è successiva — e se non la dichiara si **deriva** dalle [[Attività]]: il primo inizio e l'ultima fine. La dichiarazione vince sempre sulla derivazione: un Evento può cominciare alle 20 con la prima Attività alle 21, e non è una contraddizione. Senza dichiarazione e senza Attività non c'è data: ovunque comparirebbe si legge «Data da definire», biglietto compreso. Vedi ADR `0009`.
 
 ### Attività
-Un segmento di un Evento con un **orario di inizio e fine** e una **Durata** (definita dall'admin). Dalla finestra inizio-fine e dalla Durata l'app **genera automaticamente gli Slot**. I posti limitati si contano per singolo Slot.
+Un segmento **facoltativo** di un Evento con un **orario di inizio e fine** e una **Durata** (definita dall'admin). Dalla finestra inizio-fine e dalla Durata l'app **genera automaticamente gli Slot**. I posti limitati si contano per singolo Slot. Un Evento può non avere Attività: vedi [[Evento]] ed [[Eliminazione di un'Attività]].
 
 ### Durata
 Lunghezza in minuti di ogni Slot dell'Attività, impostata dall'admin. L'app divide la finestra inizio-fine dell'Attività in Slot consecutivi di questa Durata.
@@ -33,7 +33,7 @@ Lunghezza in minuti di ogni Slot dell'Attività, impostata dall'admin. L'app div
 Fascia oraria prenotabile all'interno di un'Attività, generata automaticamente dalla Durata. Ha un proprio inizio/fine e un **numero di posti limitato proprio**. Una Persona prenota uno Slot specifico; il check-in di Attività verifica che arrivi nel suo Slot.
 
 ### Tolleranza check-in
-Margine in minuti, **configurabile dall'admin**, entro cui è consentito il check-in di uno Slot rispetto al suo orario. Fuori da questo margine il check-in è bloccato.
+Margine in minuti, **configurabile dall'admin**, entro cui è consentito il check-in di uno Slot rispetto al suo orario. Fuori da questo margine il check-in è bloccato. Vale **solo** per il check-in di [[Attività]]: l'Ingresso e l'Uscita non hanno finestra oraria, quindi in un Evento senza Attività questa impostazione non ha effetto e non viene nemmeno chiesta.
 
 ### Prenotazione
 L'insieme delle Persone iscritte insieme da un Utente in un'unica operazione. La **selezione è unica per Prenotazione**: per ogni Attività scelta si seleziona **uno Slot specifico**, e tutte le Persone della Prenotazione occupano quello stesso Slot. Ogni Persona occupa 1 posto in ciascuno Slot selezionato.
@@ -71,6 +71,9 @@ Azione riservata all'admin che elimina un'intera Prenotazione: rimuove le sue Pe
 ### Rimozione della Rinuncia
 Azione riservata all'admin che elimina una [[Rinuncia]]: l'email torna libera di prenotare l'Evento. È il rimedio operativo quando chi ha risposto «no» scrive all'organizzatore per cambiare idea (vedi [[Una sola risposta per email]]).
 
+### Eliminazione di un'Attività
+Azione dell'admin che toglie un'[[Attività]] — o una sua fascia — dal programma di un Evento. Cancella le **selezioni** delle Prenotazioni che l'avevano scelta, perché sono un impegno verso qualcosa che non esiste più, ma **non le Prenotazioni**: le Persone restano iscritte all'Evento e i loro QR restano validi all'Ingresso e alle altre Attività. I [[Check-in]] già registrati su quell'Attività **si conservano** e continuano a contare nella Visita dello [[Stato consolidato]]: sono fatti avvenuti. La regola generale è **si cancella l'impegno, non il fatto**. Modificare un Evento senza toccarne il programma non tocca alcuna Prenotazione. Chi perde un'Attività non riceve alcun avviso: verso l'Utente non esiste un canale oltre al [[Reinvio dell'email dei biglietti]], che è manuale. Vedi ADR `0008`.
+
 ### Reinvio dell'email dei biglietti
 Azione riservata all'admin che rimanda l'email di conferma di una Prenotazione — la stessa del primo invio: il [[Testo dell'email di conferma]] dell'Evento seguito dal [[Riepilogo della Prenotazione]], con le etichette, le età e le [[Allergie e intolleranze]] **attuali**, e i QR nel PDF allegato. Il destinatario è precompilato con l'email memorizzata ed è **modificabile**: un indirizzo corretto viene salvato sulla Prenotazione e vale da lì in avanti per ogni comunicazione. I [[ticketCode (QR token)|ticketCode]] non cambiano: i biglietti già ricevuti restano validi.
 
@@ -101,8 +104,10 @@ Impostazione a livello di Evento decisa dall'admin in fase di creazione. Determi
 - **Minimo N** — la Prenotazione deve includere almeno N Attività.
 - **Libera** — l'Utente sceglie liberamente quali Attività includere in fase di Registrazione.
 
+Senza [[Attività]] la policy non ha referente: non viene chiesta all'admin e nessuna delle tre regole si applica alla Prenotazione.
+
 ### Regola di capacità (atomica)
-Una Registrazione è **atomica**: se anche un solo Slot selezionato non ha posti liberi sufficienti per **tutte** le Persone della Prenotazione, l'intera Registrazione fallisce. Nessuna iscrizione parziale, nessuna famiglia divisa.
+Una Registrazione è **atomica**: se anche un solo Slot selezionato non ha posti liberi sufficienti per **tutte** le Persone della Prenotazione, l'intera Registrazione fallisce. Nessuna iscrizione parziale, nessuna famiglia divisa. Un Evento senza [[Attività]] non ha Slot e quindi **nessun tetto**: la regola non ha nulla su cui applicarsi, e le superfici pubbliche non parlano affatto di posti anziché annunciarne zero.
 
 ### QR code
 Un codice univoco generato **1 per ogni Persona** (non per Attività). Vale come pass per tutte le Attività a cui quella Persona è iscritta.

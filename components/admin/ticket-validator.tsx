@@ -66,12 +66,17 @@ export function TicketValidator({ event, unlockToken }: TicketValidatorProps) {
     [event],
   )
 
+  /** Un Evento senza Attività non ha accessi di Attività da controllare (ADR 0010). */
+  const hasActivities = event.activities.length > 0
+
   // «Solo verifica» chiude la fila: è sempre disponibile, perché leggere lo
   // stato consolidato non dipende da nessuna impostazione dell'Evento.
   const modes = useMemo(
     () => [
       { value: 'event' as const, label: 'Ingresso evento', icon: null },
-      { value: 'activity' as const, label: 'Accesso attività', icon: null },
+      ...(hasActivities
+        ? [{ value: 'activity' as const, label: 'Accesso attività', icon: null }]
+        : []),
       ...(event.recordExit
         ? [
             {
@@ -87,14 +92,19 @@ export function TicketValidator({ event, unlockToken }: TicketValidatorProps) {
         icon: <Eye className="h-4 w-4" aria-hidden="true" />,
       },
     ],
-    [event.recordExit],
+    [event.recordExit, hasActivities],
   )
 
-  // L'Uscita è offerta solo dagli Eventi con la Registrazione dell'uscita: se
-  // l'admin la disattiva mentre lo scanner è aperto, il punto di controllo
-  // torna all'ingresso invece di restare su una modalità ormai sparita.
+  // L'Uscita è offerta solo dagli Eventi con la Registrazione dell'uscita, e
+  // l'Accesso attività solo a chi ha Attività: se l'una viene disattivata o
+  // l'ultima Attività sparisce mentre lo scanner è aperto, il punto di
+  // controllo torna all'Ingresso invece di restare su una modalità ormai
+  // sparita.
   const checkMode: ScannerMode =
-    selectedMode === 'exit' && !event.recordExit ? 'event' : selectedMode
+    (selectedMode === 'exit' && !event.recordExit) ||
+    (selectedMode === 'activity' && !hasActivities)
+      ? 'event'
+      : selectedMode
 
   const contextReady = checkMode !== 'activity' || activityId.length > 0
 

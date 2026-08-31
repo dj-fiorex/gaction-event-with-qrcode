@@ -183,6 +183,9 @@ export function RegistrationForm({
   }
 
   function validateSelectionsClient(selections: { activityId: string; slotId: string }[]): string | null {
+    // Senza Attività la policy non ha referente (ADR 0010): nessuna regola da
+    // applicare, come sul server. Stesse condizioni, stessi messaggi.
+    if (event.activities.length === 0) return null
     if (event.activityPolicy === 'all' && selections.length !== event.activities.length) {
       return 'Devi selezionare uno slot per ogni attività'
     }
@@ -626,59 +629,62 @@ export function RegistrationForm({
           />
         )}
 
-        {/* Selezione attività / slot */}
-        <section>
-          <h3 className="text-base font-semibold">Attività</h3>
-          <p className="mt-1 text-sm text-muted-foreground">
-            {POLICY_HINT[event.activityPolicy](event.minActivities)} Lo slot scelto vale per tutte
-            le {personsNeeded} persone della prenotazione.
-          </p>
+        {/* Selezione attività / slot. Una sezione vuota non si rende affatto
+            (ADR 0010): senza Attività non c'è nulla da scegliere. */}
+        {event.activities.length > 0 && (
+          <section>
+            <h3 className="text-base font-semibold">Attività</h3>
+            <p className="mt-1 text-sm text-muted-foreground">
+              {POLICY_HINT[event.activityPolicy](event.minActivities)} Lo slot scelto vale per tutte
+              le {personsNeeded} persone della prenotazione.
+            </p>
 
-          <div className="mt-4 flex flex-col gap-4">
-            {event.activities.map((activity) => {
-              const selected = slotByActivity[activity.id] ?? ''
-              const items = [
-                ...(event.activityPolicy !== 'all'
-                  ? [{ value: NONE, label: 'Non partecipo' }]
-                  : []),
-                ...activity.slots.map((slot) => ({
-                  value: slot.id,
-                  label: `${formatTimeRange(slot.start, slot.end)} · ${
-                    slot.available < personsNeeded ? 'posti insufficienti' : `${slot.available} posti`
-                  }`,
-                })),
-              ]
-              return (
-                <div key={activity.id} className="grid gap-2">
-                  <Label htmlFor={`slot-${activity.id}`}>{activity.title}</Label>
-                  <Select
-                    items={items}
-                    value={selected}
-                    onValueChange={(value) => setSlot(activity.id, value ?? '')}
-                  >
-                    <SelectTrigger id={`slot-${activity.id}`} className="w-full">
-                      <SelectValue placeholder="Seleziona una fascia oraria" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {event.activityPolicy !== 'all' && (
-                        <SelectItem value={NONE}>Non partecipo</SelectItem>
-                      )}
-                      {activity.slots.map((slot) => {
-                        const disabled = slot.available < personsNeeded
-                        return (
-                          <SelectItem key={slot.id} value={slot.id} disabled={disabled}>
-                            {formatTimeRange(slot.start, slot.end)} ·{' '}
-                            {disabled ? 'posti insufficienti' : `${slot.available} posti`}
-                          </SelectItem>
-                        )
-                      })}
-                    </SelectContent>
-                  </Select>
-                </div>
-              )
-            })}
-          </div>
-        </section>
+            <div className="mt-4 flex flex-col gap-4">
+              {event.activities.map((activity) => {
+                const selected = slotByActivity[activity.id] ?? ''
+                const items = [
+                  ...(event.activityPolicy !== 'all'
+                    ? [{ value: NONE, label: 'Non partecipo' }]
+                    : []),
+                  ...activity.slots.map((slot) => ({
+                    value: slot.id,
+                    label: `${formatTimeRange(slot.start, slot.end)} · ${
+                      slot.available < personsNeeded ? 'posti insufficienti' : `${slot.available} posti`
+                    }`,
+                  })),
+                ]
+                return (
+                  <div key={activity.id} className="grid gap-2">
+                    <Label htmlFor={`slot-${activity.id}`}>{activity.title}</Label>
+                    <Select
+                      items={items}
+                      value={selected}
+                      onValueChange={(value) => setSlot(activity.id, value ?? '')}
+                    >
+                      <SelectTrigger id={`slot-${activity.id}`} className="w-full">
+                        <SelectValue placeholder="Seleziona una fascia oraria" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {event.activityPolicy !== 'all' && (
+                          <SelectItem value={NONE}>Non partecipo</SelectItem>
+                        )}
+                        {activity.slots.map((slot) => {
+                          const disabled = slot.available < personsNeeded
+                          return (
+                            <SelectItem key={slot.id} value={slot.id} disabled={disabled}>
+                              {formatTimeRange(slot.start, slot.end)} ·{' '}
+                              {disabled ? 'posti insufficienti' : `${slot.available} posti`}
+                            </SelectItem>
+                          )
+                        })}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )
+              })}
+            </div>
+          </section>
+        )}
 
         <Button type="submit" disabled={submitting || familyBranchMissing} className="w-full">
           {submitting ? 'Registrazione in corso…' : `Conferma registrazione (${personsNeeded} persone)`}

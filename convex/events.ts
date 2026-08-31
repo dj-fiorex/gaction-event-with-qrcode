@@ -280,9 +280,20 @@ function normalizeDeclaredDate(value: string | undefined): string | undefined {
   return declared.kind === 'instant' ? new Date(declared.instant).toISOString() : undefined
 }
 
-function normalizeMinActivities(policy: 'all' | 'min' | 'free', min: number, count: number) {
-  if (policy !== 'min') return 0
-  return min
+/**
+ * Policy di selezione e minimo come vanno persistiti (ADR 0010): senza Attività
+ * non hanno referente, quindi si scrivono normalizzati a `free`/`0`. Lasciare
+ * nel documento la policy che l'admin aveva scelto quando le Attività c'erano
+ * significherebbe conservare un valore scelto per un mondo che non esiste, che
+ * *sembra* attivo a chiunque rilegga l'Evento.
+ */
+function normalizeSelectionPolicy(
+  policy: 'all' | 'min' | 'free',
+  min: number,
+  count: number,
+): { activityPolicy: 'all' | 'min' | 'free'; minActivities: number } {
+  if (count === 0) return { activityPolicy: 'free', minActivities: 0 }
+  return { activityPolicy: policy, minActivities: policy === 'min' ? min : 0 }
 }
 
 /** Un'Attività così come la manda il form: derivata dal validator, mai riscritta a mano. */
@@ -462,14 +473,18 @@ function validateEventInput(input: {
     return 'La fine dell\u2019evento deve essere successiva all\u2019inizio'
   }
 
-  if (input.activities.length === 0) return 'Aggiungi almeno un\u2019attività'
+  // Nessun «almeno un'Attività» (ADR 0010): un Evento può non averne, ed è una
+  // sua forma legittima e permanente — una cena, un'assemblea, un open day.
   for (const a of input.activities) {
     const slots = generateSlots('tmp', new Date(a.start).toISOString(), new Date(a.end).toISOString(), a.slotDurationMinutes, a.capacityPerSlot)
     if (slots.length === 0) {
       return 'Un\u2019attività non genera slot: controlla finestra oraria e durata'
     }
   }
+  // Il minimo si valida solo dove c'è una lista da confrontare: senza Attività
+  // la policy viene normalizzata a `free`/`0` e non c'è nulla da rifiutare.
   if (
+    input.activities.length > 0 &&
     input.activityPolicy === 'min' &&
     (input.minActivities < 1 || input.minActivities > input.activities.length)
   ) {
@@ -511,8 +526,7 @@ export const create = mutation({
       location: args.location,
       imageStorageId: args.imageStorageId,
       ...normalizeEventDates(args),
-      activityPolicy: args.activityPolicy,
-      minActivities: normalizeMinActivities(args.activityPolicy, args.minActivities, args.activities.length),
+      ...normalizeSelectionPolicy(args.activityPolicy, args.minActivities, args.activities.length),
       allowOverlap: args.allowOverlap,
       checkInToleranceMinutes: args.checkInToleranceMinutes,
       allowQrReuse: args.allowQrReuse,
@@ -584,8 +598,7 @@ export const update = mutation({
       location: args.location,
       imageStorageId: args.imageStorageId,
       ...normalizeEventDates(args),
-      activityPolicy: args.activityPolicy,
-      minActivities: normalizeMinActivities(args.activityPolicy, args.minActivities, args.activities.length),
+      ...normalizeSelectionPolicy(args.activityPolicy, args.minActivities, args.activities.length),
       allowOverlap: args.allowOverlap,
       checkInToleranceMinutes: args.checkInToleranceMinutes,
       allowQrReuse: args.allowQrReuse,

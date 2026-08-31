@@ -137,6 +137,13 @@ export function EventForm({
   const { fields, append, remove } = useFieldArray({ control, name: 'activities' })
 
   /**
+   * La lista Attività non vuota. È lei a decidere quali impostazioni hanno un
+   * referente (ADR 0010): con zero Attività, policy, minimo, sovrapposizioni e
+   * tolleranza non si chiedono affatto.
+   */
+  const hasActivities = fields.length > 0
+
+  /**
    * In modifica il salvataggio aspetta il conteggio: senza, l'avviso non
    * saprebbe chi sta per perdere la selezione e si salverebbe in silenzio.
    */
@@ -344,17 +351,18 @@ export function EventForm({
             />
             <div className="flex items-center justify-between gap-2">
               <span className="text-sm font-medium text-muted-foreground">Attività {index + 1}</span>
-              {fields.length > 1 && (
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  onClick={() => remove(index)}
-                  aria-label={`Rimuovi attività ${index + 1}`}
-                >
-                  <Trash2 className="h-4 w-4" aria-hidden="true" />
-                </Button>
-              )}
+              {/* Nessun guard sull'ultima Attività (ADR 0010): «nessuna
+                  Attività» si esprime con la lista vuota, non con un
+                  interruttore che potrebbe contraddirla. */}
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                onClick={() => remove(index)}
+                aria-label={`Rimuovi attività ${index + 1}`}
+              >
+                <Trash2 className="h-4 w-4" aria-hidden="true" />
+              </Button>
             </div>
 
             <div className="grid gap-2">
@@ -417,82 +425,96 @@ export function EventForm({
             </div>
           </div>
         ))}
+        {!hasActivities && (
+          <p className="rounded-md border border-dashed border-border p-4 text-sm text-muted-foreground">
+            Nessuna attività: l&rsquo;evento avrà solo l&rsquo;ingresso (e l&rsquo;uscita, se
+            attiva), nessuna fascia oraria da prenotare e nessun tetto di posti.
+          </p>
+        )}
         <FieldError message={errors.activities?.message} />
       </fieldset>
 
-      {/* Regole di selezione */}
-      <div className="grid gap-4 sm:grid-cols-2">
-        <div className="grid gap-2">
-          <Label htmlFor="activityPolicy">Selezione attività</Label>
-          <Controller
-            control={control}
-            name="activityPolicy"
-            render={({ field }) => (
-              <Select
-                items={[
-                  { value: 'free', label: 'Libera' },
-                  { value: 'min', label: 'Minimo N attività' },
-                  { value: 'all', label: 'Tutte obbligatorie' },
-                ]}
-                value={field.value}
-                onValueChange={field.onChange}
-              >
-                <SelectTrigger id="activityPolicy" className="w-full">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="free">Libera</SelectItem>
-                  <SelectItem value="min">Minimo N attività</SelectItem>
-                  <SelectItem value="all">Tutte obbligatorie</SelectItem>
-                </SelectContent>
-              </Select>
-            )}
-          />
-        </div>
-        {activityPolicy === 'min' && (
+      {/* Regole di selezione. Senza Attività non hanno referente (ADR 0010):
+          non si chiedono, e il server le normalizza a `free`/`0`. Tornano con
+          la prima Attività aggiunta. */}
+      {hasActivities && (
+        <div className="grid gap-4 sm:grid-cols-2">
           <div className="grid gap-2">
-            <Label htmlFor="minActivities">Minimo attività</Label>
-            <Input
-              id="minActivities"
-              type="number"
-              min={1}
-              {...register('minActivities', { valueAsNumber: true })}
-              aria-invalid={!!errors.minActivities}
+            <Label htmlFor="activityPolicy">Selezione attività</Label>
+            <Controller
+              control={control}
+              name="activityPolicy"
+              render={({ field }) => (
+                <Select
+                  items={[
+                    { value: 'free', label: 'Libera' },
+                    { value: 'min', label: 'Minimo N attività' },
+                    { value: 'all', label: 'Tutte obbligatorie' },
+                  ]}
+                  value={field.value}
+                  onValueChange={field.onChange}
+                >
+                  <SelectTrigger id="activityPolicy" className="w-full">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="free">Libera</SelectItem>
+                    <SelectItem value="min">Minimo N attività</SelectItem>
+                    <SelectItem value="all">Tutte obbligatorie</SelectItem>
+                  </SelectContent>
+                </Select>
+              )}
             />
-            <FieldError message={errors.minActivities?.message} />
           </div>
-        )}
-      </div>
-
-      <div className="grid gap-4 sm:grid-cols-2">
-        <div className="flex items-center gap-2">
-          <Controller
-            control={control}
-            name="allowOverlap"
-            render={({ field }) => (
-              <Checkbox
-                id="allowOverlap"
-                checked={field.value}
-                onCheckedChange={(checked) => field.onChange(checked === true)}
+          {activityPolicy === 'min' && (
+            <div className="grid gap-2">
+              <Label htmlFor="minActivities">Minimo attività</Label>
+              <Input
+                id="minActivities"
+                type="number"
+                min={1}
+                {...register('minActivities', { valueAsNumber: true })}
+                aria-invalid={!!errors.minActivities}
               />
-            )}
-          />
-          <Label htmlFor="allowOverlap" className="font-normal">
-            Permetti slot sovrapposti
-          </Label>
+              <FieldError message={errors.minActivities?.message} />
+            </div>
+          )}
         </div>
-        <div className="grid gap-2">
-          <Label htmlFor="tolerance">Tolleranza check-in (minuti)</Label>
-          <Input
-            id="tolerance"
-            type="number"
-            min={0}
-            {...register('checkInToleranceMinutes', { valueAsNumber: true })}
-            aria-invalid={!!errors.checkInToleranceMinutes}
-          />
-          <FieldError message={errors.checkInToleranceMinutes?.message} />
+      )}
+
+      {/* Sovrapposizioni e Tolleranza check-in parlano entrambe di Slot:
+          l'Ingresso e l'Uscita non hanno finestra oraria (ADR 0010). */}
+      {hasActivities && (
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div className="flex items-center gap-2">
+            <Controller
+              control={control}
+              name="allowOverlap"
+              render={({ field }) => (
+                <Checkbox
+                  id="allowOverlap"
+                  checked={field.value}
+                  onCheckedChange={(checked) => field.onChange(checked === true)}
+                />
+              )}
+            />
+            <Label htmlFor="allowOverlap" className="font-normal">
+              Permetti slot sovrapposti
+            </Label>
+          </div>
+          <div className="grid gap-2">
+            <Label htmlFor="tolerance">Tolleranza check-in (minuti)</Label>
+            <Input
+              id="tolerance"
+              type="number"
+              min={0}
+              {...register('checkInToleranceMinutes', { valueAsNumber: true })}
+              aria-invalid={!!errors.checkInToleranceMinutes}
+            />
+            <FieldError message={errors.checkInToleranceMinutes?.message} />
+          </div>
         </div>
-      </div>
+      )}
 
       <div className="flex items-start gap-2 rounded-lg border border-border p-4">
         <Controller

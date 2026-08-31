@@ -131,15 +131,19 @@ export const register = mutation({
       .withIndex('by_event', (q) => q.eq('eventId', event._id))
       .collect()
 
-    // Policy di selezione.
-    if (event.activityPolicy === 'all' && activityIds.size !== activities.length) {
-      throw new ConvexError('Devi selezionare uno slot per ogni attività')
-    }
-    if (event.activityPolicy === 'min' && args.selections.length < event.minActivities) {
-      throw new ConvexError(`Devi selezionare almeno ${event.minActivities} attività`)
-    }
-    if (event.activityPolicy === 'free' && args.selections.length === 0) {
-      throw new ConvexError('Seleziona almeno un\u2019attività')
+    // Policy di selezione. Senza Attività la policy non ha referente (ADR 0010):
+    // nessuna delle tre regole si applica, e in particolare «almeno un'attività»
+    // non può essere chiesto a chi non ne ha nessuna fra cui scegliere.
+    if (activities.length > 0) {
+      if (event.activityPolicy === 'all' && activityIds.size !== activities.length) {
+        throw new ConvexError('Devi selezionare uno slot per ogni attività')
+      }
+      if (event.activityPolicy === 'min' && args.selections.length < event.minActivities) {
+        throw new ConvexError(`Devi selezionare almeno ${event.minActivities} attività`)
+      }
+      if (event.activityPolicy === 'free' && args.selections.length === 0) {
+        throw new ConvexError('Seleziona almeno un\u2019attività')
+      }
     }
 
     // Sovrapposizioni.

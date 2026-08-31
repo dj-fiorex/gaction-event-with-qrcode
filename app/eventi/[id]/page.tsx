@@ -60,9 +60,13 @@ export default function EventPage() {
 
               <div className="mt-6 flex flex-wrap items-center gap-3">
                 <h1 className="text-2xl font-bold tracking-tight text-balance">{event.title}</h1>
-                <Badge variant={event.soldOut ? 'destructive' : 'secondary'}>
-                  {event.soldOut ? 'Esaurito' : `${event.totalAvailable} posti liberi`}
-                </Badge>
+                {/* Senza Attività non c'è tetto di posti, e il pubblico tace
+                    invece di annunciarne zero (ADR 0010). */}
+                {event.activities.length > 0 && (
+                  <Badge variant={event.soldOut ? 'destructive' : 'secondary'}>
+                    {event.soldOut ? 'Esaurito' : `${event.totalAvailable} posti liberi`}
+                  </Badge>
+                )}
               </div>
 
               <div className="mt-4 flex flex-col gap-2 text-sm text-muted-foreground">
@@ -74,10 +78,12 @@ export default function EventPage() {
                   <MapPin className="h-4 w-4" aria-hidden="true" />
                   {event.location}
                 </span>
-                <span className="flex items-center gap-2">
-                  <Users className="h-4 w-4" aria-hidden="true" />
-                  {event.totalTaken} / {event.totalCapacity} posti occupati
-                </span>
+                {event.activities.length > 0 && (
+                  <span className="flex items-center gap-2">
+                    <Users className="h-4 w-4" aria-hidden="true" />
+                    {event.totalTaken} / {event.totalCapacity} posti occupati
+                  </span>
+                )}
               </div>
 
               <p className="mt-6 leading-relaxed text-foreground/90 text-pretty">
@@ -86,26 +92,30 @@ export default function EventPage() {
 
               {/* Presentazione senza contenitori: su mobile questa lista si
                   tocca con il form di registrazione, anch'esso piatto. Non
-                  reintrodurre riquadri qui. */}
-              <section className="mt-8">
-                <h2 className="text-lg font-semibold">Attività in programma</h2>
-                <ul className="mt-4 flex flex-col gap-4">
-                  {event.activities.map((activity) => (
-                    <li key={activity.id}>
-                      <div className="flex flex-wrap items-center justify-between gap-2">
-                        <p className="font-medium">{activity.title}</p>
-                        <Badge variant="secondary">
-                          {activity.slotDurationMinutes} min · {activity.slots.length} fasce
-                        </Badge>
-                      </div>
-                      <p className="mt-1 flex items-center gap-2 text-sm text-muted-foreground">
-                        <Clock className="h-4 w-4" aria-hidden="true" />
-                        {formatTimeRange(activity.start, activity.end)}
-                      </p>
-                    </li>
-                  ))}
-                </ul>
-              </section>
+                  reintrodurre riquadri qui. Una sezione vuota non si rende
+                  affatto (ADR 0010): un Evento senza Attività non ha un
+                  programma da mostrare. */}
+              {event.activities.length > 0 && (
+                <section className="mt-8">
+                  <h2 className="text-lg font-semibold">Attività in programma</h2>
+                  <ul className="mt-4 flex flex-col gap-4">
+                    {event.activities.map((activity) => (
+                      <li key={activity.id}>
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <p className="font-medium">{activity.title}</p>
+                          <Badge variant="secondary">
+                            {activity.slotDurationMinutes} min · {activity.slots.length} fasce
+                          </Badge>
+                        </div>
+                        <p className="mt-1 flex items-center gap-2 text-sm text-muted-foreground">
+                          <Clock className="h-4 w-4" aria-hidden="true" />
+                          {formatTimeRange(activity.start, activity.end)}
+                        </p>
+                      </li>
+                    ))}
+                  </ul>
+                </section>
+              )}
             </div>
 
             <div className="lg:sticky lg:top-6 lg:self-start">

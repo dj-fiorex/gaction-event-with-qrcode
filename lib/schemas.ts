@@ -81,10 +81,18 @@ export const eventSchema = z
       .min(4, 'La password deve avere almeno 4 caratteri')
       .optional()
       .or(z.literal('')),
-    activities: z.array(activityInputSchema).min(1, 'Aggiungi almeno un\u2019attività'),
+    /**
+     * Nessun minimo (ADR 0010): un Evento può non avere Attività, ed è una sua
+     * forma legittima e permanente. La lista vuota è il modo in cui l'admin lo
+     * dice — non esiste un interruttore che possa contraddirla.
+     */
+    activities: z.array(activityInputSchema),
   })
   .refine(
-    (e) => e.activityPolicy !== 'min' || (e.minActivities >= 1 && e.minActivities <= e.activities.length),
+    (e) =>
+      e.activities.length === 0 ||
+      e.activityPolicy !== 'min' ||
+      (e.minActivities >= 1 && e.minActivities <= e.activities.length),
     {
       message: 'Il minimo di attività deve essere tra 1 e il numero di attività',
       path: ['minActivities'],
