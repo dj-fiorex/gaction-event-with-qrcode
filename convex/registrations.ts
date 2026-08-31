@@ -7,6 +7,7 @@ import {
   getCurrentUser,
   normalizeEmail,
   requireEmailUnusedForEvent,
+  resolveEventDates,
 } from './model'
 import { intervalsOverlap } from '../lib/slots'
 import { getAuthUserId } from '@convex-dev/auth/server'
@@ -480,20 +481,21 @@ export const prepareTicketResend = mutation({
       .withIndex('by_registration', (q) => q.eq('registrationId', registration._id))
       .collect()
 
-    // Date e copertina servono al client per l'header del PDF allegato:
-    // derivate dalle Attività e dallo storage come in eventWithStats.
+    // Date e copertina servono al client per l'header del PDF allegato: le
+    // stesse che risolve `loadEventWithStats`, dalla stessa funzione — un
+    // biglietto che raccontasse una data diversa dalla pagina dell'Evento
+    // sarebbe peggio di un biglietto senza data (ADR 0009).
     const activities = await ctx.db
       .query('activities')
       .withIndex('by_event', (q) => q.eq('eventId', event._id))
       .collect()
-    const starts = activities.map((a) => new Date(a.start).getTime())
-    const ends = activities.map((a) => new Date(a.end).getTime())
+    const dates = resolveEventDates(event, activities)
 
     return {
       eventTitle: event.title,
       eventLocation: event.location,
-      eventStartsAt: starts.length ? new Date(Math.min(...starts)).toISOString() : null,
-      eventEndsAt: ends.length ? new Date(Math.max(...ends)).toISOString() : null,
+      eventStartsAt: dates.startsAt,
+      eventEndsAt: dates.endsAt,
       eventImageUrl: event.imageStorageId
         ? await ctx.storage.getUrl(event.imageStorageId)
         : null,

@@ -35,6 +35,12 @@ export const eventSchema = z
     location: z.string().trim().min(2, 'Inserisci il luogo'),
     /** storageId Convex dell'immagine di copertina (opzionale). */
     imageStorageId: z.string().optional(),
+    /**
+     * Date proprie dell'Evento (ADR 0009), come valori `datetime-local`.
+     * Vuote = non dichiarate, cioè derivate dalle Attività.
+     */
+    startsAt: z.string().optional(),
+    endsAt: z.string().optional(),
     activityPolicy: z.enum(['all', 'min', 'free']),
     minActivities: z.coerce.number().int().min(0).default(0),
     allowOverlap: z.boolean().default(false),
@@ -93,6 +99,23 @@ export const eventSchema = z
     {
       message: 'Il massimo Ospiti con Figli non può superare il massimo Ospiti',
       path: ['maxCompanionsWithChildren'],
+    },
+  )
+  // Date proprie dell'Evento (ADR 0009): la fine richiede l'inizio ed è
+  // successiva, l'inizio sta in piedi da solo. Stesse due regole e stessi
+  // messaggi di `validateEventInput` in convex/events.ts, che è chi decide.
+  .refine((e) => !e.endsAt?.trim() || !!e.startsAt?.trim(), {
+    message: 'Per dichiarare la fine dell\u2019evento serve anche l\u2019inizio',
+    path: ['endsAt'],
+  })
+  .refine(
+    (e) =>
+      !e.startsAt?.trim() ||
+      !e.endsAt?.trim() ||
+      new Date(e.endsAt).getTime() > new Date(e.startsAt).getTime(),
+    {
+      message: 'La fine dell\u2019evento deve essere successiva all\u2019inizio',
+      path: ['endsAt'],
     },
   )
 

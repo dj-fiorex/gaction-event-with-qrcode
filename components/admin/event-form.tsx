@@ -61,6 +61,8 @@ const defaultValues: EventInput = {
   description: '',
   location: '',
   imageStorageId: undefined,
+  startsAt: '',
+  endsAt: '',
   activityPolicy: 'free',
   minActivities: 1,
   allowOverlap: false,
@@ -211,6 +213,11 @@ export function EventForm({
         imageStorageId: values.imageStorageId
           ? (values.imageStorageId as Id<'_storage'>)
           : undefined,
+        // Date proprie dell'Evento (ADR 0009): stesso trattamento degli orari
+        // delle Attività — il fuso lo conosce solo il browser. Vuote restano
+        // vuote, ed è così che il server capisce «non dichiarata».
+        startsAt: fromDatetimeLocalValue(values.startsAt ?? ''),
+        endsAt: fromDatetimeLocalValue(values.endsAt ?? ''),
         activities: values.activities.map(({ id, start, end, ...activity }) => ({
           ...activity,
           // Il fuso lo conosce solo il browser: un valore `datetime-local`
@@ -271,6 +278,40 @@ export function EventForm({
           />
         )}
       />
+
+      {/* Data dell'Evento (ADR 0009) */}
+      <fieldset className="flex flex-col gap-3 rounded-lg border border-border p-4">
+        <div>
+          <legend className="font-medium">Data dell&rsquo;evento</legend>
+          <p className="text-sm text-muted-foreground">
+            Facoltativa. Se non la indichi, la data si ricava dalle attività: il primo inizio e
+            l&rsquo;ultima fine. Se la indichi vince lei, anche quando le attività dicono altro.
+            La fine puoi lasciarla vuota: meglio nessun orario che uno inventato sul biglietto.
+          </p>
+        </div>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <div className="grid gap-2">
+            <Label htmlFor="event-starts-at">Inizio</Label>
+            <Input
+              id="event-starts-at"
+              type="datetime-local"
+              {...register('startsAt')}
+              aria-invalid={!!errors.startsAt}
+            />
+            <FieldError message={errors.startsAt?.message} />
+          </div>
+          <div className="grid gap-2">
+            <Label htmlFor="event-ends-at">Fine</Label>
+            <Input
+              id="event-ends-at"
+              type="datetime-local"
+              {...register('endsAt')}
+              aria-invalid={!!errors.endsAt}
+            />
+            <FieldError message={errors.endsAt?.message} />
+          </div>
+        </div>
+      </fieldset>
 
       {/* Attività */}
       <fieldset className="flex flex-col gap-3 rounded-lg border border-border p-4">

@@ -68,7 +68,7 @@ export default function EventPage() {
               <div className="mt-4 flex flex-col gap-2 text-sm text-muted-foreground">
                 <span className="flex items-center gap-2">
                   <CalendarDays className="h-4 w-4" aria-hidden="true" />
-                  {event.startsAt ? formatEventDate(event.startsAt) : 'Date da definire'}
+                  {event.startsAt ? formatEventDate(event.startsAt) : 'Data da definire'}
                 </span>
                 <span className="flex items-center gap-2">
                   <MapPin className="h-4 w-4" aria-hidden="true" />

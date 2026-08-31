@@ -36,6 +36,13 @@ const eventInput = {
   description: v.string(),
   location: v.string(),
   imageStorageId: v.optional(v.id('_storage')),
+  /**
+   * Date proprie dell'Evento (ADR 0009). Assenti = derivate dalle Attività.
+   * Stringa vuota = «tolta»: il form manda comunque il campo, e un campo
+   * svuotato deve cancellare la dichiarazione, non persisterne una vuota.
+   */
+  startsAt: v.optional(v.string()),
+  endsAt: v.optional(v.string()),
   activityPolicy,
   minActivities: v.number(),
   allowOverlap: v.boolean(),
@@ -233,6 +240,46 @@ export const getByScanToken = query({
 /* Mutations (admin)                                                   */
 /* ------------------------------------------------------------------ */
 
+/**
+ * Le date dichiarate come vanno persistite (ADR 0009): l'istante assoluto se
+ * l'admin ne ha scritto uno, `undefined` se ha lasciato il campo vuoto. È
+ * `undefined` e non stringa vuota perché «assente» è il campo che non c'è —
+ * la lettura risolve `??` sulla derivazione, e `''` non è nullish.
+ *
+ * Torna sempre entrambe le chiavi: un `patch` che le omettesse non potrebbe
+ * mai togliere a un Evento una dichiarazione già fatta.
+ */
+function normalizeEventDates(input: { startsAt?: string; endsAt?: string }): {
+  startsAt: string | undefined
+  endsAt: string | undefined
+} {
+  return { startsAt: normalizeDeclaredDate(input.startsAt), endsAt: normalizeDeclaredDate(input.endsAt) }
+}
+
+/**
+ * Un campo data dell'Evento come arriva dal form, nei suoi tre casi: vuoto
+ * («non dichiarata», scelta legittima dell'admin), un istante, o qualcosa che
+ * una data non è. Sono tre e non due: confondere il vuoto con il non valido
+ * significa o scrivere `Invalid Date` in tabella o cancellare in silenzio una
+ * dichiarazione che l'admin ha appena scritto.
+ */
+type DeclaredDate =
+  | { kind: 'absent' }
+  | { kind: 'invalid' }
+  | { kind: 'instant'; instant: number }
+
+function readDeclaredDate(value: string | undefined): DeclaredDate {
+  const trimmed = (value ?? '').trim()
+  if (!trimmed) return { kind: 'absent' }
+  const instant = new Date(trimmed).getTime()
+  return Number.isNaN(instant) ? { kind: 'invalid' } : { kind: 'instant', instant }
+}
+
+function normalizeDeclaredDate(value: string | undefined): string | undefined {
+  const declared = readDeclaredDate(value)
+  return declared.kind === 'instant' ? new Date(declared.instant).toISOString() : undefined
+}
+
 function normalizeMinActivities(policy: 'all' | 'min' | 'free', min: number, count: number) {
   if (policy !== 'min') return 0
   return min
@@ -387,6 +434,8 @@ async function syncActivitiesAndSlots(
 
 /** Valida che ogni attività generi almeno uno slot e la policy min. */
 function validateEventInput(input: {
+  startsAt?: string
+  endsAt?: string
   activityPolicy: 'all' | 'min' | 'free'
   minActivities: number
   allowChildren: boolean
@@ -395,6 +444,24 @@ function validateEventInput(input: {
   maxCompanionsWithChildren?: number
   activities: Array<{ start: string; end: string; slotDurationMinutes: number; capacityPerSlot: number }>
 }): string | null {
+  // Date proprie dell'Evento: la fine dichiarata richiede l'inizio ed è
+  // successiva, l'inizio sta in piedi da solo. Il perché sta nell'ADR 0009.
+  const declaredStart = readDeclaredDate(input.startsAt)
+  const declaredEnd = readDeclaredDate(input.endsAt)
+  if (declaredStart.kind === 'invalid' || declaredEnd.kind === 'invalid') {
+    return 'Data dell\u2019evento non valida'
+  }
+  if (declaredEnd.kind === 'instant' && declaredStart.kind !== 'instant') {
+    return 'Per dichiarare la fine dell\u2019evento serve anche l\u2019inizio'
+  }
+  if (
+    declaredStart.kind === 'instant' &&
+    declaredEnd.kind === 'instant' &&
+    declaredEnd.instant <= declaredStart.instant
+  ) {
+    return 'La fine dell\u2019evento deve essere successiva all\u2019inizio'
+  }
+
   if (input.activities.length === 0) return 'Aggiungi almeno un\u2019attività'
   for (const a of input.activities) {
     const slots = generateSlots('tmp', new Date(a.start).toISOString(), new Date(a.end).toISOString(), a.slotDurationMinutes, a.capacityPerSlot)
@@ -443,6 +510,7 @@ export const create = mutation({
       description: args.description,
       location: args.location,
       imageStorageId: args.imageStorageId,
+      ...normalizeEventDates(args),
       activityPolicy: args.activityPolicy,
       minActivities: normalizeMinActivities(args.activityPolicy, args.minActivities, args.activities.length),
       allowOverlap: args.allowOverlap,
@@ -515,6 +583,7 @@ export const update = mutation({
       description: args.description,
       location: args.location,
       imageStorageId: args.imageStorageId,
+      ...normalizeEventDates(args),
       activityPolicy: args.activityPolicy,
       minActivities: normalizeMinActivities(args.activityPolicy, args.minActivities, args.activities.length),
       allowOverlap: args.allowOverlap,

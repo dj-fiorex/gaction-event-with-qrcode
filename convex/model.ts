@@ -229,6 +229,9 @@ export interface EventWithStatsDTO {
   personsCount: number
   startsAt: string | null
   endsAt: string | null
+  /** Date dichiarate sull'Evento (ADR 0009). null = derivate dalle Attività. */
+  declaredStartsAt: string | null
+  declaredEndsAt: string | null
   totalCapacity: number
   totalTaken: number
   totalAvailable: number
@@ -253,6 +256,45 @@ async function slotTaken(
     total += persons.length
   }
   return total
+}
+
+/**
+ * Le date dell'Evento in lettura (ADR 0009): la dichiarazione dell'admin vince
+ * **sempre** sulla derivazione dalle Attività, e inizio e fine si risolvono in
+ * modo **indipendente** l'uno dall'altro — un Evento può dichiarare solo
+ * l'inizio e lasciare che la fine resti quella dell'ultima Attività.
+ *
+ * Senza dichiarazione e senza Attività non c'è data: `null`, che ogni
+ * superficie rende come «Data da definire», biglietto compreso.
+ *
+ * Una fine derivata che cadrebbe **prima** dell'inizio dichiarato non viene
+ * resa: sarebbe un intervallo alla rovescia («20:00 – 15:00») stampato sul
+ * biglietto, e un biglietto che mente sull'orario è peggio di uno che tace.
+ * Tace la lettura, non la scrittura: la dichiarazione resta in tabella, e se
+ * un domani le Attività si spostano la fine ricompare da sé. Il caso non si
+ * può prevenire in scrittura — l'ADR ha scartato apposta il modello che
+ * vincola le Attività alla finestra dell'Evento, perché farebbe di ogni
+ * cambio d'orario una violazione da spiegare all'admin.
+ *
+ * È l'unico posto in cui la regola di lettura vive — DTO, header del biglietto
+ * PDF, ordinamento degli elenchi passano tutti di qui. La regola di scrittura
+ * (la fine dichiarata richiede l'inizio ed è successiva) sta in `events.ts`,
+ * dove l'admin può ancora essere avvisato.
+ */
+export function resolveEventDates(
+  event: { startsAt?: string; endsAt?: string },
+  activities: Array<{ start: string; end: string }>,
+): { startsAt: string | null; endsAt: string | null } {
+  const starts = activities.map((a) => new Date(a.start).getTime())
+  const ends = activities.map((a) => new Date(a.end).getTime())
+  const startsAt =
+    event.startsAt ?? (starts.length ? new Date(Math.min(...starts)).toISOString() : null)
+  const endsAt = event.endsAt ?? (ends.length ? new Date(Math.max(...ends)).toISOString() : null)
+
+  if (startsAt && endsAt && new Date(endsAt).getTime() <= new Date(startsAt).getTime()) {
+    return { startsAt, endsAt: null }
+  }
+  return { startsAt, endsAt }
 }
 
 export async function loadEventWithStats(
@@ -313,8 +355,6 @@ export async function loadEventWithStats(
     ? await ctx.storage.getUrl(event.imageStorageId)
     : null
 
-  const starts = activities.map((a) => new Date(a.start).getTime())
-  const ends = activities.map((a) => new Date(a.end).getTime())
   const allSlots = activityDTOs.flatMap((a) => a.slots)
   const totalCapacity = allSlots.reduce((sum, s) => sum + s.capacity, 0)
   const totalTaken = allSlots.reduce((sum, s) => sum + s.taken, 0)
@@ -355,8 +395,13 @@ export async function loadEventWithStats(
     allowedOrigins: opts.includeScanToken ? (event.allowedOrigins ?? []) : [],
     registrationsCount: registrations.length,
     personsCount: persons.length,
-    startsAt: starts.length ? new Date(Math.min(...starts)).toISOString() : null,
-    endsAt: ends.length ? new Date(Math.max(...ends)).toISOString() : null,
+    ...resolveEventDates(event, activities),
+    // La dichiarazione grezza, che il form dell'admin rimette in campo: dai
+    // valori risolti non si distinguerebbe una data dichiarata da una derivata,
+    // e risalvando senza toccare nulla la derivazione si congelerebbe in
+    // dichiarazione (ADR 0009). `null` = l'admin non ha dichiarato niente.
+    declaredStartsAt: event.startsAt ?? null,
+    declaredEndsAt: event.endsAt ?? null,
     totalCapacity,
     totalTaken,
     totalAvailable,

@@ -229,10 +229,21 @@ export interface EventWithStats extends Omit<Event, 'activities' | 'checkInPassw
   allowedOrigins: string[]
   registrationsCount: number
   personsCount: number
-  /** Inizio della prima Attività, se presente. */
+  /**
+   * Data dell'Evento (ADR 0009): quella dichiarata sull'Evento se c'è,
+   * altrimenti quella derivata dalle Attività (primo inizio, ultima fine).
+   * `null` = nessuna delle due, cioè «Data da definire».
+   */
   startsAt: string | null
-  /** Fine dell'ultima Attività, se presente. */
   endsAt: string | null
+  /**
+   * La dichiarazione grezza, che solo il form dell'admin rimette in campo:
+   * `null` = l'admin non ha dichiarato nulla e la data si deriva. Da
+   * `startsAt`/`endsAt` non si distinguerebbe una data dichiarata da una
+   * derivata, e risalvando il form la congelerebbe in dichiarazione.
+   */
+  declaredStartsAt: string | null
+  declaredEndsAt: string | null
   /** Somma dei posti di tutti gli Slot dell'Evento. */
   totalCapacity: number
   /** Somma dei posti occupati su tutti gli Slot. */

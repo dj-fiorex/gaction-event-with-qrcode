@@ -30,7 +30,7 @@ export function EventCard({ event }: { event: EventWithStats }) {
         <div className="flex flex-col gap-1.5 text-sm text-muted-foreground">
           <span className="flex items-center gap-2">
             <CalendarDays className="h-4 w-4 shrink-0" aria-hidden="true" />
-            {event.startsAt ? formatEventDate(event.startsAt) : 'Date da definire'}
+            {event.startsAt ? formatEventDate(event.startsAt) : 'Data da definire'}
           </span>
           <span className="flex items-center gap-2">
             <MapPin className="h-4 w-4 shrink-0" aria-hidden="true" />

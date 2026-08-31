@@ -1454,3 +1454,34 @@ test('getActivityAttendance exposes per-person allergies for the admin detail', 
     Object.fromEntries(persons.map((p) => [p.name, p.allergies])),
   ).toEqual({ 'Mario Rossi': 'Lattosio', Marco: null })
 })
+
+/* ------------------------------------------------------------------ */
+/* Date proprie dell'Evento nell'header del biglietto (issue #45)      */
+/* ------------------------------------------------------------------ */
+
+test('prepareTicketResend puts the declared date in the PDF header, not the derived one', async () => {
+  const t = convexTest(schema, modules)
+  const adminId = await createUser(t, { email: 'admin@example.com', role: 'admin', verified: true })
+  const { eventId, activityId, slotId } = await createEventFixture(t)
+
+  // L'Evento dichiara di cominciare alle 08 e non dichiara la fine: sul
+  // biglietto deve finire quell'inizio, non le 09:00 del laboratorio, e una
+  // fine ancora derivata dall'ultima Attività (ADR 0009).
+  await t.run((ctx) => ctx.db.patch(eventId, { startsAt: '2026-07-07T08:00:00.000Z' }))
+
+  const { registrationId } = await t.mutation(api.registrations.register, {
+    eventId,
+    userName: 'Mario Rossi',
+    contactEmail: 'guest@example.com',
+    children: [],
+    companions: [],
+    selections: [{ activityId, slotId }],
+  })
+
+  const payload = await t
+    .withIdentity({ subject: subjectFor(adminId) })
+    .mutation(api.registrations.prepareTicketResend, { registrationId })
+
+  expect(payload.eventStartsAt).toBe('2026-07-07T08:00:00.000Z')
+  expect(payload.eventEndsAt).toBe('2026-07-07T10:00:00.000Z')
+})

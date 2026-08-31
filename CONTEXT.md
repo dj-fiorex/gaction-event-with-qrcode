@@ -20,6 +20,9 @@ Un raduno a cui gli Utenti si iscrivono. Genera **1 QR code per ogni Persona** (
 ### Immagine dell'Evento
 Immagine **opzionale** di copertina dell'Evento, mostrata come hero nella pagina pubblica e come copertina nella `EventCard`, sempre in frame **16:9**. L'admin la carica ritagliandola client-side (react-easy-crop, aspect 16:9); i byte vivono su **Convex file storage** e sono referenziati da `imageStorageId` (`v.optional(v.id("_storage"))`). Il DTO risolve lo storageId in un URL esposto come `imageUrl` (`string | null`); quando assente si usa il fallback statico. Vedi ADR `0002`.
 
+### Data dell'Evento
+Quando l'Evento comincia ed eventualmente finisce. L'admin può **dichiararla** sull'Evento — inizio e fine indipendenti, la fine richiede l'inizio ed è successiva — e se non la dichiara si **deriva** dalle [[Attività]]: il primo inizio e l'ultima fine. La dichiarazione vince sempre sulla derivazione: un Evento può cominciare alle 20 con la prima Attività alle 21, e non è una contraddizione. Senza dichiarazione e senza Attività non c'è data: ovunque comparirebbe si legge «Data da definire», biglietto compreso. Vedi ADR `0009`.
+
 ### Attività
 Un segmento di un Evento con un **orario di inizio e fine** e una **Durata** (definita dall'admin). Dalla finestra inizio-fine e dalla Durata l'app **genera automaticamente gli Slot**. I posti limitati si contano per singolo Slot.
 

@@ -22,6 +22,11 @@ function toEventInput(event: EventWithStats): EventInput {
     description: event.description,
     location: event.location,
     imageStorageId: event.imageStorageId ?? undefined,
+    // La dichiarazione, non la data risolta (ADR 0009): rimettere in campo una
+    // data derivata la congelerebbe in dichiarazione al primo salvataggio, e
+    // da lì spostare un'Attività non sposterebbe più l'Evento.
+    startsAt: event.declaredStartsAt ? toDatetimeLocalValue(event.declaredStartsAt) : '',
+    endsAt: event.declaredEndsAt ? toDatetimeLocalValue(event.declaredEndsAt) : '',
     activityPolicy: event.activityPolicy,
     minActivities: event.activityPolicy === 'min' ? event.minActivities : 1,
     allowOverlap: event.allowOverlap,

@@ -47,6 +47,16 @@ export default defineSchema({
     location: v.string(),
     /** Immagine di copertina opzionale (16:9). Byte su Convex file storage. */
     imageStorageId: v.optional(v.id('_storage')),
+    /**
+     * Date proprie dell'Evento (issue #45, ADR 0009). Assenti = comportamento
+     * odierno: la data si deriva dalle Attività (primo inizio, ultima fine).
+     * La dichiarazione vince sempre sulla derivazione, anche quando l'Evento
+     * ha Attività. Inizio e fine sono indipendenti: la fine richiede l'inizio
+     * ed è successiva, ma l'inizio sta in piedi da solo — l'ora di fine di una
+     * cena nessuno la sa, e un orario inventato finirebbe sul biglietto.
+     */
+    startsAt: v.optional(v.string()),
+    endsAt: v.optional(v.string()),
     activityPolicy,
     minActivities: v.number(),
     allowOverlap: v.boolean(),

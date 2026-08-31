@@ -407,3 +407,262 @@ test('checkins.operableEvents excludes members for password-mode events and incl
   expect(memberOperable.map((event) => event.id)).not.toContain(created.id)
   expect(staffOperable.map((event) => event.id)).toContain(created.id)
 })
+
+/* ------------------------------------------------------------------ */
+/* Date proprie dell'Evento (issue #45, ADR 0009)                      */
+/* ------------------------------------------------------------------ */
+
+test('a declared start wins over the one derived from the activities', async () => {
+  const t = convexTest(schema, modules)
+  const adminId = await createAdmin(t)
+
+  // L'Evento comincia alle 20, la sua unica Attività alle 9: non è una
+  // contraddizione da risolvere ma un fatto da rappresentare (ADR 0009).
+  const { id: eventId } = await t.withIdentity({ subject: subjectFor(adminId) }).mutation(
+    api.events.create,
+    { ...buildEventInput(false), startsAt: '2026-07-07T20:00:00.000Z' },
+  )
+
+  const publicEvent = await t.query(api.events.getPublic, { eventId })
+  expect(publicEvent?.startsAt).toBe('2026-07-07T20:00:00.000Z')
+})
+
+test('a declared end wins over the one derived from the activities', async () => {
+  const t = convexTest(schema, modules)
+  const adminId = await createAdmin(t)
+
+  const { id: eventId } = await t.withIdentity({ subject: subjectFor(adminId) }).mutation(
+    api.events.create,
+    {
+      ...buildEventInput(false),
+      startsAt: '2026-07-07T20:00:00.000Z',
+      endsAt: '2026-07-07T23:30:00.000Z',
+    },
+  )
+
+  const publicEvent = await t.query(api.events.getPublic, { eventId })
+  expect(publicEvent?.endsAt).toBe('2026-07-07T23:30:00.000Z')
+})
+
+test('an end without a start is rejected', async () => {
+  const t = convexTest(schema, modules)
+  const adminId = await createAdmin(t)
+
+  await expect(
+    t.withIdentity({ subject: subjectFor(adminId) }).mutation(api.events.create, {
+      ...buildEventInput(false),
+      endsAt: '2026-07-07T23:30:00.000Z',
+    }),
+  ).rejects.toThrow(/inizio/i)
+})
+
+test('an end earlier than or equal to the start is rejected', async () => {
+  const t = convexTest(schema, modules)
+  const adminId = await createAdmin(t)
+
+  for (const endsAt of ['2026-07-07T19:00:00.000Z', '2026-07-07T20:00:00.000Z']) {
+    await expect(
+      t.withIdentity({ subject: subjectFor(adminId) }).mutation(api.events.create, {
+        ...buildEventInput(false),
+        startsAt: '2026-07-07T20:00:00.000Z',
+        endsAt,
+      }),
+    ).rejects.toThrow(/successiva/i)
+  }
+})
+
+test('with no declared dates the behaviour is exactly today’s: derived from the activities', async () => {
+  const t = convexTest(schema, modules)
+  const adminId = await createAdmin(t)
+
+  const { id: eventId } = await t.withIdentity({ subject: subjectFor(adminId) }).mutation(
+    api.events.create,
+    {
+      ...buildEventInput(false),
+      activities: [
+        {
+          title: 'Pomeriggio',
+          start: '2026-07-07T14:00:00.000Z',
+          end: '2026-07-07T15:00:00.000Z',
+          slotDurationMinutes: 60,
+          capacityPerSlot: 10,
+        },
+        {
+          title: 'Mattina',
+          start: '2026-07-07T09:00:00.000Z',
+          end: '2026-07-07T10:00:00.000Z',
+          slotDurationMinutes: 60,
+          capacityPerSlot: 10,
+        },
+      ],
+    },
+  )
+
+  const publicEvent = await t.query(api.events.getPublic, { eventId })
+  // Il primo inizio e l'ultima fine, non quelli della prima Attività in elenco.
+  expect(publicEvent?.startsAt).toBe('2026-07-07T09:00:00.000Z')
+  expect(publicEvent?.endsAt).toBe('2026-07-07T15:00:00.000Z')
+  expect(publicEvent?.declaredStartsAt).toBeNull()
+  expect(publicEvent?.declaredEndsAt).toBeNull()
+})
+
+test('start and end resolve independently: a declared start leaves the end derived', async () => {
+  const t = convexTest(schema, modules)
+  const adminId = await createAdmin(t)
+
+  const { id: eventId } = await t.withIdentity({ subject: subjectFor(adminId) }).mutation(
+    api.events.create,
+    {
+      ...buildEventInput(false),
+      startsAt: '2026-07-07T08:00:00.000Z',
+      activities: [
+        {
+          title: 'Laboratorio',
+          start: '2026-07-07T09:00:00.000Z',
+          end: '2026-07-07T10:00:00.000Z',
+          slotDurationMinutes: 60,
+          capacityPerSlot: 10,
+        },
+      ],
+    },
+  )
+
+  const publicEvent = await t.query(api.events.getPublic, { eventId })
+  expect(publicEvent?.startsAt).toBe('2026-07-07T08:00:00.000Z')
+  expect(publicEvent?.endsAt).toBe('2026-07-07T10:00:00.000Z')
+  expect(publicEvent?.declaredEndsAt).toBeNull()
+})
+
+test('with neither declared dates nor activities there is no date at all', async () => {
+  const t = convexTest(schema, modules)
+
+  const eventId = await t.run((ctx) =>
+    ctx.db.insert('events', {
+      title: 'Assemblea',
+      description: 'Descrizione',
+      location: 'Roma',
+      activityPolicy: 'free',
+      minActivities: 0,
+      allowOverlap: false,
+      checkInToleranceMinutes: 15,
+      allowQrReuse: false,
+      allowChildren: false,
+      maxChildrenPerRegistration: 0,
+      allowCompanions: false,
+      maxCompanionsPerRegistration: 0,
+      checkInAccess: 'password',
+      scanToken: `scan-${Math.random().toString(36).slice(2)}`,
+      checkInPasswordHash: null,
+      scanUnlockToken: null,
+    }),
+  )
+
+  const publicEvent = await t.query(api.events.getPublic, { eventId })
+  // `null` è ciò che ogni superficie rende come «Data da definire».
+  expect(publicEvent?.startsAt).toBeNull()
+  expect(publicEvent?.endsAt).toBeNull()
+})
+
+test('events.update can declare dates and can take them away again', async () => {
+  const t = convexTest(schema, modules)
+  const adminId = await createAdmin(t)
+  const asAdmin = t.withIdentity({ subject: subjectFor(adminId) })
+
+  const pinned = {
+    ...buildEventInput(false),
+    activities: [
+      {
+        title: 'Laboratorio',
+        start: '2026-07-07T09:00:00.000Z',
+        end: '2026-07-07T10:00:00.000Z',
+        slotDurationMinutes: 60,
+        capacityPerSlot: 10,
+      },
+    ],
+  }
+  const { id: eventId } = await asAdmin.mutation(api.events.create, pinned)
+
+  await asAdmin.mutation(api.events.update, {
+    eventId,
+    ...pinned,
+    startsAt: '2026-07-07T20:00:00.000Z',
+    endsAt: '2026-07-07T23:00:00.000Z',
+  })
+  const declared = await t.query(api.events.getPublic, { eventId })
+  expect(declared?.startsAt).toBe('2026-07-07T20:00:00.000Z')
+  expect(declared?.endsAt).toBe('2026-07-07T23:00:00.000Z')
+
+  // Campi svuotati nel form: la dichiarazione sparisce e torna la derivazione.
+  await asAdmin.mutation(api.events.update, {
+    eventId,
+    ...pinned,
+    startsAt: '',
+    endsAt: '',
+  })
+  const derived = await t.query(api.events.getPublic, { eventId })
+  expect(derived?.declaredStartsAt).toBeNull()
+  expect(derived?.startsAt).toBe('2026-07-07T09:00:00.000Z')
+  expect(derived?.endsAt).toBe('2026-07-07T10:00:00.000Z')
+})
+
+test('events.listPublic orders by the declared date, not by the derived one', async () => {
+  const t = convexTest(schema, modules)
+  const adminId = await createAdmin(t)
+  const asAdmin = t.withIdentity({ subject: subjectFor(adminId) })
+
+  // Deriverebbe le 08:00 e verrebbe prima, ma dichiara di cominciare alle 20.
+  const { id: dinnerId } = await asAdmin.mutation(api.events.create, {
+    ...buildEventInput(false),
+    title: 'Cena',
+    startsAt: '2026-07-07T20:00:00.000Z',
+    activities: [
+      {
+        title: 'Aperitivo',
+        start: '2026-07-07T08:00:00.000Z',
+        end: '2026-07-07T09:00:00.000Z',
+        slotDurationMinutes: 60,
+        capacityPerSlot: 10,
+      },
+    ],
+  })
+  const { id: morningId } = await asAdmin.mutation(api.events.create, {
+    ...buildEventInput(false),
+    title: 'Open day',
+  })
+
+  const listed = await t.query(api.events.listPublic, {})
+  expect(listed.map((event) => event.id)).toEqual([morningId, dinnerId])
+})
+
+test('a derived end that would precede the declared start is dropped, not printed backwards', async () => {
+  const t = convexTest(schema, modules)
+  const adminId = await createAdmin(t)
+
+  // Cena alle 20 con un allestimento pomeridiano fra le Attività: la fine
+  // derivata cadrebbe *prima* dell'inizio dichiarato, e «20:00 – 15:00» sul
+  // biglietto è peggio di nessun orario di fine. La dichiarazione dell'inizio
+  // resta, la derivazione della fine si tace (ADR 0009): meglio nessun orario
+  // che uno inventato — o, qui, uno impossibile.
+  const { id: eventId } = await t.withIdentity({ subject: subjectFor(adminId) }).mutation(
+    api.events.create,
+    {
+      ...buildEventInput(false),
+      startsAt: '2026-07-07T20:00:00.000Z',
+      activities: [
+        {
+          title: 'Allestimento',
+          start: '2026-07-07T14:00:00.000Z',
+          end: '2026-07-07T15:00:00.000Z',
+          slotDurationMinutes: 60,
+          capacityPerSlot: 10,
+        },
+      ],
+    },
+  )
+
+  const publicEvent = await t.query(api.events.getPublic, { eventId })
+  expect(publicEvent?.startsAt).toBe('2026-07-07T20:00:00.000Z')
+  expect(publicEvent?.endsAt).toBeNull()
+  // La dichiarazione resta intatta in tabella: a tacere è solo la lettura.
+  expect(publicEvent?.declaredStartsAt).toBe('2026-07-07T20:00:00.000Z')
+})
