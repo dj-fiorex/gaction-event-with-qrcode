@@ -47,25 +47,34 @@ export function EmbedRegistration({ eventId }: EmbedRegistrationProps) {
   // essere vero alla lettera.
   const theme = event?.embedTheme ?? null
 
+  // I token vanno su `:root`, non sul contenitore. `body` porta già
+  // `bg-background text-foreground`, quindi risolve `var(--background)` e
+  // `var(--foreground)` **su di sé**, che sta sopra il contenitore: con le
+  // variabili definite più in basso body resterebbe col tema predefinito, e
+  // ogni discendente senza una classe di colore propria — i titoli delle
+  // sezioni del form, per esempio — erediterebbe quel nero **già calcolato**.
+  // Le variabili si ereditano; il valore che un `var()` ha già prodotto no.
+  const themeCss = theme
+    ? `:root{${Object.entries(embedThemeCssVars(theme))
+        .map(([name, value]) => `${name}:${value}`)
+        .join(';')};font-size:${theme.textScale}%}`
+    : null
+
+  // Il carattere resta inline sul contenitore, e non in quella regola: il
+  // valore di `--font-sans` è incorporato da `@theme inline` dentro l'utility
+  // `.font-sans`, che quindi non rilegge la variabile, e una regola su `body`
+  // perderebbe comunque contro la specificità di una classe.
   const themeStyle: CSSProperties | undefined = theme
-    ? ({
-        ...embedThemeCssVars(theme),
-        // Il font non passa da una variabile: si veda `embedThemeFontFamily`.
-        fontFamily: embedThemeFontFamily(theme),
-        backgroundColor: theme.background,
-      } as CSSProperties)
+    ? { fontFamily: embedThemeFontFamily(theme) }
     : undefined
 
   return (
     <div ref={containerRef} className="p-4" style={themeStyle}>
-      {/* La scala del testo deve arrivare all'elemento radice: le utility
-          `text-*` di Tailwind sono in `rem`, quindi solo la dimensione di
-          `html` le muove tutte insieme e in proporzione. Lo sfondo si ripete
-          qui perché il `body` è più alto del contenitore per il tempo di un
-          fotogramma, e una striscia bianca in fondo all'iframe si vede. */}
-      {theme && (
-        <style>{`html{font-size:${theme.textScale}%}html,body{background:${theme.background}}`}</style>
-      )}
+      {/* Nella stessa regola anche la scala: le utility `text-*` di Tailwind
+          sono in `rem`, quindi solo la dimensione dell'elemento radice le muove
+          tutte insieme e in proporzione. Lo sfondo non serve ripeterlo — con
+          `--background` ridefinita qui, il `bg-background` del body la legge. */}
+      {themeCss && <style>{themeCss}</style>}
       {event === undefined ? (
         <div className="flex flex-col gap-4">
           <Skeleton className="h-6 w-40" />
