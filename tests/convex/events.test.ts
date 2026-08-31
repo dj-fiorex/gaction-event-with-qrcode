@@ -692,6 +692,8 @@ test('embedShowTitle/embedShowLocation: assenti si vedono, setEmbedSettings li s
     allowedOrigins: ['https://www.partner.com'],
     embedShowTitle: false,
     embedShowLocation: false,
+    embedShowTickets: true,
+    embedShowNewRegistration: true,
     // L'Aspetto è sempre presente e mai facoltativo (ADR 0013): `null` dice
     // «nessun Aspetto», che è ciò che questo test vuole.
     embedTheme: null,
@@ -702,4 +704,83 @@ test('embedShowTitle/embedShowLocation: assenti si vedono, setEmbedSettings li s
   const after = await t.query(api.events.getPublic, { eventId })
   expect(after?.embedShowTitle).toBe(false)
   expect(after?.embedShowLocation).toBe(false)
+})
+
+test('Esito della Prenotazione: i testi sono pubblici e ripiegano campo per campo', async () => {
+  const t = convexTest(schema, modules)
+  const adminId = await createAdmin(t)
+  const asAdmin = t.withIdentity({ subject: subjectFor(adminId) })
+
+  const { id: eventId } = await asAdmin.mutation(api.events.create, buildEventInput(false))
+
+  // Nessun backfill: `create` senza i tre campi non li scrive affatto.
+  const raw = await t.run((ctx) => ctx.db.get(eventId))
+  expect(raw?.resultTitle).toBeUndefined()
+  expect(raw?.resultBody).toBeUndefined()
+  expect(raw?.resultClosing).toBeUndefined()
+
+  const before = await t.query(api.events.getPublic, { eventId })
+  expect(before?.resultTitle).toBe('')
+  expect(before?.resultClosing).toBe('')
+
+  await asAdmin.mutation(api.events.update, {
+    eventId,
+    ...buildEventInput(false),
+    resultTitle: 'Registrazione completata!',
+    // Solo due dei tre: il ripiego è indipendente per campo, e il corpo deve
+    // restare quello odierno senza che l'admin lo ricopi a mano.
+    resultClosing: 'Ti aspettiamo il 26 settembre alle 15.00.',
+  })
+
+  // Pubblici, a differenza di emailSubject/emailBody: li rende il form a
+  // chiunque prenoti, quindi `getPublic` — non solo `getForAdmin` — li porta.
+  const after = await t.query(api.events.getPublic, { eventId })
+  expect(after?.resultTitle).toBe('Registrazione completata!')
+  expect(after?.resultBody).toBe('')
+  expect(after?.resultClosing).toBe('Ti aspettiamo il 26 settembre alle 15.00.')
+
+  // Uno spazio non è un testo: svuotare il campo deve tornare al ripiego, non
+  // persistere una stringa che sembra scritta.
+  await asAdmin.mutation(api.events.update, {
+    eventId,
+    ...buildEventInput(false),
+    resultTitle: '   ',
+  })
+  const cleared = await t.run((ctx) => ctx.db.get(eventId))
+  expect(cleared?.resultTitle).toBeUndefined()
+})
+
+test('embedShowTickets/embedShowNewRegistration: assenti si vedono, setEmbedSettings li spegne', async () => {
+  const t = convexTest(schema, modules)
+  const adminId = await createAdmin(t)
+  const asAdmin = t.withIdentity({ subject: subjectFor(adminId) })
+
+  const { id: eventId } = await asAdmin.mutation(api.events.create, buildEventInput(false))
+
+  const raw = await t.run((ctx) => ctx.db.get(eventId))
+  expect(raw?.embedShowTickets).toBeUndefined()
+  expect(raw?.embedShowNewRegistration).toBeUndefined()
+
+  const before = await t.query(api.events.getPublic, { eventId })
+  expect(before?.embedShowTickets).toBe(true)
+  expect(before?.embedShowNewRegistration).toBe(true)
+
+  await asAdmin.mutation(api.events.setEmbedSettings, {
+    eventId,
+    embedEnabled: true,
+    allowedOrigins: ['https://www.partner.com'],
+    embedShowTitle: true,
+    embedShowLocation: true,
+    embedShowTickets: false,
+    embedShowNewRegistration: false,
+    embedTheme: null,
+  })
+
+  const after = await t.query(api.events.getPublic, { eventId })
+  expect(after?.embedShowTickets).toBe(false)
+  expect(after?.embedShowNewRegistration).toBe(false)
+  // I due interruttori dell'Incorporamento non toccano l'intestazione, che è
+  // una coppia distinta: spegnerli non deve spegnere altro.
+  expect(after?.embedShowTitle).toBe(true)
+  expect(after?.embedShowLocation).toBe(true)
 })

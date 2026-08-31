@@ -62,6 +62,13 @@ const eventInput = {
   emailSubject: v.optional(v.string()),
   emailBody: v.optional(v.string()),
   /**
+   * Esito della Prenotazione (ADR 0014). Vuoti = ripiego sul testo odierno,
+   * campo per campo. Testo semplice a paragrafi, non markdown.
+   */
+  resultTitle: v.optional(v.string()),
+  resultBody: v.optional(v.string()),
+  resultClosing: v.optional(v.string()),
+  /**
    * Informativa privacy (ADR 0012). Vuota = nessuna casella nel form e nessun
    * vincolo nelle mutation. Riscrivibile in ogni momento: le risposte già
    * raccolte se ne portano una copia e non cambiano.
@@ -563,6 +570,9 @@ export const create = mutation({
       recordExit: args.recordExit,
       emailSubject: normalizeEmailCopy(args.emailSubject),
       emailBody: normalizeEmailCopy(args.emailBody),
+      resultTitle: normalizeEmailCopy(args.resultTitle),
+      resultBody: normalizeEmailCopy(args.resultBody),
+      resultClosing: normalizeEmailCopy(args.resultClosing),
       privacyNotice: normalizeEmailCopy(args.privacyNotice),
       allowChildren: args.allowChildren,
       maxChildrenPerRegistration: args.allowChildren ? args.maxChildrenPerRegistration : 0,
@@ -636,6 +646,9 @@ export const update = mutation({
       recordExit: args.recordExit,
       emailSubject: normalizeEmailCopy(args.emailSubject),
       emailBody: normalizeEmailCopy(args.emailBody),
+      resultTitle: normalizeEmailCopy(args.resultTitle),
+      resultBody: normalizeEmailCopy(args.resultBody),
+      resultClosing: normalizeEmailCopy(args.resultClosing),
       privacyNotice: normalizeEmailCopy(args.privacyNotice),
       allowChildren: args.allowChildren,
       maxChildrenPerRegistration: args.allowChildren ? args.maxChildrenPerRegistration : 0,
@@ -724,6 +737,13 @@ export const setEmbedSettings = mutation({
     embedShowTitle: v.boolean(),
     embedShowLocation: v.boolean(),
     /**
+     * Esito della Prenotazione dentro l'iframe (ADR 0014). Il bottone di
+     * download dei biglietti non è spegnibile: resta la presa di chi non
+     * riceve l'email.
+     */
+    embedShowTickets: v.boolean(),
+    embedShowNewRegistration: v.boolean(),
+    /**
      * Aspetto dell'Incorporamento (ADR 0013). `null` lo rimuove e riporta il
      * form all'aspetto odierno. Sempre presente e mai facoltativo: fra
      * «non toccarlo» e «toglilo» un argomento opzionale non distinguerebbe.
@@ -748,6 +768,8 @@ export const setEmbedSettings = mutation({
       allowedOrigins,
       embedShowTitle,
       embedShowLocation,
+      embedShowTickets,
+      embedShowNewRegistration,
       embedTheme,
     },
   ) => {
@@ -785,6 +807,8 @@ export const setEmbedSettings = mutation({
       allowedOrigins: valid,
       embedShowTitle,
       embedShowLocation,
+      embedShowTickets,
+      embedShowNewRegistration,
       embedTheme: theme ?? undefined,
     })
     return {
@@ -792,6 +816,8 @@ export const setEmbedSettings = mutation({
       allowedOrigins: valid,
       embedShowTitle,
       embedShowLocation,
+      embedShowTickets,
+      embedShowNewRegistration,
       embedTheme: theme,
     }
   },

@@ -102,6 +102,15 @@ export interface Event {
    */
   emailSubject: string
   emailBody: string
+  /**
+   * Esito della Prenotazione (ADR 0014): titolo, corpo e chiusura della
+   * schermata che segue una Prenotazione riuscita. Testo semplice a paragrafi.
+   * Stringa vuota = ripiego, campo per campo (la chiusura vuota non rende
+   * nulla). Pubblici, a differenza del Testo dell'email di conferma.
+   */
+  resultTitle: string
+  resultBody: string
+  resultClosing: string
   allowChildren: boolean
   maxChildrenPerRegistration: number
   allowCompanions: boolean
@@ -241,6 +250,13 @@ export interface EventWithStats extends Omit<Event, 'activities' | 'checkInPassw
   embedEnabled: boolean
   /** Origini autorizzate a incorporare (solo per operatori; vuoto lato pubblico). */
   allowedOrigins: string[]
+  /**
+   * Esito della Prenotazione dentro l'iframe (ADR 0014): la griglia dei
+   * biglietti e «Nuova registrazione» si spengono separatamente. true =
+   * si vedono (comportamento odierno). Fuori dall'iframe non hanno effetto.
+   */
+  embedShowTickets: boolean
+  embedShowNewRegistration: boolean
   registrationsCount: number
   personsCount: number
   /**

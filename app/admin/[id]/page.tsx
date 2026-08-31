@@ -314,6 +314,8 @@ function EventDetailContent() {
           allowedOrigins={event.allowedOrigins}
           embedShowTitle={event.embedShowTitle}
           embedShowLocation={event.embedShowLocation}
+          embedShowTickets={event.embedShowTickets}
+          embedShowNewRegistration={event.embedShowNewRegistration}
           embedTheme={event.embedTheme}
         />
 

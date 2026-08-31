@@ -1,5 +1,7 @@
 import { z } from 'zod'
 
+import { RESULT_TITLE_MAX } from './result-content'
+
 /* ------------------------------------------------------------------ */
 /* Evento + Attività (creazione lato admin)                            */
 /* ------------------------------------------------------------------ */
@@ -84,6 +86,19 @@ export const eventSchema = z
      */
     emailSubject: z.string().trim().max(200, 'Oggetto troppo lungo').optional(),
     emailBody: z.string().optional(),
+    /**
+     * Esito della Prenotazione (ADR 0014): testo semplice a paragrafi. Vuoti =
+     * ripiego sul testo odierno, campo per campo. Il titolo ha un tetto più
+     * basso dell'oggetto dell'email perché è un `h2` dentro un iframe stretto:
+     * una riga che non ci sta non è un testo lungo, è un titolo sbagliato.
+     */
+    resultTitle: z
+      .string()
+      .trim()
+      .max(RESULT_TITLE_MAX, `Massimo ${RESULT_TITLE_MAX} caratteri`)
+      .optional(),
+    resultBody: z.string().optional(),
+    resultClosing: z.string().optional(),
     allowChildren: z.boolean().default(false),
     maxChildrenPerRegistration: z.coerce.number().int().min(0).default(0),
     allowCompanions: z.boolean().default(false),

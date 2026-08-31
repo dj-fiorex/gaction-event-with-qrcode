@@ -128,6 +128,20 @@ export default defineSchema({
     emailSubject: v.optional(v.string()),
     emailBody: v.optional(v.string()),
     /**
+     * Esito della Prenotazione (ADR 0014): titolo, corpo e chiusura della
+     * schermata mostrata dopo una Prenotazione riuscita. Testo semplice a
+     * paragrafi, non markdown. Ripiego **indipendente per campo**: assenti o
+     * vuoti valgono la formulazione odierna (la chiusura, che oggi non
+     * esiste, vale l'assenza), quindi nessun backfill.
+     *
+     * Sono dell'Evento e non dell'Incorporamento: parlano al partecipante di
+     * *quell'*evento, e si vedono su ogni superficie in cui la Prenotazione si
+     * conclude — pagina pubblica e iframe.
+     */
+    resultTitle: v.optional(v.string()),
+    resultBody: v.optional(v.string()),
+    resultClosing: v.optional(v.string()),
+    /**
      * Origini autorizzate a incorporare il form (CSP frame-ancestors).
      * Ogni voce è un'origine esatta (https://www.partner.com) o un wildcard di
      * sottodominio (https://*.partner.com). Vuoto = nessun sito autorizzato.
@@ -144,6 +158,22 @@ export default defineSchema({
      */
     embedShowTitle: v.optional(v.boolean()),
     embedShowLocation: v.optional(v.boolean()),
+    /**
+     * Esito della Prenotazione dentro l'iframe: la griglia dei biglietti e il
+     * bottone «Nuova registrazione» si spengono separatamente. Stesso verso
+     * dei due qui sopra — assenti o true = si vedono — quindi nessun backfill.
+     *
+     * Spegnere i biglietti non toglie mai il bottone di download: con la
+     * griglia via, quel PDF è l'unica presa che resta a chi non riceve
+     * l'email. La forza dietro `embedShowTickets` è dell'iframe (quattro QR
+     * fanno un riquadro alto ~2000px sulla pagina di qualcun altro); quella
+     * dietro `embedShowNewRegistration` no — è «Una sola risposta per email»,
+     * che rende quel bottone un vicolo cieco per un visitatore. Vive comunque
+     * qui perché l'embed è la superficie rivolta al visitatore, mentre la
+     * pagina pubblica è anche quella che l'organizzatore apre al banco.
+     */
+    embedShowTickets: v.optional(v.boolean()),
+    embedShowNewRegistration: v.optional(v.boolean()),
     /**
      * Aspetto dell'Incorporamento (ADR 0013): i sei valori con cui il form
      * incorporato prende i colori del sito ospitante. Assente = aspetto

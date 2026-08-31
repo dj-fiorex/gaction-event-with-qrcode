@@ -217,6 +217,14 @@ export interface EventWithStatsDTO {
    */
   emailSubject: string
   emailBody: string
+  /**
+   * Esito della Prenotazione (ADR 0014). Vuoti = ripiego sul testo odierno.
+   * **Pubblici**, a differenza di `emailSubject`/`emailBody`: è la schermata
+   * di conferma del form a doverli leggere, e la legge chiunque prenoti.
+   */
+  resultTitle: string
+  resultBody: string
+  resultClosing: string
   allowChildren: boolean
   maxChildrenPerRegistration: number
   allowCompanions: boolean
@@ -237,6 +245,13 @@ export interface EventWithStatsDTO {
    */
   embedShowTitle: boolean
   embedShowLocation: boolean
+  /**
+   * Esito della Prenotazione dentro l'iframe (ADR 0014): griglia dei biglietti
+   * e «Nuova registrazione», spegnibili separatamente. Pubblici come i due
+   * qui sopra.
+   */
+  embedShowTickets: boolean
+  embedShowNewRegistration: boolean
   /**
    * Aspetto dell'Incorporamento (ADR 0013). `null` = aspetto odierno.
    * Pubblico per la stessa ragione dei due booleani qui sopra: è il form
@@ -409,6 +424,13 @@ export async function loadEventWithStats(
     // admin, non esposta al pubblico — come scanToken e allowedOrigins.
     emailSubject: opts.includeScanToken ? (event.emailSubject ?? '') : '',
     emailBody: opts.includeScanToken ? (event.emailBody ?? '') : '',
+    // L'Esito della Prenotazione invece è pubblico: lo rende il form a
+    // chiunque prenoti, embed compreso. Il ripiego non è qui ma in
+    // `lib/result-content.ts`, perché dipende dal numero di Persone e dallo
+    // stato dei biglietti inline — due cose che il DTO non conosce.
+    resultTitle: event.resultTitle ?? '',
+    resultBody: event.resultBody ?? '',
+    resultClosing: event.resultClosing ?? '',
     allowChildren: event.allowChildren,
     maxChildrenPerRegistration: event.maxChildrenPerRegistration,
     allowCompanions: event.allowCompanions,
@@ -423,6 +445,8 @@ export async function loadEventWithStats(
     // devono perdere l'intestazione al deploy.
     embedShowTitle: event.embedShowTitle ?? true,
     embedShowLocation: event.embedShowLocation ?? true,
+    embedShowTickets: event.embedShowTickets ?? true,
+    embedShowNewRegistration: event.embedShowNewRegistration ?? true,
     embedTheme: event.embedTheme ?? null,
     registrationsCount: registrations.length,
     personsCount: persons.length,

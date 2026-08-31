@@ -71,6 +71,9 @@ const defaultValues: EventInput = {
   recordExit: false,
   emailSubject: '',
   emailBody: '',
+  resultTitle: '',
+  resultBody: '',
+  resultClosing: '',
   privacyNotice: '',
   allowChildren: false,
   maxChildrenPerRegistration: 2,
@@ -813,6 +816,62 @@ export function EventForm({
           </p>
         </div>
       </div>
+
+      {/* Esito della Prenotazione (ADR 0014) */}
+      <fieldset className="flex flex-col gap-4 rounded-lg border border-border p-4">
+        <div>
+          <legend className="font-medium">Esito della prenotazione</legend>
+          <p className="text-sm text-muted-foreground">
+            Cosa legge chi ha appena finito di iscriversi, sulla schermata di conferma. Testo
+            semplice: una riga vuota separa i paragrafi, e gli indirizzi email diventano
+            cliccabili da soli. Ogni campo lasciato vuoto usa il testo predefinito, e la chiusura
+            vuota semplicemente non compare. I biglietti e il bottone «Nuova registrazione» si
+            spengono invece dalla scheda «Incorporamento», e valgono solo dentro l&rsquo;iframe.
+          </p>
+        </div>
+
+        <div className="grid gap-2">
+          <Label htmlFor="resultTitle">Titolo</Label>
+          <Input
+            id="resultTitle"
+            placeholder="Registrazione confermata"
+            {...register('resultTitle')}
+            aria-invalid={!!errors.resultTitle}
+          />
+          <FieldError message={errors.resultTitle?.message} />
+        </div>
+
+        <div className="grid gap-2">
+          <Label htmlFor="resultBody">Corpo</Label>
+          <Textarea
+            id="resultBody"
+            rows={6}
+            placeholder="Grazie! Ti abbiamo appena inviato un’email con la conferma e i QR code di ingresso."
+            {...register('resultBody')}
+            aria-invalid={!!errors.resultBody}
+          />
+          <p className="text-sm text-muted-foreground">
+            Compare sotto al titolo, sopra al bottone di download: l&rsquo;ultima riga può
+            invitare a scaricare il PDF, che sta subito sotto.
+          </p>
+          <FieldError message={errors.resultBody?.message} />
+        </div>
+
+        <div className="grid gap-2">
+          <Label htmlFor="resultClosing">Chiusura</Label>
+          <Textarea
+            id="resultClosing"
+            rows={3}
+            placeholder="Ti aspettiamo il 26 settembre alle 15.00."
+            {...register('resultClosing')}
+            aria-invalid={!!errors.resultClosing}
+          />
+          <p className="text-sm text-muted-foreground">
+            L&rsquo;ultima cosa della pagina, sotto ai biglietti. Vuota non compare.
+          </p>
+          <FieldError message={errors.resultClosing?.message} />
+        </div>
+      </fieldset>
 
       {/* Testo dell'email di conferma (issue #42) */}
       <fieldset className="flex flex-col gap-4 rounded-lg border border-border p-4">

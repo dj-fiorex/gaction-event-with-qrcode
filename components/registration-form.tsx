@@ -364,6 +364,15 @@ export function RegistrationForm({
           dateRange: formatDateRange(event.startsAt, event.endsAt),
           imageUrl: event.imageUrl,
         }}
+        // Esito della Prenotazione (ADR 0014): i testi sono dell'Evento e
+        // valgono su ogni superficie; i due interruttori sono
+        // dell'Incorporamento, quindi fuori dall'iframe non hanno effetto —
+        // `embed` è l'unico posto in cui questa asimmetria si legge.
+        resultTitle={event.resultTitle}
+        resultBody={event.resultBody}
+        resultClosing={event.resultClosing}
+        showTickets={!embed || event.embedShowTickets}
+        showNewRegistration={!embed || event.embedShowNewRegistration}
         onReset={() => {
           reset()
           setSlotByActivity({})

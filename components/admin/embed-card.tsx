@@ -44,6 +44,8 @@ interface EmbedCardProps {
   allowedOrigins: string[]
   embedShowTitle: boolean
   embedShowLocation: boolean
+  embedShowTickets: boolean
+  embedShowNewRegistration: boolean
   embedTheme: EmbedTheme | null
 }
 
@@ -53,12 +55,16 @@ export function EmbedCard({
   allowedOrigins,
   embedShowTitle,
   embedShowLocation,
+  embedShowTickets,
+  embedShowNewRegistration,
   embedTheme,
 }: EmbedCardProps) {
   const setEmbedSettings = useMutation(api.events.setEmbedSettings)
   const [enabled, setEnabled] = useState(embedEnabled)
   const [showTitle, setShowTitle] = useState(embedShowTitle)
   const [showLocation, setShowLocation] = useState(embedShowLocation)
+  const [showTickets, setShowTickets] = useState(embedShowTickets)
+  const [showNewRegistration, setShowNewRegistration] = useState(embedShowNewRegistration)
   const [originsText, setOriginsText] = useState(allowedOrigins.join('\n'))
   const [origin, setOrigin] = useState('')
   const [copied, setCopied] = useState(false)
@@ -135,6 +141,8 @@ export function EmbedCard({
         allowedOrigins: valid,
         embedShowTitle: showTitle,
         embedShowLocation: showLocation,
+        embedShowTickets: showTickets,
+        embedShowNewRegistration: showNewRegistration,
         embedTheme: themed ? resolved : null,
       })
       setOriginsText(result.allowedOrigins.join('\n'))
@@ -242,6 +250,48 @@ export function EmbedCard({
               <span className="font-medium">Mostra il luogo</span>
               <span className="text-sm text-muted-foreground">
                 Il luogo dell&apos;evento sotto il titolo.
+              </span>
+            </span>
+          </Label>
+        </fieldset>
+
+        {/* Esito della Prenotazione dentro l'iframe (ADR 0014). Il bottone di
+            download non è qui: non è spegnibile, perché con i biglietti via
+            resta l'unica presa di chi non riceve l'email. */}
+        <fieldset className="grid gap-3 border-t border-border pt-4">
+          <legend className="sr-only">Schermata di conferma nel form incorporato</legend>
+          <p className="text-sm text-muted-foreground">
+            Cosa resta sulla schermata che segue l&apos;iscrizione. Il bottone per scaricare il
+            PDF dei biglietti c&apos;è sempre. I testi di quella schermata si scrivono invece nel
+            form dell&apos;evento, e valgono anche sulla pagina pubblica.
+          </p>
+
+          <Label className="flex items-start gap-3">
+            <Checkbox
+              checked={showTickets}
+              onCheckedChange={(value) => setShowTickets(value === true)}
+              className="mt-0.5"
+            />
+            <span className="flex flex-col gap-0.5">
+              <span className="font-medium">Mostra i biglietti</span>
+              <span className="text-sm text-muted-foreground">
+                I QR code a schermo, uno per persona. Toglierli accorcia molto l&apos;iframe
+                dentro la pagina che lo ospita: i biglietti restano nell&apos;email e nel PDF.
+              </span>
+            </span>
+          </Label>
+
+          <Label className="flex items-start gap-3">
+            <Checkbox
+              checked={showNewRegistration}
+              onCheckedChange={(value) => setShowNewRegistration(value === true)}
+              className="mt-0.5"
+            />
+            <span className="flex flex-col gap-0.5">
+              <span className="font-medium">Mostra «Nuova registrazione»</span>
+              <span className="text-sm text-muted-foreground">
+                Il bottone che riapre il form. Serve al banco accoglienza; per un visitatore è
+                un vicolo cieco, perché con la stessa email non può iscriversi due volte.
               </span>
             </span>
           </Label>
