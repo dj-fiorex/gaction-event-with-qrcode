@@ -2,6 +2,7 @@ import { ConvexError } from 'convex/values'
 import { getAuthUserId } from '@convex-dev/auth/server'
 import type { Doc, Id } from './_generated/dataModel'
 import type { MutationCtx, QueryCtx } from './_generated/server'
+import type { EmbedTheme } from '../lib/embed'
 
 /* ------------------------------------------------------------------ */
 /* Hashing password di check-in (Web Crypto, runtime Convex)           */
@@ -236,6 +237,12 @@ export interface EventWithStatsDTO {
    */
   embedShowTitle: boolean
   embedShowLocation: boolean
+  /**
+   * Aspetto dell'Incorporamento (ADR 0013). `null` = aspetto odierno.
+   * Pubblico per la stessa ragione dei due booleani qui sopra: è il form
+   * incorporato a leggerlo, e non rivela nulla che non sia già visibile.
+   */
+  embedTheme: EmbedTheme | null
   registrationsCount: number
   personsCount: number
   startsAt: string | null
@@ -416,6 +423,7 @@ export async function loadEventWithStats(
     // devono perdere l'intestazione al deploy.
     embedShowTitle: event.embedShowTitle ?? true,
     embedShowLocation: event.embedShowLocation ?? true,
+    embedTheme: event.embedTheme ?? null,
     registrationsCount: registrations.length,
     personsCount: persons.length,
     ...resolveEventDates(event, activities),

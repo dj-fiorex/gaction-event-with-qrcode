@@ -22,6 +22,19 @@ export const personCategory = v.union(
 
 export const userRole = v.union(v.literal('admin'), v.literal('staff'), v.literal('member'))
 
+/**
+ * Stack tipografici dell'Aspetto dell'Incorporamento (ADR 0013). Enum e non
+ * stringa CSS libera: le chiavi sono quelle di `EMBED_FONT_STACKS` in
+ * `lib/embed.ts`, che ne tiene i valori.
+ */
+export const embedFontStack = v.union(
+  v.literal('system'),
+  v.literal('helvetica'),
+  v.literal('georgia'),
+  v.literal('times'),
+  v.literal('mono'),
+)
+
 export default defineSchema({
   // Tabelle di Convex Auth (users, authSessions, authAccounts, ...).
   ...authTables,
@@ -131,6 +144,27 @@ export default defineSchema({
      */
     embedShowTitle: v.optional(v.boolean()),
     embedShowLocation: v.optional(v.boolean()),
+    /**
+     * Aspetto dell'Incorporamento (ADR 0013): i sei valori con cui il form
+     * incorporato prende i colori del sito ospitante. Assente = aspetto
+     * odierno, quindi nessun backfill per gli Eventi esistenti.
+     *
+     * O tutti e sei o nessuno: un Aspetto parziale moltiplicherebbe gli stati
+     * («esiste ma non dice niente») e renderebbe non calcolabile il contrasto
+     * fra testo e sfondo, che è l'unica cosa che avvisiamo. Il pannello
+     * prepopola i campi col default, quindi cambiare un solo colore resta una
+     * sola modifica.
+     */
+    embedTheme: v.optional(
+      v.object({
+        accent: v.string(),
+        foreground: v.string(),
+        background: v.string(),
+        fontStack: embedFontStack,
+        textScale: v.number(),
+        radius: v.number(),
+      }),
+    ),
     /**
      * Informativa privacy dell'Evento (ADR 0012). Assente o vuota = nessuna
      * casella nel form e nessun vincolo nelle mutation, quindi gli Eventi

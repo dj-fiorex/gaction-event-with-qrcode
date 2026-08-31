@@ -2,7 +2,7 @@ import { ConvexError, v, type Infer } from 'convex/values'
 import { internalQuery, mutation, query } from './_generated/server'
 import type { MutationCtx, QueryCtx } from './_generated/server'
 import type { Id } from './_generated/dataModel'
-import { activityPolicy, checkInAccess } from './schema'
+import { activityPolicy, checkInAccess, embedFontStack } from './schema'
 import {
   canOperateEvent,
   getCurrentUser,
@@ -13,7 +13,7 @@ import {
   requireCanOperate,
 } from './model'
 import { generateSlots } from '../lib/slots'
-import { parseAllowedOrigins } from '../lib/embed'
+import { parseAllowedOrigins, parseEmbedTheme } from '../lib/embed'
 // Stessa regola per chi scrive il campo e per chi lo rilegge per comporre l'email.
 import { normalizeEmailCopy } from '../lib/email-content'
 
@@ -723,8 +723,34 @@ export const setEmbedSettings = mutation({
     allowedOrigins: v.array(v.string()),
     embedShowTitle: v.boolean(),
     embedShowLocation: v.boolean(),
+    /**
+     * Aspetto dell'Incorporamento (ADR 0013). `null` lo rimuove e riporta il
+     * form all'aspetto odierno. Sempre presente e mai facoltativo: fra
+     * «non toccarlo» e «toglilo» un argomento opzionale non distinguerebbe.
+     */
+    embedTheme: v.union(
+      v.object({
+        accent: v.string(),
+        foreground: v.string(),
+        background: v.string(),
+        fontStack: embedFontStack,
+        textScale: v.number(),
+        radius: v.number(),
+      }),
+      v.null(),
+    ),
   },
-  handler: async (ctx, { eventId, embedEnabled, allowedOrigins, embedShowTitle, embedShowLocation }) => {
+  handler: async (
+    ctx,
+    {
+      eventId,
+      embedEnabled,
+      allowedOrigins,
+      embedShowTitle,
+      embedShowLocation,
+      embedTheme,
+    },
+  ) => {
     const event = await ctx.db.get(eventId)
     if (!event) throw new ConvexError('Evento non trovato')
     await requireCanOperate(ctx, event)
@@ -739,13 +765,35 @@ export const setEmbedSettings = mutation({
       throw new ConvexError('Aggiungi almeno un dominio autorizzato per abilitare l\u2019incorporamento')
     }
 
+    // Il contrasto fra testo e sfondo qui non si controlla: l'ADR 0013 ha
+    // scelto di avvisare e non bloccare, perché il brand e la sua esposizione
+    // sono del committente. Il colore del testo *dentro* il bottone invece è
+    // calcolato e non scelto, quindi non c'è nulla da rifiutare.
+    let theme = null
+    if (embedTheme !== null) {
+      const parsed = parseEmbedTheme(embedTheme)
+      if (parsed.invalid.length > 0) {
+        throw new ConvexError(
+          `Colori non validi (${parsed.invalid.join(', ')}). Usa il formato esadecimale #rrggbb.`,
+        )
+      }
+      theme = parsed.theme
+    }
+
     await ctx.db.patch(eventId, {
       embedEnabled,
       allowedOrigins: valid,
       embedShowTitle,
       embedShowLocation,
+      embedTheme: theme ?? undefined,
     })
-    return { embedEnabled, allowedOrigins: valid, embedShowTitle, embedShowLocation }
+    return {
+      embedEnabled,
+      allowedOrigins: valid,
+      embedShowTitle,
+      embedShowLocation,
+      embedTheme: theme,
+    }
   },
 })
 

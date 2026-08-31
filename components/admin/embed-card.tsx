@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState, type CSSProperties } from 'react'
 import { useMutation } from 'convex/react'
 import { Check, Code2, Copy } from 'lucide-react'
 import { toast } from 'sonner'
@@ -10,9 +10,32 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Checkbox } from '@/components/ui/checkbox'
+import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
-import { parseAllowedOrigins } from '@/lib/embed'
+import {
+  DEFAULT_EMBED_THEME,
+  EMBED_CONTRAST_MIN,
+  EMBED_FONT_STACKS,
+  EMBED_FONT_STACK_KEYS,
+  EMBED_RADIUS_MAX,
+  EMBED_TEXT_SCALE_MAX,
+  EMBED_TEXT_SCALE_MIN,
+  contrastRatio,
+  embedThemeCssVars,
+  embedThemeFontFamily,
+  normalizeHexColor,
+  parseAllowedOrigins,
+  type EmbedFontStack,
+  type EmbedTheme,
+} from '@/lib/embed'
 import { messageFromError } from '@/lib/errors'
 
 interface EmbedCardProps {
@@ -21,6 +44,7 @@ interface EmbedCardProps {
   allowedOrigins: string[]
   embedShowTitle: boolean
   embedShowLocation: boolean
+  embedTheme: EmbedTheme | null
 }
 
 export function EmbedCard({
@@ -29,6 +53,7 @@ export function EmbedCard({
   allowedOrigins,
   embedShowTitle,
   embedShowLocation,
+  embedTheme,
 }: EmbedCardProps) {
   const setEmbedSettings = useMutation(api.events.setEmbedSettings)
   const [enabled, setEnabled] = useState(embedEnabled)
@@ -38,6 +63,12 @@ export function EmbedCard({
   const [origin, setOrigin] = useState('')
   const [copied, setCopied] = useState(false)
   const [saving, setSaving] = useState(false)
+
+  // L'Aspetto è o tutto o niente (ADR 0013): la spunta decide se l'Evento ne
+  // ha uno, la bozza tiene i sei valori. Partendo dal default anziché da campi
+  // vuoti, cambiare il solo colore del bottone resta una sola modifica.
+  const [themed, setThemed] = useState(embedTheme !== null)
+  const [draft, setDraft] = useState<EmbedTheme>(embedTheme ?? DEFAULT_EMBED_THEME)
 
   useEffect(() => {
     setOrigin(window.location.origin)
@@ -50,13 +81,50 @@ export function EmbedCard({
     return `<script src="${origin}/embed.js" data-event-id="${eventId}" async></script>`
   }, [origin, eventId])
 
+  // I colori si digitano, quindi possono essere a metà mentre si scrive. La
+  // bozza conserva il testo grezzo; l'anteprima e il salvataggio usano la
+  // versione normalizzata, e i campi malformati si segnalano da soli.
+  const invalidColours = useMemo(() => {
+    const labels: string[] = []
+    if (normalizeHexColor(draft.accent) === null) labels.push('accento')
+    if (normalizeHexColor(draft.foreground) === null) labels.push('testo')
+    if (normalizeHexColor(draft.background) === null) labels.push('sfondo')
+    return labels
+  }, [draft])
+
+  const resolved: EmbedTheme = useMemo(
+    () => ({
+      ...draft,
+      accent: normalizeHexColor(draft.accent) ?? DEFAULT_EMBED_THEME.accent,
+      foreground: normalizeHexColor(draft.foreground) ?? DEFAULT_EMBED_THEME.foreground,
+      background: normalizeHexColor(draft.background) ?? DEFAULT_EMBED_THEME.background,
+    }),
+    [draft],
+  )
+
+  const ratio = contrastRatio(resolved.foreground, resolved.background)
+  const contrastOk = ratio >= EMBED_CONTRAST_MIN
+
+  const fontItems = EMBED_FONT_STACK_KEYS.map((key) => ({
+    value: key,
+    label: EMBED_FONT_STACKS[key].label,
+  }))
+
+  function patchDraft(patch: Partial<EmbedTheme>) {
+    setDraft((current) => ({ ...current, ...patch }))
+  }
+
   async function handleSave() {
     if (invalid.length > 0) {
       toast.error(`Origini non valide: ${invalid.join(', ')}`)
       return
     }
     if (enabled && valid.length === 0) {
-      toast.error('Aggiungi almeno un dominio autorizzato per abilitare l\u2019incorporamento')
+      toast.error('Aggiungi almeno un dominio autorizzato per abilitare l’incorporamento')
+      return
+    }
+    if (themed && invalidColours.length > 0) {
+      toast.error(`Colori non validi: ${invalidColours.join(', ')}. Usa il formato #rrggbb.`)
       return
     }
     setSaving(true)
@@ -67,8 +135,10 @@ export function EmbedCard({
         allowedOrigins: valid,
         embedShowTitle: showTitle,
         embedShowLocation: showLocation,
+        embedTheme: themed ? resolved : null,
       })
       setOriginsText(result.allowedOrigins.join('\n'))
+      if (result.embedTheme) setDraft(result.embedTheme)
       toast.success('Impostazioni di incorporamento salvate')
     } catch (error) {
       toast.error(messageFromError(error, 'Salvataggio non riuscito'))
@@ -177,6 +247,119 @@ export function EmbedCard({
           </Label>
         </fieldset>
 
+        <div className="grid gap-4 border-t border-border pt-4">
+          <Label className="flex items-start gap-3">
+            <Checkbox
+              checked={themed}
+              onCheckedChange={(value) => setThemed(value === true)}
+              className="mt-0.5"
+            />
+            <span className="flex flex-col gap-0.5">
+              <span className="font-medium">Personalizza l&apos;aspetto</span>
+              <span className="text-sm text-muted-foreground">
+                Fa prendere al form i colori e il carattere del sito che lo ospita. Senza
+                personalizzazione il form usa l&apos;aspetto predefinito.
+              </span>
+            </span>
+          </Label>
+
+          {themed && (
+            <div className="grid gap-4 sm:grid-cols-2">
+              <ColourField
+                id="theme-accent"
+                label="Colore accento"
+                hint="Bottoni e focus"
+                value={draft.accent}
+                onChange={(accent) => patchDraft({ accent })}
+              />
+              <ColourField
+                id="theme-foreground"
+                label="Colore testo"
+                hint="Testi e titoli"
+                value={draft.foreground}
+                onChange={(foreground) => patchDraft({ foreground })}
+              />
+              <ColourField
+                id="theme-background"
+                label="Colore sfondo"
+                hint="Sempre opaco"
+                value={draft.background}
+                onChange={(background) => patchDraft({ background })}
+              />
+
+              <div className="grid gap-2">
+                <Label htmlFor="theme-font">Carattere</Label>
+                <Select
+                  items={fontItems}
+                  value={draft.fontStack}
+                  onValueChange={(value) =>
+                    patchDraft({ fontStack: (value ?? 'system') as EmbedFontStack })
+                  }
+                >
+                  <SelectTrigger id="theme-font" className="w-full">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {fontItems.map((item) => (
+                      <SelectItem key={item.value} value={item.value}>
+                        {item.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="grid gap-2">
+                <Label htmlFor="theme-scale">Scala del testo</Label>
+                <div className="flex items-center gap-2">
+                  <Input
+                    id="theme-scale"
+                    type="number"
+                    inputMode="numeric"
+                    min={EMBED_TEXT_SCALE_MIN}
+                    max={EMBED_TEXT_SCALE_MAX}
+                    value={draft.textScale}
+                    onChange={(e) => patchDraft({ textScale: Number(e.target.value) })}
+                  />
+                  <span className="text-sm text-muted-foreground">%</span>
+                </div>
+                <p className="text-sm text-muted-foreground">
+                  Scala tutto il testo in proporzione, da {EMBED_TEXT_SCALE_MIN} a{' '}
+                  {EMBED_TEXT_SCALE_MAX}.
+                </p>
+              </div>
+
+              <div className="grid gap-2">
+                <Label htmlFor="theme-radius">Raggio degli angoli</Label>
+                <div className="flex items-center gap-2">
+                  <Input
+                    id="theme-radius"
+                    type="number"
+                    inputMode="numeric"
+                    min={0}
+                    max={EMBED_RADIUS_MAX}
+                    value={draft.radius}
+                    onChange={(e) => patchDraft({ radius: Number(e.target.value) })}
+                  />
+                  <span className="text-sm text-muted-foreground">px</span>
+                </div>
+                <p className="text-sm text-muted-foreground">0 per angoli vivi.</p>
+              </div>
+
+              <div className="grid gap-2 sm:col-span-2">
+                <span className="text-sm font-medium">Anteprima</span>
+                <ThemeSpecimen theme={resolved} />
+                <p className={contrastOk ? 'text-sm text-muted-foreground' : 'text-sm text-destructive'}>
+                  Contrasto fra testo e sfondo {ratio.toFixed(1)}:1
+                  {contrastOk
+                    ? ' — sufficiente (soglia AA 4,5:1).'
+                    : ` — sotto la soglia AA di ${EMBED_CONTRAST_MIN}:1. Il testo sarà poco leggibile; puoi salvare comunque.`}
+                </p>
+              </div>
+            </div>
+          )}
+        </div>
+
         <div>
           <Button type="button" onClick={handleSave} disabled={saving}>
             {saving ? 'Salvataggio…' : 'Salva impostazioni'}
@@ -219,5 +402,112 @@ export function EmbedCard({
         )}
       </CardContent>
     </Card>
+  )
+}
+
+/**
+ * Selettore nativo più campo di testo sullo stesso valore: dal selettore si
+ * sceglie a occhio, nel campo si incolla l'esadecimale del manuale di brand,
+ * che è come i colori arrivano davvero. Il selettore vuole sempre un `#rrggbb`
+ * valido, quindi mentre si digita ripiega sul nero senza toccare la bozza.
+ */
+function ColourField({
+  id,
+  label,
+  hint,
+  value,
+  onChange,
+}: {
+  id: string
+  label: string
+  hint: string
+  value: string
+  onChange: (value: string) => void
+}) {
+  const normalized = normalizeHexColor(value)
+  return (
+    <div className="grid gap-2">
+      <Label htmlFor={id}>{label}</Label>
+      <div className="flex items-center gap-2">
+        <input
+          type="color"
+          aria-label={`${label}: selettore`}
+          value={normalized ?? '#000000'}
+          onChange={(e) => onChange(e.target.value)}
+          className="h-9 w-12 shrink-0 cursor-pointer rounded-md border border-input bg-transparent p-1"
+        />
+        <Input
+          id={id}
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          placeholder="#rrggbb"
+          className="font-mono text-xs"
+          aria-invalid={normalized === null}
+        />
+      </div>
+      <p className="text-sm text-muted-foreground">{hint}</p>
+    </div>
+  )
+}
+
+/**
+ * Campione dell'Aspetto: un titolo, una riga attenuata, un campo e un bottone.
+ * Non è il form vero — quello vive in un iframe e prenoterebbe sul serio — ma
+ * mostra gli unici quattro elementi in cui i sei valori si vedono, compresi i
+ * token derivati (il bordo del campo e il testo attenuato *non* sono scelti
+ * dall'admin: nascono dal colore del testo, ed è qui che si controlla che
+ * l'automatismo abbia prodotto qualcosa di sensato).
+ *
+ * La scala vive come `font-size` del contenitore e le misure interne sono in
+ * `em`: nel pannello admin le utility `rem` di Tailwind guarderebbero la
+ * radice della pagina admin, e il campione mentirebbe sulla scala.
+ */
+function ThemeSpecimen({ theme }: { theme: EmbedTheme }) {
+  const style = {
+    ...embedThemeCssVars(theme),
+    fontFamily: embedThemeFontFamily(theme),
+    backgroundColor: theme.background,
+    fontSize: `${theme.textScale}%`,
+  } as CSSProperties
+
+  return (
+    <div className="overflow-hidden rounded-md border border-border">
+      <div style={style} className="flex flex-col gap-3 p-4">
+        <div>
+          <p style={{ color: 'var(--foreground)', fontSize: '1.125em', fontWeight: 600 }}>
+            Titolo dell&apos;evento
+          </p>
+          <p style={{ color: 'var(--muted-foreground)', fontSize: '0.875em' }}>
+            Luogo · 26 settembre 2026
+          </p>
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.375em' }}>
+          <span style={{ color: 'var(--foreground)', fontSize: '0.875em' }}>Nome e cognome</span>
+          <div
+            style={{
+              border: '1px solid var(--border)',
+              borderRadius: 'var(--radius)',
+              background: 'var(--background)',
+              height: '2.25em',
+            }}
+          />
+        </div>
+        <button
+          type="button"
+          disabled
+          style={{
+            background: 'var(--primary)',
+            color: 'var(--primary-foreground)',
+            borderRadius: 'var(--radius)',
+            padding: '0.5em 1em',
+            fontSize: '0.875em',
+            fontWeight: 500,
+            alignSelf: 'flex-start',
+          }}
+        >
+          Conferma la prenotazione
+        </button>
+      </div>
+    </div>
   )
 }

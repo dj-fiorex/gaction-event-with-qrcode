@@ -1,11 +1,12 @@
 'use client'
 
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, type CSSProperties } from 'react'
 import { useQuery } from 'convex/react'
 import { api } from '@/convex/_generated/api'
 import type { Id } from '@/convex/_generated/dataModel'
 import { RegistrationForm } from '@/components/registration-form'
 import { Skeleton } from '@/components/ui/skeleton'
+import { embedThemeCssVars, embedThemeFontFamily } from '@/lib/embed'
 
 /** Tipo del messaggio di altezza inviato al documento ospitante. */
 export const EMBED_RESIZE_MESSAGE = 'gaction:embed-height' as const
@@ -38,8 +39,33 @@ export function EmbedRegistration({ eventId }: EmbedRegistrationProps) {
     return () => observer.disconnect()
   }, [eventId, event])
 
+  // Aspetto dell'Incorporamento (ADR 0013). Assente = nessuna sovrascrittura:
+  // il form resta *esattamente* il tema di `globals.css`, con i suoi `oklch`.
+  // Riapplicare qui il default convertito in esadecimale sarebbe quasi uguale
+  // ma non uguale — perderebbe la punta di blu che il tema ha nei bordi e nel
+  // testo attenuato — e «assente = comportamento odierno» smetterebbe di
+  // essere vero alla lettera.
+  const theme = event?.embedTheme ?? null
+
+  const themeStyle: CSSProperties | undefined = theme
+    ? ({
+        ...embedThemeCssVars(theme),
+        // Il font non passa da una variabile: si veda `embedThemeFontFamily`.
+        fontFamily: embedThemeFontFamily(theme),
+        backgroundColor: theme.background,
+      } as CSSProperties)
+    : undefined
+
   return (
-    <div ref={containerRef} className="p-4">
+    <div ref={containerRef} className="p-4" style={themeStyle}>
+      {/* La scala del testo deve arrivare all'elemento radice: le utility
+          `text-*` di Tailwind sono in `rem`, quindi solo la dimensione di
+          `html` le muove tutte insieme e in proporzione. Lo sfondo si ripete
+          qui perché il `body` è più alto del contenitore per il tempo di un
+          fotogramma, e una striscia bianca in fondo all'iframe si vede. */}
+      {theme && (
+        <style>{`html{font-size:${theme.textScale}%}html,body{background:${theme.background}}`}</style>
+      )}
       {event === undefined ? (
         <div className="flex flex-col gap-4">
           <Skeleton className="h-6 w-40" />

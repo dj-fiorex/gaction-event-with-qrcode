@@ -692,6 +692,9 @@ test('embedShowTitle/embedShowLocation: assenti si vedono, setEmbedSettings li s
     allowedOrigins: ['https://www.partner.com'],
     embedShowTitle: false,
     embedShowLocation: false,
+    // L'Aspetto è sempre presente e mai facoltativo (ADR 0013): `null` dice
+    // «nessun Aspetto», che è ciò che questo test vuole.
+    embedTheme: null,
   })
 
   // Pubblici a differenza di `allowedOrigins`: è l'embed a leggerli, e l'embed
