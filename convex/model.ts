@@ -165,9 +165,11 @@ export interface SlotWithAvailabilityDTO {
   activityId: string
   start: string
   end: string
-  capacity: number
+  /** `null` = nessun tetto (Attività ad accesso libero, ADR 0011). */
+  capacity: number | null
   taken: number
-  available: number
+  /** `null` = nessun tetto, quindi nessun residuo da contare. */
+  available: number | null
 }
 
 export interface ActivityWithAvailabilityDTO {
@@ -178,6 +180,8 @@ export interface ActivityWithAvailabilityDTO {
   end: string
   slotDurationMinutes: number
   capacityPerSlot: number
+  /** Attività ad accesso libero (ADR 0011): un solo Slot, senza tetto né fasce. */
+  freeAccess: boolean
   slots: SlotWithAvailabilityDTO[]
 }
 
@@ -236,6 +240,7 @@ export interface EventWithStatsDTO {
   totalTaken: number
   totalAvailable: number
   soldOut: boolean
+  privacyNotice: string
 }
 
 /** Conta le Persone che occupano un dato Slot in tutte le Prenotazioni. */
@@ -326,7 +331,7 @@ export async function loadEventWithStats(
         end: slot.end,
         capacity: slot.capacity,
         taken,
-        available: Math.max(0, slot.capacity - taken),
+        available: slot.capacity === null ? null : Math.max(0, slot.capacity - taken),
       })
     }
 
@@ -338,6 +343,7 @@ export async function loadEventWithStats(
       end: activity.end,
       slotDurationMinutes: activity.slotDurationMinutes,
       capacityPerSlot: activity.capacityPerSlot,
+      freeAccess: activity.freeAccess ?? false,
       slots: slotDTOs,
     })
   }
@@ -356,9 +362,15 @@ export async function loadEventWithStats(
     : null
 
   const allSlots = activityDTOs.flatMap((a) => a.slots)
-  const totalCapacity = allSlots.reduce((sum, s) => sum + s.capacity, 0)
+  // Gli Slot senza tetto restano fuori da capienza e residui (ADR 0011):
+  // sommarli darebbe NaN, e contarli come zero direbbe «esaurito» a un Evento
+  // che non ha mai avuto un limite. Le presenze invece si contano sempre.
+  const cappedSlots = allSlots.filter(
+    (s): s is typeof s & { capacity: number; available: number } => s.capacity !== null,
+  )
+  const totalCapacity = cappedSlots.reduce((sum, s) => sum + s.capacity, 0)
   const totalTaken = allSlots.reduce((sum, s) => sum + s.taken, 0)
-  const totalAvailable = allSlots.reduce((sum, s) => sum + s.available, 0)
+  const totalAvailable = cappedSlots.reduce((sum, s) => sum + s.available, 0)
 
   return {
     id: event._id,
@@ -405,6 +417,7 @@ export async function loadEventWithStats(
     totalCapacity,
     totalTaken,
     totalAvailable,
-    soldOut: allSlots.length > 0 && totalAvailable <= 0,
+    soldOut: cappedSlots.length > 0 && totalAvailable <= 0,
+    privacyNotice: event.privacyNotice ?? '',
   }
 }

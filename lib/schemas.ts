@@ -14,18 +14,36 @@ export const activityInputSchema = z
     title: z.string().trim().min(2, 'Inserisci il nome dell\u2019attività'),
     start: z.string().min(1, 'Inserisci l\u2019inizio'),
     end: z.string().min(1, 'Inserisci la fine'),
-    slotDurationMinutes: z.coerce
-      .number({ message: 'Durata non valida' })
-      .int()
-      .min(5, 'La durata minima è 5 minuti'),
-    capacityPerSlot: z.coerce
-      .number({ message: 'Capienza non valida' })
-      .int()
-      .min(1, 'Almeno 1 posto per slot'),
+    slotDurationMinutes: z.coerce.number({ message: 'Durata non valida' }).int(),
+    capacityPerSlot: z.coerce.number({ message: 'Capienza non valida' }).int(),
+    /**
+     * Attività ad accesso libero (ADR 0011): niente fasce, niente tetto. Con
+     * il flag attivo Durata e capienza non vengono chieste all'admin, quindi
+     * non vengono nemmeno validate — restano nel form ai loro default e
+     * nessuno le legge.
+     */
+    freeAccess: z.boolean().default(false),
   })
   .refine((a) => new Date(a.end).getTime() > new Date(a.start).getTime(), {
     message: 'La fine deve essere successiva all\u2019inizio',
     path: ['end'],
+  })
+  .superRefine((a, ctx) => {
+    if (a.freeAccess) return
+    if (a.slotDurationMinutes < 5) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'La durata minima è 5 minuti',
+        path: ['slotDurationMinutes'],
+      })
+    }
+    if (a.capacityPerSlot < 1) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Almeno 1 posto per slot',
+        path: ['capacityPerSlot'],
+      })
+    }
   })
 
 export const eventSchema = z
@@ -58,6 +76,8 @@ export const eventSchema = z
     collectAllergies: z.boolean().default(false),
     /** Registrazione dell'uscita (issue #38): disattiva di default. */
     recordExit: z.boolean().default(false),
+    /** Informativa privacy (ADR 0012). Vuota = nessuna casella nel form pubblico. */
+    privacyNotice: z.string().default(''),
     /**
      * Testo dell'email di conferma (issue #42): oggetto in chiaro e corpo in
      * markdown. Vuoti = ripiego sul testo odierno, nessun backfill.
@@ -168,6 +188,13 @@ export const registrationSchema = z.object({
   children: z.array(childInputSchema).default([]),
   companions: z.array(companionInputSchema).default([]),
   selections: z.array(slotSelectionSchema).default([]),
+  /**
+   * Consenso all'informativa (ADR 0012). Qui è facoltativo perché lo schema
+   * non sa se l'Evento ha un'informativa: lo impone
+   * `makeRegistrationSchema(collectNames, requirePrivacy)`, e in ultima
+   * istanza la mutation, che è il solo punto che conta.
+   */
+  privacyAccepted: z.boolean().default(false),
 })
 
 export type ChildInput = z.infer<typeof childInputSchema>
@@ -181,22 +208,44 @@ export type RegistrationInput = z.infer<typeof registrationSchema>
  * l'Etichetta posizionale e ignora comunque i nomi inviati — quindi la
  * validazione client non li impone. L'età dei Figli resta obbligatoria.
  */
-export function makeRegistrationSchema(collectNames = true) {
-  if (collectNames) return registrationSchema
-  // Solo il vincolo sul nome cade: età e allergie restano quelle di base, così
-  // i due schemi non possono divergere quando cambia la forma di una Persona.
-  const anyName = z.string().trim()
-  return registrationSchema.extend({
-    children: z.array(childInputSchema.extend({ name: anyName })).default([]),
-    companions: z.array(companionInputSchema.extend({ name: anyName })).default([]),
-  })
+/** Nome non validato: usato quando la Raccolta nomi è disattiva. */
+const looseName = z.string().trim()
+
+/**
+ * Consenso all'informativa (ADR 0012) quando l'Evento ne ha una: senza spunta
+ * il form non parte. Il rifiuto che conta resta però quello della mutation —
+ * questo evita solo un viaggio inutile al server.
+ */
+const privacyAcceptedSchema = z.literal(true, {
+  message: 'Per proseguire devi accettare l\u2019informativa',
+})
+
+export function makeRegistrationSchema(collectNames = true, requirePrivacy = false) {
+  const base = collectNames
+    ? registrationSchema
+    : // Solo il vincolo sul nome cade: età e allergie restano quelle di base,
+      // così i due schemi non possono divergere quando cambia la forma di una
+      // Persona.
+      registrationSchema.extend({
+        children: z.array(childInputSchema.extend({ name: looseName })).default([]),
+        companions: z.array(companionInputSchema.extend({ name: looseName })).default([]),
+      })
+  if (!requirePrivacy) return base
+  return base.extend({ privacyAccepted: privacyAcceptedSchema })
 }
 
 /** Rinuncia (ADR 0004): risposta «no» a Conferma di partecipazione — solo nome ed email. */
 export const declineSchema = z.object({
   name: z.string().trim().min(2, 'Inserisci nome e cognome'),
   email: z.string().trim().email('Inserisci un’email valida'),
+  /** Consenso all'informativa (ADR 0012): anche il «no» raccoglie dati personali. */
+  privacyAccepted: z.boolean().default(false),
 })
+
+export function makeDeclineSchema(requirePrivacy = false) {
+  if (!requirePrivacy) return declineSchema
+  return declineSchema.extend({ privacyAccepted: privacyAcceptedSchema })
+}
 
 export type DeclineInput = z.infer<typeof declineSchema>
 

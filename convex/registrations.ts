@@ -40,6 +40,30 @@ const REQUIRE_ACCOUNT_VERIFICATION_ERROR =
 const REQUIRE_ACCOUNT_EMBED_ERROR =
   'Questo evento richiede un account Membro verificato: completa la registrazione dal sito principale'
 
+export const PRIVACY_CONSENT_ERROR =
+  'Per proseguire devi accettare l\u2019informativa sul trattamento dei dati personali'
+
+/**
+ * Consenso all'informativa (ADR 0012). Il rifiuto vive qui e non nel bottone
+ * disabilitato: `register` e `decline` sono mutation pubbliche, chiamabili
+ * senza passare dal form, e solo un rifiuto server-side rende vera
+ * l'implicazione «la riga esiste ⇒ il consenso c'è».
+ *
+ * Restituisce il testo da copiare sulla riga: un consenso è consenso a un
+ * testo preciso, e `privacyNotice` è riscrivibile dall'admin in ogni momento.
+ * `undefined` = l'Evento non ha informativa, quindi non c'è nulla da accettare
+ * né da conservare.
+ */
+export function acceptedPrivacyNotice(
+  event: Doc<'events'>,
+  accepted: boolean | undefined,
+): string | undefined {
+  const notice = event.privacyNotice?.trim()
+  if (!notice) return undefined
+  if (accepted !== true) throw new ConvexError(PRIVACY_CONSENT_ERROR)
+  return notice
+}
+
 /* ------------------------------------------------------------------ */
 /* Registrazione pubblica                                              */
 /* ------------------------------------------------------------------ */
@@ -54,12 +78,18 @@ export const register = mutation({
     children: v.array(childInput),
     companions: v.array(companionInput),
     selections: v.array(selectionInput),
+    /** Consenso all'informativa (ADR 0012). Richiesto solo se l'Evento ne ha una. */
+    privacyAccepted: v.optional(v.boolean()),
     /** true quando la registrazione arriva dal form incorporato su un sito terzo. */
     embed: v.optional(v.boolean()),
   },
   handler: async (ctx, args) => {
     const event = await ctx.db.get(args.eventId)
     if (!event) throw new ConvexError('Evento non trovato')
+
+    // Consenso all'informativa (ADR 0012): prima di ogni altra verifica, così
+    // nessuna scrittura può precedere il consenso.
+    const privacyNoticeAccepted = acceptedPrivacyNotice(event, args.privacyAccepted)
 
     const caller = await getCurrentUser(ctx)
 
@@ -131,24 +161,38 @@ export const register = mutation({
       .withIndex('by_event', (q) => q.eq('eventId', event._id))
       .collect()
 
-    // Policy di selezione. Senza Attività la policy non ha referente (ADR 0010):
-    // nessuna delle tre regole si applica, e in particolare «almeno un'attività»
-    // non può essere chiesto a chi non ne ha nessuna fra cui scegliere.
-    if (activities.length > 0) {
-      if (event.activityPolicy === 'all' && activityIds.size !== activities.length) {
+    // Attività ad accesso libero (ADR 0011): fuori dalla policy e fuori dalle
+    // sovrapposizioni. Una visita libera non occupa il tuo tempo, lo attraversa.
+    const freeAccessIds = new Set<string>(
+      activities.filter((a) => a.freeAccess).map((a) => a._id),
+    )
+    const scheduled = activities.filter((a) => !a.freeAccess)
+    const scheduledSelections = args.selections.filter((s) => !freeAccessIds.has(s.activityId))
+    const scheduledActivityIds = new Set(
+      [...activityIds].filter((id) => !freeAccessIds.has(id)),
+    )
+
+    // Policy di selezione. Senza Attività a fasce la policy non ha referente
+    // (ADR 0010): nessuna delle tre regole si applica, e in particolare «almeno
+    // un'attività» non può essere chiesto a chi non ne ha nessuna fra cui
+    // scegliere — né a chi ha solo visite ad accesso libero.
+    if (scheduled.length > 0) {
+      if (event.activityPolicy === 'all' && scheduledActivityIds.size !== scheduled.length) {
         throw new ConvexError('Devi selezionare uno slot per ogni attività')
       }
-      if (event.activityPolicy === 'min' && args.selections.length < event.minActivities) {
+      if (event.activityPolicy === 'min' && scheduledSelections.length < event.minActivities) {
         throw new ConvexError(`Devi selezionare almeno ${event.minActivities} attività`)
       }
-      if (event.activityPolicy === 'free' && args.selections.length === 0) {
+      if (event.activityPolicy === 'free' && scheduledSelections.length === 0) {
         throw new ConvexError('Seleziona almeno un\u2019attività')
       }
     }
 
     // Sovrapposizioni.
     if (!event.allowOverlap) {
-      const chosen = Array.from(selectedSlots.values())
+      const chosen = Array.from(selectedSlots.values()).filter(
+        (slot) => !freeAccessIds.has(slot.activityId),
+      )
       for (let i = 0; i < chosen.length; i++) {
         for (let j = i + 1; j < chosen.length; j++) {
           if (intervalsOverlap(chosen[i].start, chosen[i].end, chosen[j].start, chosen[j].end)) {
@@ -160,8 +204,10 @@ export const register = mutation({
 
     const personsCount = 1 + children.length + companions.length
 
-    // Verifica di capacità atomica.
+    // Verifica di capacità atomica. Uno Slot senza tetto viene saltato, non
+    // confrontato con zero (ADR 0011): non c'è nulla da esaurire.
     for (const [slotId, slot] of selectedSlots) {
+      if (slot.capacity === null) continue
       const selections = await ctx.db
         .query('slotSelections')
         .withIndex('by_slot', (q) => q.eq('slotId', slotId))
@@ -188,6 +234,9 @@ export const register = mutation({
       eventId: event._id,
       contactEmail: persistedContactEmail,
       ...(registrationUserId ? { userId: registrationUserId } : {}),
+      // Il testo accettato viaggia con la riga (ADR 0012): l'admin può
+      // riscrivere l'informativa dell'Evento senza toccare questo consenso.
+      ...(privacyNoticeAccepted ? { privacyNoticeAccepted } : {}),
     })
 
     // Etichetta posizionale (issue #36): con «Raccolta nomi» disattiva, il nome

@@ -62,7 +62,7 @@ export default function EventPage() {
                 <h1 className="text-2xl font-bold tracking-tight text-balance">{event.title}</h1>
                 {/* Senza Attività non c'è tetto di posti, e il pubblico tace
                     invece di annunciarne zero (ADR 0010). */}
-                {event.activities.length > 0 && (
+                {event.totalCapacity > 0 && (
                   <Badge variant={event.soldOut ? 'destructive' : 'secondary'}>
                     {event.soldOut ? 'Esaurito' : `${event.totalAvailable} posti liberi`}
                   </Badge>
@@ -78,7 +78,10 @@ export default function EventPage() {
                   <MapPin className="h-4 w-4" aria-hidden="true" />
                   {event.location}
                 </span>
-                {event.activities.length > 0 && (
+                {/* Un'Attività ad accesso libero non ha tetto (ADR 0011):
+                    come per l'Evento senza Attività, il pubblico tace sui
+                    posti invece di annunciarne zero. */}
+                {event.totalCapacity > 0 && (
                   <span className="flex items-center gap-2">
                     <Users className="h-4 w-4" aria-hidden="true" />
                     {event.totalTaken} / {event.totalCapacity} posti occupati
@@ -104,7 +107,9 @@ export default function EventPage() {
                         <div className="flex flex-wrap items-center justify-between gap-2">
                           <p className="font-medium">{activity.title}</p>
                           <Badge variant="secondary">
-                            {activity.slotDurationMinutes} min · {activity.slots.length} fasce
+                            {activity.freeAccess
+                              ? 'Accesso libero'
+                              : `${activity.slotDurationMinutes} min · ${activity.slots.length} fasce`}
                           </Badge>
                         </div>
                         <p className="mt-1 flex items-center gap-2 text-sm text-muted-foreground">

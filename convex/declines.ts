@@ -1,6 +1,7 @@
 import { ConvexError, v } from 'convex/values'
 import { mutation, query } from './_generated/server'
 import { getCurrentUser, normalizeEmail, requireAdmin, requireEmailUnusedForEvent } from './model'
+import { acceptedPrivacyNotice } from './registrations'
 
 /**
  * Rinuncia (ADR 0004): risposta «no» a Conferma di partecipazione. Vive in
@@ -19,11 +20,17 @@ export const decline = mutation({
     eventId: v.id('events'),
     name: v.string(),
     email: v.string(),
+    /** Consenso all'informativa (ADR 0012). Anche il «no» raccoglie nome ed email. */
+    privacyAccepted: v.optional(v.boolean()),
   },
   handler: async (ctx, args) => {
     const event = await ctx.db.get(args.eventId)
     if (!event) throw new ConvexError('Evento non trovato')
     if (!event.confirmParticipation) throw new ConvexError(DECLINE_NOT_ENABLED_ERROR)
+
+    // Stesso rifiuto della Prenotazione (ADR 0012): non esiste una porta di
+    // servizio dove nome ed email entrano senza consenso.
+    const privacyNoticeAccepted = acceptedPrivacyNotice(event, args.privacyAccepted)
 
     // Come in register: per un Membro loggato vale l'email dell'account, non
     // quella digitata — altrimenti la stessa persona può rispondere due volte
@@ -41,6 +48,7 @@ export const decline = mutation({
       name,
       email,
       respondedAt: new Date().toISOString(),
+      ...(privacyNoticeAccepted ? { privacyNoticeAccepted } : {}),
     })
     return { id }
   },

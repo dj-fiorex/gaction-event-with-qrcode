@@ -111,7 +111,9 @@ export function EventActivityMonitor({ activities }: EventActivityMonitorProps) 
     <div className="flex flex-col gap-4">
       {activities.map((activity) => {
         const persons = activityPersons(activity)
-        const capacity = activity.slots.reduce((sum, s) => sum + s.capacity, 0)
+        // Un'Attività ad accesso libero non ha tetto (ADR 0011): il monitor
+        // mostra i presenti e basta, invece di dividerli per uno zero.
+        const capacity = activity.slots.reduce((sum, s) => sum + (s.capacity ?? 0), 0)
         const insideCount = activity.slots.reduce((sum, s) => sum + s.checkedInCount, 0)
         const currentSlot =
           now === null ? null : activity.slots.find((s) => slotPhase(s, now) === 'current') ?? null
@@ -130,7 +132,7 @@ export function EventActivityMonitor({ activities }: EventActivityMonitorProps) 
                       <span className="flex items-center gap-2">
                         <Badge variant="secondary" className="gap-1">
                           <Users className="h-3.5 w-3.5" aria-hidden="true" />
-                          {persons}/{capacity}
+                          {activity.freeAccess ? persons : `${persons}/${capacity}`}
                         </Badge>
                         <Badge variant="outline" className="gap-1">
                           <UserCheck className="h-3.5 w-3.5" aria-hidden="true" />
@@ -143,14 +145,23 @@ export function EventActivityMonitor({ activities }: EventActivityMonitorProps) 
                         <CalendarClock className="h-3.5 w-3.5" aria-hidden="true" />
                         {formatTimeRange(activity.start, activity.end)}
                       </span>
-                      <span className="flex items-center gap-1">
-                        <Clock className="h-3.5 w-3.5" aria-hidden="true" />
-                        Slot da {activity.slotDurationMinutes} min
-                      </span>
-                      <span className="flex items-center gap-1">
-                        <Layers className="h-3.5 w-3.5" aria-hidden="true" />
-                        {activity.slots.length} slot
-                      </span>
+                      {activity.freeAccess ? (
+                        <span className="flex items-center gap-1">
+                          <Layers className="h-3.5 w-3.5" aria-hidden="true" />
+                          Accesso libero, senza fasce né posti
+                        </span>
+                      ) : (
+                        <>
+                          <span className="flex items-center gap-1">
+                            <Clock className="h-3.5 w-3.5" aria-hidden="true" />
+                            Slot da {activity.slotDurationMinutes} min
+                          </span>
+                          <span className="flex items-center gap-1">
+                            <Layers className="h-3.5 w-3.5" aria-hidden="true" />
+                            {activity.slots.length} slot
+                          </span>
+                        </>
+                      )}
                     </div>
                   </div>
                 </AccordionTrigger>

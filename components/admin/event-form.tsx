@@ -54,6 +54,7 @@ const emptyActivity = {
   end: '',
   slotDurationMinutes: 30,
   capacityPerSlot: 10,
+  freeAccess: false,
 }
 
 const defaultValues: EventInput = {
@@ -75,6 +76,7 @@ const defaultValues: EventInput = {
   recordExit: false,
   emailSubject: '',
   emailBody: '',
+  privacyNotice: '',
   allowChildren: false,
   maxChildrenPerRegistration: 2,
   allowCompanions: false,
@@ -398,7 +400,39 @@ export function EventForm({
               </div>
             </div>
 
-            <div className="grid gap-3 sm:grid-cols-2">
+            {/* Attività ad accesso libero (ADR 0011): con il flag attivo non
+                ci sono numeri da inventare, quindi Durata e capienza non si
+                chiedono affatto invece di restare lì disabilitate. */}
+            <div className="flex items-start gap-3">
+              <Controller
+                control={control}
+                name={`activities.${index}.freeAccess` as const}
+                render={({ field }) => (
+                  <Checkbox
+                    id={`act-free-${index}`}
+                    className="mt-0.5"
+                    checked={field.value}
+                    onCheckedChange={(checked) => field.onChange(checked === true)}
+                  />
+                )}
+              />
+              <div className="grid gap-1">
+                <Label htmlFor={`act-free-${index}`} className="font-normal">
+                  Accesso libero (senza fasce né posti)
+                </Label>
+                <p className="text-sm text-muted-foreground">
+                  Si partecipa quando si vuole, dentro la finestra oraria. Nel form pubblico
+                  l&rsquo;iscritto risponde solo «mi interessa» o «non mi interessa», e
+                  l&rsquo;attività non entra nella policy di selezione né nel controllo delle
+                  sovrapposizioni.
+                </p>
+              </div>
+            </div>
+
+            <div
+              className="grid gap-3 sm:grid-cols-2"
+              hidden={watch(`activities.${index}.freeAccess` as const)}
+            >
               <div className="grid gap-2">
                 <Label htmlFor={`act-duration-${index}`}>Durata slot (minuti)</Label>
                 <Input
@@ -859,6 +893,31 @@ export function EventForm({
             )}
           />
           <FieldError message={errors.emailBody?.message} />
+        </div>
+      </fieldset>
+
+      {/* Consenso all'informativa (ADR 0012) */}
+      <fieldset className="flex flex-col gap-4 rounded-lg border border-border p-4">
+        <div>
+          <legend className="font-medium">Informativa privacy</legend>
+          <p className="text-sm text-muted-foreground">
+            Il testo accanto alla casella che chi si iscrive deve spuntare per proseguire. Lasciando
+            il campo vuoto non compare alcuna casella e non viene chiesto nulla. Puoi riscriverlo
+            quando vuoi: le risposte già raccolte conservano il testo che hanno accettato, quindi
+            una correzione di oggi non cambia ciò che qualcuno ha letto il mese scorso.
+          </p>
+        </div>
+
+        <div className="grid gap-2">
+          <Label htmlFor="privacyNotice">Testo accanto alla casella</Label>
+          <Textarea
+            id="privacyNotice"
+            rows={4}
+            placeholder="Ho letto e accetto l’informativa sul trattamento dei dati personali."
+            {...register('privacyNotice')}
+            aria-invalid={!!errors.privacyNotice}
+          />
+          <FieldError message={errors.privacyNotice?.message} />
         </div>
       </fieldset>
 

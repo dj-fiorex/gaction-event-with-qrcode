@@ -3,10 +3,11 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useEffect, useMemo, useState } from 'react'
-import { useFieldArray, useForm } from 'react-hook-form'
+import { Controller, useFieldArray, useForm } from 'react-hook-form'
 import { Plus, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
+import { Checkbox } from '@/components/ui/checkbox'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import {
@@ -20,13 +21,13 @@ import { useAction, useMutation } from 'convex/react'
 import { api } from '@/convex/_generated/api'
 import type { Id } from '@/convex/_generated/dataModel'
 import {
-  declineSchema,
+  makeDeclineSchema,
   makeRegistrationSchema,
   type DeclineInput,
   type RegistrationInput,
 } from '@/lib/schemas'
 import { typedZodResolver } from '@/lib/zod-resolver'
-import { formatTimeRange, formatDateRange } from '@/lib/format'
+import { formatTime, formatTimeRange, formatDateRange } from '@/lib/format'
 import { buildTicketsEmailPdf } from '@/lib/pdf/email-attachment'
 import { generateQrDataUrl } from '@/lib/qr-client'
 import { intervalsOverlap } from '@/lib/slots'
@@ -39,11 +40,21 @@ const NONE = '__none__'
 
 /**
  * Informativa sui dati sanitari mostrata accanto ai campi «Allergie e
- * intolleranze» (issue #37). Copy provvisoria: il testo legale definitivo
- * arriverà dal committente.
+ * intolleranze» (issue #37). Testo del committente, con le sole parole del suo
+ * settore rese neutre: il form è lo stesso per ogni Evento del prodotto, e
+ * «catering» e «stabilimento» non valgono per un'assemblea.
  */
 const ALLERGIES_PRIVACY_NOTICE =
-  'Allergie e intolleranze sono dati relativi alla salute e sono facoltativi. Verranno trattati solo per la gestione dell’evento e saranno visibili agli organizzatori, al personale addetto ai controlli agli ingressi e nell’email di conferma. Lascia il campo vuoto se non vuoi dichiarare nulla. (Testo provvisorio, in attesa dell’informativa definitiva.)'
+  'Ci servono per organizzare al meglio il servizio e gli accessi. Il dato sarà visibile solo allo staff organizzativo e al personale agli ingressi, e comparirà nella tua e-mail di conferma. Lascia il campo vuoto se non hai niente da segnalare.'
+
+/**
+ * Concorda il numero con il sostantivo. Il conteggio delle Persone era già
+ * dinamico, ma diceva «1 persone»: il committente l'ha letto come fisso, ed è
+ * il plurale ad averglielo fatto credere.
+ */
+function plural(count: number, one: string, many: string): string {
+  return `${count} ${count === 1 ? one : many}`
+}
 
 const POLICY_HINT: Record<EventWithStats['activityPolicy'], (min: number) => string> = {
   all: () => 'Devi selezionare uno slot per ogni attività.',
@@ -96,9 +107,14 @@ export function RegistrationForm({
   // Persona. Con l'impostazione disattiva nessun campo compare e il server
   // ignora comunque qualsiasi dichiarazione inviata.
   const collectAllergies = event.collectAllergies
+  // Consenso all'informativa (ADR 0012): la casella compare solo se l'admin ha
+  // scritto un'informativa per questo Evento. Il rifiuto che conta è comunque
+  // quello della mutation — qui si evita solo un viaggio inutile al server.
+  const privacyNotice = event.privacyNotice.trim()
+  const requiresPrivacy = privacyNotice.length > 0
   const registrationResolver = useMemo(
-    () => typedZodResolver(makeRegistrationSchema(collectNames)),
-    [collectNames],
+    () => typedZodResolver(makeRegistrationSchema(collectNames, requiresPrivacy)),
+    [collectNames, requiresPrivacy],
   )
 
   const {
@@ -119,6 +135,7 @@ export function RegistrationForm({
       children: [],
       companions: [],
       selections: [],
+      privacyAccepted: false,
     },
   })
 
@@ -141,8 +158,10 @@ export function RegistrationForm({
     : event.maxCompanionsPerRegistration
   const showChildren = event.allowChildren && (!familyRuleActive || familyBranch === 'children')
   const showCompanions = event.allowCompanions && (!familyRuleActive || familyBranch !== null)
-  // «Ospite» ha sostituito «Accompagnatore» ovunque nella UI (issue #36).
-  const companionsLabel = 'Ospiti'
+  // «Ospite» ha sostituito «Accompagnatore» ovunque nella UI (issue #36). Il
+  // committente scrive «accompagnatore» nei suoi testi ma anche «i tuoi
+  // ospiti»: il titolo della sezione è suo, la categoria resta quella del
+  // dominio — sui biglietti, nell'export e allo scanner si legge «Ospite 1».
   const companionsNamePlaceholder = "Nome dell'ospite"
   const familyBranchMissing = familyRuleActive && familyBranch === null
 
@@ -154,6 +173,16 @@ export function RegistrationForm({
   const userName = watch('userName')
 
   const personsNeeded = 1 + childrenArray.fields.length + companionsArray.fields.length
+
+  // Attività ad accesso libero (ADR 0011): niente tendina, una domanda sola.
+  // Le due liste non si mescolano mai, perché non si scelgono allo stesso modo.
+  const scheduledActivities = event.activities.filter((a) => !a.freeAccess)
+  const freeAccessActivities = event.activities.filter((a) => a.freeAccess)
+  const freeAccessIds = new Set(freeAccessActivities.map((a) => a.id))
+  // La risposta è obbligatoria: facoltativa è la visita, non la risposta.
+  // «Non ancora risposto» è l'assenza di chiave, «no» è NONE — la stessa
+  // distinzione che una casella non saprebbe fare.
+  const freeAccessUnanswered = freeAccessActivities.some((a) => !slotByActivity[a.id])
 
   useEffect(() => {
     if (!isMember) return
@@ -183,20 +212,22 @@ export function RegistrationForm({
   }
 
   function validateSelectionsClient(selections: { activityId: string; slotId: string }[]): string | null {
-    // Senza Attività la policy non ha referente (ADR 0010): nessuna regola da
-    // applicare, come sul server. Stesse condizioni, stessi messaggi.
-    if (event.activities.length === 0) return null
-    if (event.activityPolicy === 'all' && selections.length !== event.activities.length) {
+    // Senza Attività a fasce la policy non ha referente (ADR 0010), e le
+    // Attività ad accesso libero ne restano fuori comunque (ADR 0011).
+    // Stesse condizioni del server, stessi messaggi.
+    const scheduled = selections.filter((s) => !freeAccessIds.has(s.activityId))
+    if (scheduledActivities.length === 0) return null
+    if (event.activityPolicy === 'all' && scheduled.length !== scheduledActivities.length) {
       return 'Devi selezionare uno slot per ogni attività'
     }
-    if (event.activityPolicy === 'min' && selections.length < event.minActivities) {
+    if (event.activityPolicy === 'min' && scheduled.length < event.minActivities) {
       return `Devi selezionare almeno ${event.minActivities} attività`
     }
-    if (event.activityPolicy === 'free' && selections.length === 0) {
+    if (event.activityPolicy === 'free' && scheduled.length === 0) {
       return 'Seleziona almeno un\u2019attività'
     }
     if (!event.allowOverlap) {
-      const slots = selections.map((s) => slotById.get(s.slotId)!).filter(Boolean)
+      const slots = scheduled.map((s) => slotById.get(s.slotId)!).filter(Boolean)
       for (let i = 0; i < slots.length; i++) {
         for (let j = i + 1; j < slots.length; j++) {
           if (intervalsOverlap(slots[i].start, slots[i].end, slots[j].start, slots[j].end)) {
@@ -211,6 +242,11 @@ export function RegistrationForm({
   const onSubmit = handleSubmit(async (values) => {
     if (familyBranchMissing) {
       toast.error('Rispondi alla domanda sui figli minorenni prima di confermare')
+      return
+    }
+
+    if (freeAccessUnanswered) {
+      toast.error('Rispondi a tutte le domande prima di confermare')
       return
     }
 
@@ -234,6 +270,7 @@ export function RegistrationForm({
           activityId: s.activityId as Id<'activities'>,
           slotId: s.slotId as Id<'slots'>,
         })),
+        privacyAccepted: values.privacyAccepted,
         embed,
       })
 
@@ -278,12 +315,13 @@ export function RegistrationForm({
   const {
     register: registerDecline,
     handleSubmit: handleDeclineSubmit,
+    control: declineControl,
     setValue: setDeclineValue,
     watch: watchDecline,
     formState: { errors: declineErrors },
   } = useForm<DeclineInput>({
-    resolver: typedZodResolver(declineSchema),
-    defaultValues: { name: '', email: '' },
+    resolver: typedZodResolver(makeDeclineSchema(requiresPrivacy)),
+    defaultValues: { name: '', email: '', privacyAccepted: false },
   })
 
   // Come per la registrazione: per un Membro loggato la risposta vale per
@@ -306,6 +344,7 @@ export function RegistrationForm({
         eventId: event.id as Id<'events'>,
         name: values.name,
         email: values.email,
+        privacyAccepted: values.privacyAccepted,
       })
       setDeclined(true)
     } catch (error) {
@@ -399,10 +438,39 @@ export function RegistrationForm({
             )}
             {contactEmailLocked && (
               <p className="text-sm text-muted-foreground">
-                La risposta vale per l'email del tuo account Membro.
+                La risposta vale per l&apos;e-mail del tuo account Membro.
               </p>
             )}
           </div>
+          {/* Anche il «no» raccoglie nome ed e-mail: nessuna porta di servizio
+              dove i dati personali entrano senza consenso (ADR 0012). */}
+          {requiresPrivacy && (
+            <div className="flex items-start gap-3">
+              <Controller
+                control={declineControl}
+                name="privacyAccepted"
+                render={({ field }) => (
+                  <Checkbox
+                    id="declinePrivacyAccepted"
+                    className="mt-0.5"
+                    checked={field.value}
+                    onCheckedChange={(checked) => field.onChange(checked === true)}
+                    aria-invalid={!!declineErrors.privacyAccepted}
+                  />
+                )}
+              />
+              <div className="grid gap-1">
+                <Label htmlFor="declinePrivacyAccepted" className="font-normal text-pretty">
+                  {privacyNotice}
+                </Label>
+                {declineErrors.privacyAccepted && (
+                  <p className="text-sm text-destructive">
+                    {declineErrors.privacyAccepted.message}
+                  </p>
+                )}
+              </div>
+            </div>
+          )}
           <div className="mt-2 flex gap-2">
             <Button
               type="button"
@@ -494,7 +562,12 @@ export function RegistrationForm({
 
   return (
     <section className="flex flex-col gap-6">
-      <h2 className="text-xl font-semibold tracking-tight">Registrati all&apos;evento</h2>
+      <div>
+        <h2 className="text-xl font-semibold tracking-tight">Registrati all&apos;evento</h2>
+        <p className="mt-1 text-sm text-muted-foreground text-pretty">
+          Compila i dati di chi parteciperà con te: bastano pochi minuti.
+        </p>
+      </div>
       {/* gap-8 tra le sezioni, gap-4 dentro una sezione: senza riquadri è
           questo scarto a dire dove finisce un gruppo e comincia il prossimo. */}
       <form onSubmit={onSubmit} className="flex flex-col gap-8" noValidate>
@@ -508,7 +581,7 @@ export function RegistrationForm({
           </div>
 
           <div className="grid gap-2">
-            <Label htmlFor="contactEmail">Email</Label>
+            <Label htmlFor="contactEmail">E-mail</Label>
             <Input
               id="contactEmail"
               type="email"
@@ -520,23 +593,25 @@ export function RegistrationForm({
             {errors.contactEmail && (
               <p className="text-sm text-destructive">{errors.contactEmail.message}</p>
             )}
-            {contactEmailLocked && (
-              <p className="text-sm text-muted-foreground">
-                Ti invieremo i biglietti all'email del tuo account Membro.
-              </p>
-            )}
+            <p className="text-sm text-muted-foreground">
+              {contactEmailLocked
+                ? "Qui riceverai la conferma con i QR code di ingresso: è l'e-mail del tuo account Membro."
+                : 'Qui riceverai la conferma con i QR code di ingresso per te e i tuoi ospiti.'}
+            </p>
           </div>
         </div>
 
         {collectAllergies && (
           <section>
-            <h3 className="text-base font-semibold">Allergie e intolleranze</h3>
+            <h3 className="text-base font-semibold">Allergie e intolleranze (facoltativo)</h3>
             <p className="mt-1 text-sm text-muted-foreground">{ALLERGIES_PRIVACY_NOTICE}</p>
             <div className="mt-4 grid gap-2">
-              <Label htmlFor="userAllergies">Le tue allergie o intolleranze (facoltativo)</Label>
+              <Label htmlFor="userAllergies" className="sr-only">
+                Le tue allergie o intolleranze
+              </Label>
               <Input
                 id="userAllergies"
-                placeholder="Es. lattosio, frutta a guscio"
+                placeholder="Es. lattosio, frutta a guscio, glutine…"
                 {...register('userAllergies')}
                 aria-invalid={!!errors.userAllergies}
               />
@@ -549,10 +624,12 @@ export function RegistrationForm({
 
         {familyRuleActive && (
           <section>
-            <h3 className="text-base font-semibold">Hai figli minorenni a carico?</h3>
-            <p className="mt-1 text-sm text-muted-foreground">
-              In base alla risposta ti mostriamo solo le sezioni valide per la tua prenotazione.
-            </p>
+            {/* «Vieni con» e non «hai a carico»: la regola è applicata sul
+                numero di Figli effettivamente inviati, quindi chi ne ha e
+                viene solo deve poter rispondere di no. Il suggerimento sotto
+                la domanda l'ha tolto il committente: spiegava il meccanismo
+                del form invece di chiedere un dato. */}
+            <h3 className="text-base font-semibold">Vieni con dei figli minorenni?</h3>
             <div className="mt-4 flex flex-col gap-2 sm:flex-row">
               <Button
                 type="button"
@@ -560,7 +637,7 @@ export function RegistrationForm({
                 className="flex-1"
                 onClick={() => selectFamilyBranch('children')}
               >
-                Sì, ho figli a carico
+                Sì, verrò con i miei figli
               </Button>
               <Button
                 type="button"
@@ -568,7 +645,7 @@ export function RegistrationForm({
                 className="flex-1"
                 onClick={() => selectFamilyBranch('no-children')}
               >
-                No, non ho figli a carico
+                No, nessun figlio
               </Button>
             </div>
           </section>
@@ -576,13 +653,18 @@ export function RegistrationForm({
 
         {showChildren && (
           <PersonRepeater
-            title="Figli"
-            hint={`Fino a ${event.maxChildrenPerRegistration} figli. Riceveranno un proprio QR.`}
+            title="I tuoi figli"
+            hint={
+              event.maxChildrenPerRegistration === 1
+                ? 'Puoi aggiungere un figlio minorenne: riceverà un proprio QR personale per l\u2019ingresso.'
+                : `Puoi aggiungere fino a ${event.maxChildrenPerRegistration} figli minorenni: per ognuno riceverai un proprio QR personale per l\u2019ingresso.`
+            }
             fields={childrenArray.fields}
             canAdd={childrenArray.fields.length < event.maxChildrenPerRegistration}
             onAdd={() => childrenArray.append({ name: '', age: 0, allergies: '' })}
             onRemove={childrenArray.remove}
             collectNames={collectNames}
+            idPrefix="figlio"
             labelSingular="Figlio"
             renderExtra={(index) => (
               <div className="grid w-24 gap-2">
@@ -611,13 +693,18 @@ export function RegistrationForm({
 
         {showCompanions && (
           <PersonRepeater
-            title={companionsLabel}
-            hint={`Fino a ${companionsMax} ${companionsLabel.toLowerCase()}. Riceveranno un proprio QR.`}
+            title="Chi porti con te"
+            hint={
+              companionsMax === 1
+                ? 'Puoi aggiungere un ospite adulto: riceverà un proprio QR personale per l\u2019ingresso. I figli maggiorenni contano come ospiti adulti.'
+                : `Puoi aggiungere fino a ${plural(companionsMax, 'ospite adulto', 'ospiti adulti')}: ognuno riceverà un proprio QR personale per l\u2019ingresso. I figli maggiorenni contano come ospiti adulti.`
+            }
             fields={companionsArray.fields}
             canAdd={companionsArray.fields.length < companionsMax}
             onAdd={() => companionsArray.append({ name: '', allergies: '' })}
             onRemove={companionsArray.remove}
             collectNames={collectNames}
+            idPrefix="ospite"
             labelSingular="Ospite"
             register={(index) => register(`companions.${index}.name` as const)}
             registerAllergies={
@@ -630,17 +717,23 @@ export function RegistrationForm({
         )}
 
         {/* Selezione attività / slot. Una sezione vuota non si rende affatto
-            (ADR 0010): senza Attività non c'è nulla da scegliere. */}
-        {event.activities.length > 0 && (
+            (ADR 0010): senza Attività non c'è nulla da scegliere. Quando tutte
+            le Attività sono ad accesso libero cade anche l'intestazione, e con
+            essa il suggerimento di policy: non si applica a nessuna di loro
+            (ADR 0011), e annunciarlo sarebbe una regola inventata. */}
+        {scheduledActivities.length > 0 && (
           <section>
             <h3 className="text-base font-semibold">Attività</h3>
             <p className="mt-1 text-sm text-muted-foreground">
-              {POLICY_HINT[event.activityPolicy](event.minActivities)} Lo slot scelto vale per tutte
-              le {personsNeeded} persone della prenotazione.
+              {POLICY_HINT[event.activityPolicy](event.minActivities)} Lo slot scelto vale per{' '}
+              {personsNeeded === 1
+                ? 'te'
+                : `tutte le ${personsNeeded} persone della prenotazione`}
+              .
             </p>
 
             <div className="mt-4 flex flex-col gap-4">
-              {event.activities.map((activity) => {
+              {scheduledActivities.map((activity) => {
                 const selected = slotByActivity[activity.id] ?? ''
                 const items = [
                   ...(event.activityPolicy !== 'all'
@@ -649,7 +742,9 @@ export function RegistrationForm({
                   ...activity.slots.map((slot) => ({
                     value: slot.id,
                     label: `${formatTimeRange(slot.start, slot.end)} · ${
-                      slot.available < personsNeeded ? 'posti insufficienti' : `${slot.available} posti`
+                      slot.available !== null && slot.available < personsNeeded
+                        ? 'posti insufficienti'
+                        : `${slot.available} posti`
                     }`,
                   })),
                 ]
@@ -669,7 +764,7 @@ export function RegistrationForm({
                           <SelectItem value={NONE}>Non partecipo</SelectItem>
                         )}
                         {activity.slots.map((slot) => {
-                          const disabled = slot.available < personsNeeded
+                          const disabled = slot.available !== null && slot.available < personsNeeded
                           return (
                             <SelectItem key={slot.id} value={slot.id} disabled={disabled}>
                               {formatTimeRange(slot.start, slot.end)} ·{' '}
@@ -686,9 +781,84 @@ export function RegistrationForm({
           </section>
         )}
 
-        <Button type="submit" disabled={submitting || familyBranchMissing} className="w-full">
-          {submitting ? 'Registrazione in corso…' : `Conferma registrazione (${personsNeeded} persone)`}
-        </Button>
+        {/* Attività ad accesso libero (ADR 0011): niente fasce, niente posti,
+            una domanda sola — e nessun accenno alla capienza, perché non ne ha
+            una. La risposta però è obbligatoria: facoltativa è la visita. */}
+        {freeAccessActivities.map((activity) => {
+          const answer = slotByActivity[activity.id]
+          const openSlot = activity.slots[0]
+          if (!openSlot) return null
+          return (
+            <section key={activity.id}>
+              <h3 className="text-base font-semibold">{activity.title}</h3>
+              <p className="mt-1 text-sm text-muted-foreground text-pretty">
+                Accesso libero dalle {formatTime(activity.start)} alle {formatTime(activity.end)}:
+                puoi partecipare quando vuoi, senza prenotare una fascia oraria.
+              </p>
+              <div className="mt-4 flex flex-col gap-2 sm:flex-row">
+                <Button
+                  type="button"
+                  variant={answer === openSlot.id ? 'default' : 'outline'}
+                  className="flex-1"
+                  onClick={() => setSlot(activity.id, openSlot.id)}
+                >
+                  Mi interessa
+                </Button>
+                <Button
+                  type="button"
+                  variant={answer === NONE ? 'default' : 'outline'}
+                  className="flex-1"
+                  onClick={() => setSlot(activity.id, NONE)}
+                >
+                  Non mi interessa
+                </Button>
+              </div>
+            </section>
+          )
+        })}
+
+        {/* Consenso all'informativa (ADR 0012). Il testo è quello dell'Evento:
+            quello che l'Utente spunta qui viene copiato sulla Prenotazione. */}
+        {requiresPrivacy && (
+          <section className="flex items-start gap-3">
+            <Controller
+              control={control}
+              name="privacyAccepted"
+              render={({ field }) => (
+                <Checkbox
+                  id="privacyAccepted"
+                  className="mt-0.5"
+                  checked={field.value}
+                  onCheckedChange={(checked) => field.onChange(checked === true)}
+                  aria-invalid={!!errors.privacyAccepted}
+                />
+              )}
+            />
+            <div className="grid gap-1">
+              <Label htmlFor="privacyAccepted" className="font-normal text-pretty">
+                {privacyNotice}
+              </Label>
+              {errors.privacyAccepted && (
+                <p className="text-sm text-destructive">{errors.privacyAccepted.message}</p>
+              )}
+            </div>
+          </section>
+        )}
+
+        <div className="flex flex-col gap-2">
+          <Button
+            type="submit"
+            disabled={submitting || familyBranchMissing || freeAccessUnanswered}
+            className="w-full"
+          >
+            {submitting
+              ? 'Registrazione in corso…'
+              : `Conferma registrazione (${plural(personsNeeded, 'persona', 'persone')})`}
+          </Button>
+          <p className="text-sm text-muted-foreground">
+            Riceverai a breve un&apos;e-mail di conferma con i QR code di ingresso.
+          </p>
+        </div>
       </form>
     </section>
   )
@@ -730,6 +900,11 @@ interface PersonRepeaterProps {
     index: number,
   ) => ReturnType<ReturnType<typeof useForm<RegistrationInput>>['register']>
   namePlaceholder: string
+  /**
+   * Prefisso degli id dei campi. Separato dal titolo perché il titolo è copy
+   * («Chi porti con te») e un id con gli spazi dentro non è un selettore.
+   */
+  idPrefix: string
   /** Raccolta nomi: se false, ogni blocco è intestato dall'Etichetta posizionale invece del nome. */
   collectNames: boolean
   /** Prefisso dell'Etichetta posizionale («Figlio», «Ospite») usato quando i nomi non sono raccolti. */
@@ -747,6 +922,7 @@ function PersonRepeater({
   register,
   registerAllergies,
   namePlaceholder,
+  idPrefix,
   collectNames,
   labelSingular,
   renderExtra,
@@ -762,8 +938,7 @@ function PersonRepeater({
               campi di questo blocco sono lontani dal testo esteso. */}
           {registerAllergies && (
             <p className="mt-1 text-sm text-muted-foreground">
-              Puoi indicare allergie o intolleranze per ciascuno: campo facoltativo, sono dati
-              sanitari trattati come descritto sopra.
+              Le allergie sono facoltative e trattate come indicato sopra.
             </p>
           )}
         </div>
@@ -797,11 +972,11 @@ function PersonRepeater({
               <div className="flex items-start gap-3">
                 {collectNames && (
                   <div className="grid flex-1 gap-2">
-                    <Label htmlFor={`${title}-name-${index}`} className="sr-only">
+                    <Label htmlFor={`${idPrefix}-name-${index}`} className="sr-only">
                       {namePlaceholder}
                     </Label>
                     <Input
-                      id={`${title}-name-${index}`}
+                      id={`${idPrefix}-name-${index}`}
                       placeholder={namePlaceholder}
                       {...register(index)}
                     />
@@ -813,11 +988,11 @@ function PersonRepeater({
             {/* Allergie e intolleranze (issue #37): facoltative, vuoto = nessuna dichiarazione. */}
             {registerAllergies && (
               <div className="grid gap-2">
-                <Label htmlFor={`${title}-allergies-${index}`} className="sr-only">
+                <Label htmlFor={`${idPrefix}-allergies-${index}`} className="sr-only">
                   Allergie o intolleranze di {labelSingular} {index + 1}
                 </Label>
                 <Input
-                  id={`${title}-allergies-${index}`}
+                  id={`${idPrefix}-allergies-${index}`}
                   placeholder="Allergie o intolleranze (facoltativo)"
                   {...registerAllergies(index)}
                 />

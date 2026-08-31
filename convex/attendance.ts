@@ -71,7 +71,7 @@ export const getActivityAttendance = query({
           end: slot.end,
           capacity: slot.capacity,
           taken,
-          available: Math.max(0, slot.capacity - taken),
+          available: slot.capacity === null ? null : Math.max(0, slot.capacity - taken),
           persons,
           checkedInCount,
         })
@@ -85,6 +85,7 @@ export const getActivityAttendance = query({
         end: activity.end,
         slotDurationMinutes: activity.slotDurationMinutes,
         capacityPerSlot: activity.capacityPerSlot,
+        freeAccess: activity.freeAccess ?? false,
         slots: slotDTOs,
       })
     }

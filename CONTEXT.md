@@ -24,13 +24,16 @@ Immagine **opzionale** di copertina dell'Evento, mostrata come hero nella pagina
 Quando l'Evento comincia ed eventualmente finisce. L'admin può **dichiararla** sull'Evento — inizio e fine indipendenti, la fine richiede l'inizio ed è successiva — e se non la dichiara si **deriva** dalle [[Attività]]: il primo inizio e l'ultima fine. La dichiarazione vince sempre sulla derivazione: un Evento può cominciare alle 20 con la prima Attività alle 21, e non è una contraddizione. Senza dichiarazione e senza Attività non c'è data: ovunque comparirebbe si legge «Data da definire», biglietto compreso. Vedi ADR `0009`.
 
 ### Attività
-Un segmento **facoltativo** di un Evento con un **orario di inizio e fine** e una **Durata** (definita dall'admin). Dalla finestra inizio-fine e dalla Durata l'app **genera automaticamente gli Slot**. I posti limitati si contano per singolo Slot. Un Evento può non avere Attività: vedi [[Evento]] ed [[Eliminazione di un'Attività]].
+Un segmento **facoltativo** di un Evento con un **orario di inizio e fine** e una **Durata** (definita dall'admin). Dalla finestra inizio-fine e dalla Durata l'app **genera automaticamente gli Slot**. I posti limitati si contano per singolo Slot. Un'Attività può però essere ad [[Attività ad accesso libero|accesso libero]], e allora non ha né fasce né tetto. Un Evento può non avere Attività: vedi [[Evento]] ed [[Eliminazione di un'Attività]].
 
 ### Durata
 Lunghezza in minuti di ogni Slot dell'Attività, impostata dall'admin. L'app divide la finestra inizio-fine dell'Attività in Slot consecutivi di questa Durata.
 
+### Attività ad accesso libero
+[[Attività]] a cui si partecipa quando si vuole, dentro la sua finestra oraria, senza prenotare una fascia e senza tetto di posti — una visita allo stabilimento aperta dalle 15 alle 17. L'admin la dichiara tale per Attività; Durata e capienza non gli vengono nemmeno chieste, perché non ci sono numeri da inventare. All'[[Utente]] il form non offre una tendina ma una domanda sola, «mi interessa / non mi interessa», **alla quale però deve rispondere**: facoltativa è la visita, non la risposta, e una casella lasciata vuota confonderebbe il «no» con il «non ho letto». È **esente** dalla [[Policy di selezione Attività]] e da [[Permetti sovrapposizioni]], perché una visita libera non occupa il tuo tempo, lo attraversa. Resta un'Attività a tutti gli effetti per il [[Check-in]]: il QR vale al suo ingresso e la [[Tolleranza check-in]] continua a proteggerne la finestra. Vedi ADR `0011`.
+
 ### Slot
-Fascia oraria prenotabile all'interno di un'Attività, generata automaticamente dalla Durata. Ha un proprio inizio/fine e un **numero di posti limitato proprio**. Una Persona prenota uno Slot specifico; il check-in di Attività verifica che arrivi nel suo Slot.
+Fascia oraria prenotabile all'interno di un'Attività, generata automaticamente dalla Durata. Ha un proprio inizio/fine e, di norma, un **numero di posti limitato proprio**; fa eccezione l'[[Attività ad accesso libero]], che ne ha uno solo, largo quanto sé stessa e **senza tetto**. Una Persona prenota uno Slot specifico; il check-in di Attività verifica che arrivi nel suo Slot.
 
 ### Tolleranza check-in
 Margine in minuti, **configurabile dall'admin**, entro cui è consentito il check-in di uno Slot rispetto al suo orario. Fuori da questo margine il check-in è bloccato. Vale **solo** per il check-in di [[Attività]]: l'Ingresso e l'Uscita non hanno finestra oraria, quindi in un Evento senza Attività questa impostazione non ha effetto e non viene nemmeno chiesta.
@@ -47,6 +50,9 @@ Blocco **generato** che chiude l'email di conferma, sotto al [[Testo dell'email 
 ### Allergie e intolleranze
 Dichiarazione libera e facoltativa resa per **ogni Persona** della Prenotazione quando l'Evento la richiede (impostazione per-Evento). Campo vuoto = nessuna allergia dichiarata. È un dato sanitario: visibile ad admin, export, email di conferma e scanner per scelta esplicita del committente.
 
+### Consenso all'informativa
+Spunta che l'[[Utente]] deve dare per rispondere a un Evento, quando l'admin ha scritto un'informativa privacy per quell'Evento. Assente l'informativa, non c'è casella e non c'è vincolo. Il rifiuto vive **nella mutation**, non nel bottone disabilitato: le mutation pubbliche sono chiamabili senza passare dal form, e solo il rifiuto server-side rende vera l'implicazione «la riga esiste ⇒ il consenso c'è». Non esiste quindi un campo «ha acconsentito» — sarebbe ridondante, e il «quando» lo dà `_creationTime`. Esiste invece la **copia del testo accettato** sulla riga: un consenso è consenso a un testo preciso, e l'informativa dell'Evento è riscrivibile dall'admin, quindi senza copia una risposta di ottobre risulterebbe aver accettato le parole di novembre. Vale su entrambi i rami pubblici, [[Prenotazione]] e [[Rinuncia]]: non c'è una porta di servizio dove i dati personali entrano senza consenso. Vedi ADR `0012`.
+
 ### Raccolta nomi
 Impostazione a livello di Evento decisa dall'admin. Se attiva (default), il form chiede il nome di ogni Figlio e Ospite. Se disattiva, Figli e Ospiti sono identificati solo dall'[[Etichetta posizionale]] (più l'età per i Figli), per minimizzare i dati personali raccolti.
 
@@ -57,10 +63,10 @@ Identificativo progressivo per categoria — «Figlio 1», «Figlio 2», «Ospit
 Impostazione a livello di Evento decisa dall'admin. Se attiva, il form pubblico chiede per prima cosa «Confermi la partecipazione? sì/no»: il «sì» prosegue con la normale Prenotazione, il «no» registra una [[Rinuncia]]. Se disattiva, il form si comporta come oggi (chi non partecipa semplicemente non si iscrive).
 
 ### Regola del nucleo familiare
-Impostazione opzionale a livello di Evento (numero «max Ospiti quando ci sono Figli», assente di default). Se assente, [[Figlio|Figli]] e [[Ospite|Ospiti]] restano indipendenti come oggi (ciascuno col proprio massimo per Prenotazione, nessuna domanda aggiuntiva). Se presente, il form chiede esplicitamente «Hai figli minorenni a carico? sì/no»: con «sì» mostra fino al massimo Figli (con età) più al massimo questo cap ridotto di Ospiti; con «no» mostra fino al massimo Ospiti pieno. La regola è applicata **server-side** nella mutation di registrazione in base al numero di Figli effettivamente inviati (mai fidandosi della risposta dichiarata dal client); il form la rispecchia solo per UX.
+Impostazione opzionale a livello di Evento (numero «max Ospiti quando ci sono Figli», assente di default). Se assente, [[Figlio|Figli]] e [[Ospite|Ospiti]] restano indipendenti come oggi (ciascuno col proprio massimo per Prenotazione, nessuna domanda aggiuntiva). Se presente, il form chiede esplicitamente «Vieni con dei figli minorenni? sì/no» — non «hai figli a carico»: chi ne ha tre e viene da solo risponde no, ed è la risposta giusta, perché la regola è applicata sul numero di Figli effettivamente inviati: con «sì» mostra fino al massimo Figli (con età) più al massimo questo cap ridotto di Ospiti; con «no» mostra fino al massimo Ospiti pieno. La regola è applicata **server-side** nella mutation di registrazione in base al numero di Figli effettivamente inviati (mai fidandosi della risposta dichiarata dal client); il form la rispecchia solo per UX.
 
 ### Rinuncia
-Risposta negativa («non partecipo») di una persona a un Evento che richiede la [[Conferma di partecipazione]]. Contiene solo nome e email. **Non è una Prenotazione**: non crea Persone, non occupa posti, non genera QR code. Al massimo una Rinuncia per email per Evento. Per un [[Membro (Account personale)|Membro]] loggato vale l'email dell'account, non quella digitata (come per la Prenotazione). Vale la regola [[Una sola risposta per email]]: chi ha già risposto — in un senso o nell'altro — non può rispondere di nuovo dal form pubblico.
+Risposta negativa («non partecipo») di una persona a un Evento che richiede la [[Conferma di partecipazione]]. Contiene solo nome e email — dati personali, quindi anche qui vale il [[Consenso all'informativa]]. **Non è una Prenotazione**: non crea Persone, non occupa posti, non genera QR code. Al massimo una Rinuncia per email per Evento. Per un [[Membro (Account personale)|Membro]] loggato vale l'email dell'account, non quella digitata (come per la Prenotazione). Vale la regola [[Una sola risposta per email]]: chi ha già risposto — in un senso o nell'altro — non può rispondere di nuovo dal form pubblico.
 
 ### Una sola risposta per email
 Per ogni Evento, un'email (normalizzata trim + lowercase) può avere al massimo **una** risposta self-service: una Prenotazione **o** una [[Rinuncia]]. Qualsiasi invio successivo con la stessa email — nuovo «sì», nuovo «no», o cambio di risposta — è bloccato con l'invito a scrivere un'email all'organizzatore. Ogni modifica è un rimedio riservato all'admin: [[Annullamento della Prenotazione]] o [[Rimozione della Rinuncia]] (ADR 0005).
@@ -96,7 +102,7 @@ Origine (schema + host + porta) ammessa a **incorniciare** il form incorporato d
 - **Non è un confine di riservatezza.** La pagina incorporata resta raggiungibile e utilizzabile direttamente da chiunque conosca l'id dell'Evento: l'elenco protegge dal clickjacking e dall'uso del marchio altrui, non dall'accesso. Vedi ADR `0006`.
 
 ### Permetti sovrapposizioni
-Booleano a livello di Evento impostato dall'admin. Se falso, il sistema impedisce a una Prenotazione di selezionare Slot che si sovrappongono nel tempo. Se vero, gli Slot sovrapposti sono consentiti.
+Booleano a livello di Evento impostato dall'admin. Se falso, il sistema impedisce a una Prenotazione di selezionare Slot che si sovrappongono nel tempo. Se vero, gli Slot sovrapposti sono consentiti. Le [[Attività ad accesso libero|Attività ad accesso libero]] non entrano nel confronto: la loro finestra è larga per costruzione e collidere con tutto ciò che accade al suo interno sarebbe un artefatto, non una regola.
 
 ### Policy di selezione Attività
 Impostazione a livello di Evento decisa dall'admin in fase di creazione. Determina come la Prenotazione viene associata alle Attività:
@@ -104,10 +110,10 @@ Impostazione a livello di Evento decisa dall'admin in fase di creazione. Determi
 - **Minimo N** — la Prenotazione deve includere almeno N Attività.
 - **Libera** — l'Utente sceglie liberamente quali Attività includere in fase di Registrazione.
 
-Senza [[Attività]] la policy non ha referente: non viene chiesta all'admin e nessuna delle tre regole si applica alla Prenotazione.
+Senza [[Attività]] la policy non ha referente: non viene chiesta all'admin e nessuna delle tre regole si applica alla Prenotazione. Le [[Attività ad accesso libero|Attività ad accesso libero]] non entrano in nessuno dei conteggi: restano sempre facoltative, così il «non mi interessa» è una scelta vera e non un bottone da nascondere.
 
 ### Regola di capacità (atomica)
-Una Registrazione è **atomica**: se anche un solo Slot selezionato non ha posti liberi sufficienti per **tutte** le Persone della Prenotazione, l'intera Registrazione fallisce. Nessuna iscrizione parziale, nessuna famiglia divisa. Un Evento senza [[Attività]] non ha Slot e quindi **nessun tetto**: la regola non ha nulla su cui applicarsi, e le superfici pubbliche non parlano affatto di posti anziché annunciarne zero.
+Una Registrazione è **atomica**: se anche un solo Slot selezionato non ha posti liberi sufficienti per **tutte** le Persone della Prenotazione, l'intera Registrazione fallisce. Nessuna iscrizione parziale, nessuna famiglia divisa. Un Evento senza [[Attività]] non ha Slot e quindi **nessun tetto**: la regola non ha nulla su cui applicarsi, e le superfici pubbliche non parlano affatto di posti anziché annunciarne zero. Lo stesso vale, Slot per Slot, per le [[Attività ad accesso libero|Attività ad accesso libero]]: uno Slot senza tetto viene saltato, non confrontato con zero.
 
 ### QR code
 Un codice univoco generato **1 per ogni Persona** (non per Attività). Vale come pass per tutte le Attività a cui quella Persona è iscritta.

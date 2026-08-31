@@ -131,6 +131,10 @@ function EventDetailContent() {
    * «Registrazioni».
    */
   const hasActivities = event.activities.length > 0
+  // «Illimitati» non è più solo l'Evento senza Attività: anche un'Attività ad
+  // accesso libero non ha tetto (ADR 0011). Ciò che conta è se esiste almeno
+  // uno Slot con capienza, non se esiste un'Attività.
+  const hasCappedSeats = event.totalCapacity > 0
 
   return (
     <div className="min-h-svh bg-muted/40">
@@ -231,8 +235,8 @@ function EventDetailContent() {
             icon={<Layers className="h-5 w-5" aria-hidden="true" />}
           />
           <StatCard
-            label={hasActivities ? 'Posti liberi / totali' : 'Posti'}
-            value={hasActivities ? `${event.totalAvailable}/${event.totalCapacity}` : 'Illimitati'}
+            label={hasCappedSeats ? 'Posti liberi / totali' : 'Posti'}
+            value={hasCappedSeats ? `${event.totalAvailable}/${event.totalCapacity}` : 'Illimitati'}
             icon={<CheckCircle2 className="h-5 w-5" aria-hidden="true" />}
           />
         </div>
@@ -287,7 +291,7 @@ function EventDetailContent() {
                 label="Allergie e intolleranze"
                 value={event.collectAllergies ? 'Richieste a ogni persona' : 'Non richieste'}
               />
-              {hasActivities && (
+              {hasCappedSeats && (
                 <InfoRow
                   label="Posti occupati"
                   value={`${event.totalTaken}/${event.totalCapacity}`}

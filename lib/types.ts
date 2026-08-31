@@ -27,7 +27,8 @@ export interface Slot {
   activityId: string
   start: string
   end: string
-  capacity: number
+  /** Posti dello Slot. `null` = nessun tetto (Attività ad accesso libero, ADR 0011). */
+  capacity: number | null
 }
 
 /** Segmento di un Evento con finestra oraria e Slot generati dalla Durata. */
@@ -39,6 +40,13 @@ export interface Activity {
   end: string
   slotDurationMinutes: number
   capacityPerSlot: number
+  /**
+   * Attività ad accesso libero (ADR 0011): un solo Slot senza tetto, nessuna
+   * fascia da scegliere. Esente da policy di selezione e sovrapposizioni.
+   * Con il flag attivo `slotDurationMinutes` e `capacityPerSlot` non
+   * significano nulla.
+   */
+  freeAccess: boolean
   slots: Slot[]
 }
 
@@ -186,8 +194,14 @@ export interface Decline {
 }
 
 export interface SlotWithAvailability extends Slot {
+  /**
+   * Persone che occupano lo Slot. Contato anche senza tetto: su un'Attività ad
+   * accesso libero è il numero di chi ha risposto «mi interessa», che è
+   * esattamente il dato per cui la domanda esiste.
+   */
   taken: number
-  available: number
+  /** Posti residui. `null` = nessun tetto, quindi nessun residuo da contare. */
+  available: number | null
 }
 
 export interface ActivityWithAvailability extends Omit<Activity, 'slots'> {
@@ -244,14 +258,19 @@ export interface EventWithStats extends Omit<Event, 'activities' | 'checkInPassw
    */
   declaredStartsAt: string | null
   declaredEndsAt: string | null
-  /** Somma dei posti di tutti gli Slot dell'Evento. */
+  /** Somma dei posti dei soli Slot con tetto (ADR 0011). */
   totalCapacity: number
-  /** Somma dei posti occupati su tutti gli Slot. */
+  /** Somma dei posti occupati su tutti gli Slot, anche quelli senza tetto. */
   totalTaken: number
-  /** Posti ancora disponibili complessivi (somma sugli Slot). */
+  /** Posti ancora disponibili sui soli Slot con tetto. */
   totalAvailable: number
-  /** true se esistono Slot e sono tutti pieni. */
+  /** true se esistono Slot con tetto e sono tutti pieni. */
   soldOut: boolean
+  /**
+   * Informativa privacy dell'Evento (ADR 0012). Stringa vuota = nessuna
+   * casella nel form e nessun vincolo nelle mutation.
+   */
+  privacyNotice: string
 }
 
 export type ActionResult<T = undefined> =

@@ -39,6 +39,7 @@ function toEventInput(event: EventWithStats): EventInput {
     recordExit: event.recordExit,
     emailSubject: event.emailSubject,
     emailBody: event.emailBody,
+    privacyNotice: event.privacyNotice,
     allowChildren: event.allowChildren,
     maxChildrenPerRegistration: event.maxChildrenPerRegistration || 2,
     allowCompanions: event.allowCompanions,
@@ -55,6 +56,7 @@ function toEventInput(event: EventWithStats): EventInput {
       end: toDatetimeLocalValue(activity.end),
       slotDurationMinutes: activity.slotDurationMinutes,
       capacityPerSlot: activity.capacityPerSlot,
+      freeAccess: activity.freeAccess,
     })),
   }
 }

@@ -120,6 +120,13 @@ export default defineSchema({
      * sottodominio (https://*.partner.com). Vuoto = nessun sito autorizzato.
      */
     allowedOrigins: v.optional(v.array(v.string())),
+    /**
+     * Informativa privacy dell'Evento (ADR 0012). Assente o vuota = nessuna
+     * casella nel form e nessun vincolo nelle mutation, quindi gli Eventi
+     * esistenti non richiedono backfill. Modificabile in ogni momento: ciò che
+     * è già stato accettato non cambia, perché la riga se ne porta una copia.
+     */
+    privacyNotice: v.optional(v.string()),
   }).index('by_scanToken', ['scanToken']),
 
   activities: defineTable({
@@ -129,6 +136,14 @@ export default defineSchema({
     end: v.string(),
     slotDurationMinutes: v.number(),
     capacityPerSlot: v.number(),
+    /**
+     * Attività ad accesso libero (ADR 0011): niente fasce e niente tetto. Un
+     * solo Slot largo quanto l'Attività, con `capacity: null`. Assente o false
+     * = Attività a fasce, comportamento odierno. Con il flag attivo
+     * `slotDurationMinutes` e `capacityPerSlot` restano in tabella ma non
+     * significano più nulla: l'admin non li compila e nessuno li legge.
+     */
+    freeAccess: v.optional(v.boolean()),
     /** Ordine di visualizzazione dentro l'Evento. */
     order: v.number(),
   }).index('by_event', ['eventId']),
@@ -138,7 +153,12 @@ export default defineSchema({
     activityId: v.id('activities'),
     start: v.string(),
     end: v.string(),
-    capacity: v.number(),
+    /**
+     * Posti dello Slot. `null` = nessun tetto, ed è il solo caso dell'unico
+     * Slot di un'Attività ad accesso libero (ADR 0011). Union e non optional:
+     * «senza tetto» è una scelta dichiarata, non un campo dimenticato.
+     */
+    capacity: v.union(v.number(), v.null()),
     order: v.number(),
   })
     .index('by_event', ['eventId'])
@@ -148,6 +168,13 @@ export default defineSchema({
     eventId: v.id('events'),
     contactEmail: v.string(),
     userId: v.optional(v.id('users')),
+    /**
+     * Copia del testo dell'informativa accettata (ADR 0012). Non esiste un
+     * campo «ha acconsentito»: la riga non potrebbe esistere senza consenso,
+     * e il quando lo dà `_creationTime`. Assente = l'Evento non aveva
+     * informativa al momento della Prenotazione.
+     */
+    privacyNoticeAccepted: v.optional(v.string()),
   })
     .index('by_event', ['eventId'])
     .index('by_user', ['userId']),
@@ -222,6 +249,8 @@ export default defineSchema({
     email: v.string(),
     /** ISO dell'ultima risposta «no» (si aggiorna a ogni upsert). */
     respondedAt: v.string(),
+    /** Copia dell'informativa accettata (ADR 0012). Anche la Rinuncia raccoglie dati personali. */
+    privacyNoticeAccepted: v.optional(v.string()),
   })
     // Compound index: a query for "just eventId" is a valid prefix match,
     // so a separate by_event index would be redundant.

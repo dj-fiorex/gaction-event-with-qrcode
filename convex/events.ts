@@ -29,6 +29,12 @@ const activityInput = v.object({
   end: v.string(),
   slotDurationMinutes: v.number(),
   capacityPerSlot: v.number(),
+  /**
+   * Attività ad accesso libero (ADR 0011). Assente = Attività a fasce.
+   * Con il flag attivo Durata e capienza arrivano comunque (il form manda
+   * l'oggetto intero) ma non vengono lette da nessuno.
+   */
+  freeAccess: v.optional(v.boolean()),
 })
 
 const eventInput = {
@@ -55,6 +61,12 @@ const eventInput = {
   recordExit: v.boolean(),
   emailSubject: v.optional(v.string()),
   emailBody: v.optional(v.string()),
+  /**
+   * Informativa privacy (ADR 0012). Vuota = nessuna casella nel form e nessun
+   * vincolo nelle mutation. Riscrivibile in ogni momento: le risposte già
+   * raccolte se ne portano una copia e non cambiano.
+   */
+  privacyNotice: v.optional(v.string()),
   allowChildren: v.boolean(),
   maxChildrenPerRegistration: v.number(),
   allowCompanions: v.boolean(),
@@ -328,7 +340,13 @@ async function syncSlots(
   ctx: MutationCtx,
   eventId: Id<'events'>,
   activityId: Id<'activities'>,
-  activity: { start: string; end: string; slotDurationMinutes: number; capacityPerSlot: number },
+  activity: {
+    start: string
+    end: string
+    slotDurationMinutes: number
+    capacityPerSlot: number
+    freeAccess?: boolean
+  },
 ): Promise<void> {
   const existing = await ctx.db
     .query('slots')
@@ -343,6 +361,7 @@ async function syncSlots(
     activity.end,
     activity.slotDurationMinutes,
     activity.capacityPerSlot,
+    activity.freeAccess ?? false,
   )
   for (let order = 0; order < generated.length; order++) {
     const slot = generated[order]
@@ -415,6 +434,7 @@ async function syncActivitiesAndSlots(
       end: new Date(activity.end).toISOString(),
       slotDurationMinutes: activity.slotDurationMinutes,
       capacityPerSlot: activity.capacityPerSlot,
+      freeAccess: activity.freeAccess ?? false,
       order,
     }
 
@@ -453,7 +473,13 @@ function validateEventInput(input: {
   allowCompanions: boolean
   maxCompanionsPerRegistration: number
   maxCompanionsWithChildren?: number
-  activities: Array<{ start: string; end: string; slotDurationMinutes: number; capacityPerSlot: number }>
+  activities: Array<{
+    start: string
+    end: string
+    slotDurationMinutes: number
+    capacityPerSlot: number
+    freeAccess?: boolean
+  }>
 }): string | null {
   // Date proprie dell'Evento: la fine dichiarata richiede l'inizio ed è
   // successiva, l'inizio sta in piedi da solo. Il perché sta nell'ADR 0009.
@@ -476,7 +502,7 @@ function validateEventInput(input: {
   // Nessun «almeno un'Attività» (ADR 0010): un Evento può non averne, ed è una
   // sua forma legittima e permanente — una cena, un'assemblea, un open day.
   for (const a of input.activities) {
-    const slots = generateSlots('tmp', new Date(a.start).toISOString(), new Date(a.end).toISOString(), a.slotDurationMinutes, a.capacityPerSlot)
+    const slots = generateSlots('tmp', new Date(a.start).toISOString(), new Date(a.end).toISOString(), a.slotDurationMinutes, a.capacityPerSlot, a.freeAccess ?? false)
     if (slots.length === 0) {
       return 'Un\u2019attività non genera slot: controlla finestra oraria e durata'
     }
@@ -537,6 +563,7 @@ export const create = mutation({
       recordExit: args.recordExit,
       emailSubject: normalizeEmailCopy(args.emailSubject),
       emailBody: normalizeEmailCopy(args.emailBody),
+      privacyNotice: normalizeEmailCopy(args.privacyNotice),
       allowChildren: args.allowChildren,
       maxChildrenPerRegistration: args.allowChildren ? args.maxChildrenPerRegistration : 0,
       allowCompanions: args.allowCompanions,
@@ -609,6 +636,7 @@ export const update = mutation({
       recordExit: args.recordExit,
       emailSubject: normalizeEmailCopy(args.emailSubject),
       emailBody: normalizeEmailCopy(args.emailBody),
+      privacyNotice: normalizeEmailCopy(args.privacyNotice),
       allowChildren: args.allowChildren,
       maxChildrenPerRegistration: args.allowChildren ? args.maxChildrenPerRegistration : 0,
       allowCompanions: args.allowCompanions,
