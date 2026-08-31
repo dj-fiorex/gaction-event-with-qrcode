@@ -28,7 +28,7 @@ La dichiarazione **vince sempre** sulla derivazione, anche quando l'Evento ha At
 
 ## Consequences
 
-- Ogni lettura resta `string | null` come oggi: card, pagina pubblica, PDF, export, ordinamento di `listPublic` non cambiano forma — cambia solo da dove arriva il valore. La derivazione resta, come ripiego.
+- Ogni lettura resta `string | null` come oggi: card, pagina pubblica, PDF e ordinamento di `listPublic` non cambiano forma — cambia solo da dove arriva il valore. La derivazione resta, come ripiego. L'export fa eccezione: una data dell'Evento non l'ha mai portata, e guadagna le due colonne «Inizio evento» e «Fine evento».
 - La modifica riguarda **tutti** gli Eventi, non solo quelli senza Attività: è per questo che è una decisione a sé e non un dettaglio di ADR `0010`.
 - Gli Eventi esistenti non richiedono backfill: campi assenti = derivazione odierna.
 - Una fine **derivata** può cadere prima di un inizio **dichiarato** — cena alle 20, allestimento pomeridiano fra le Attività — e in quel caso la lettura non la rende: resterebbe «20:00 – 15:00» stampato sul biglietto, e un biglietto che mente sull'orario è peggio di uno che tace. A tacere è solo la lettura: la dichiarazione resta in tabella e la fine ricompare da sé se le Attività si spostano. Prevenirlo in scrittura vorrebbe dire vincolare le Attività alla finestra dell'Evento, che è l'opzione scartata qui sopra.

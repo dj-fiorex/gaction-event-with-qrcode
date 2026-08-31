@@ -6,6 +6,14 @@ import type { Decline, EventWithStats, Registration } from './types'
 
 interface ExportRow {
   Evento: string
+  /**
+   * Data dell'Evento (ADR 0009): quella dichiarata se c'è, altrimenti quella
+   * derivata dalle Attività. Trattino se non c'è né l'una né l'altra — nel
+   * foglio è la lingua già in uso per «qui non c'è niente», e per la fine è
+   * anche il caso normale: di una cena l'ora di fine nessuno la sa.
+   */
+  'Inizio evento': string
+  'Fine evento': string
   Persona: string
   Categoria: string
   Età: string
@@ -80,6 +88,8 @@ export function downloadRegistrationsXlsx(
       const status = statusOfPerson(p, p.activityCheckIns)
       rows.push({
         Evento: event?.title ?? r.eventId,
+        'Inizio evento': event?.startsAt ? formatDateTime(event.startsAt) : '-',
+        'Fine evento': event?.endsAt ? formatDateTime(event.endsAt) : '-',
         Persona: p.name,
         Categoria: CATEGORY_LABEL[p.category],
         Età: p.age != null ? String(p.age) : '-',
@@ -109,6 +119,8 @@ export function downloadRegistrationsXlsx(
   const worksheet = XLSX.utils.json_to_sheet(rows)
   worksheet['!cols'] = [
     { wch: 26 }, // Evento
+    { wch: 18 }, // Inizio evento
+    { wch: 18 }, // Fine evento
     { wch: 22 }, // Persona
     { wch: 16 }, // Categoria
     { wch: 6 }, // Età
