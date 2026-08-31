@@ -22,13 +22,8 @@ import { useMutation } from 'convex/react'
 import { api } from '@/convex/_generated/api'
 import type { Id } from '@/convex/_generated/dataModel'
 import { eventSchema, type EventInput } from '@/lib/schemas'
-import {
-  activityRemovalWarning,
-  type ActivityImpact,
-  type LostSelection,
-} from '@/lib/activity-removal'
-import { fromDatetimeLocalValue, formatTimeRange } from '@/lib/format'
-import { generateSlots } from '@/lib/slots'
+import { activityRemovalWarning, lostSelections, type ActivityImpact } from '@/lib/activity-removal'
+import { fromDatetimeLocalValue } from '@/lib/format'
 import { typedZodResolver } from '@/lib/zod-resolver'
 import { EventImageField } from '@/components/admin/event-image-field'
 import { messageFromError } from '@/lib/errors'
@@ -163,56 +158,15 @@ export function EventForm({
     if (!nextValue) setValue('maxCompanionsWithChildren', undefined)
   }
 
-  /**
-   * Ciò che il salvataggio farebbe sparire davvero, con l'impatto su chi
-   * l'aveva prenotato (ADR 0008): un'Attività che il form non rimanda più, e
-   * — per quelle che restano — le fasce prenotate che i nuovi orari o la nuova
-   * Durata non generano più. Tutto il resto conserva la propria identità e non
-   * ha nulla da segnalare.
-   */
-  function lostSelections(values: EventInput): LostSelection[] {
-    const impactById = new Map(activityImpact?.map((i) => [i.activityId, i]))
-    const submittedById = new Map(
-      values.activities.flatMap((a) => (a.id ? [[a.id, a] as const] : [])),
-    )
-
-    const lost: LostSelection[] = []
-    for (const initial of initialValues?.activities ?? []) {
-      if (!initial.id) continue
-      const impact = impactById.get(initial.id)
-      const submitted = submittedById.get(initial.id)
-
-      if (!submitted) {
-        lost.push({ label: `«${initial.title}»`, impact })
-        continue
-      }
-      if (!impact) continue
-
-      // Le finestre che l'Attività genererebbe salvando: una fascia prenotata
-      // che non è più fra queste sparisce, e con lei le sue selezioni.
-      const windows = new Set(
-        generateSlots(
-          initial.id,
-          fromDatetimeLocalValue(submitted.start),
-          fromDatetimeLocalValue(submitted.end),
-          submitted.slotDurationMinutes,
-          submitted.capacityPerSlot,
-        ).map((slot) => `${slot.start}|${slot.end}`),
-      )
-      for (const slot of impact.slots) {
-        if (windows.has(`${slot.start}|${slot.end}`)) continue
-        lost.push({
-          label: `«${submitted.title}», fascia ${formatTimeRange(slot.start, slot.end)}`,
-          impact: slot,
-        })
-      }
-    }
-    return lost
-  }
-
   const onSubmit = handleSubmit(async (values) => {
     // L'admin deve sapere chi colpisce prima di salvare, non dopo.
-    const warning = activityRemovalWarning(lostSelections(values))
+    const warning = activityRemovalWarning(
+      lostSelections({
+        initial: initialValues?.activities ?? [],
+        submitted: values.activities,
+        impact: activityImpact,
+      }),
+    )
     if (warning && !window.confirm(warning)) return
 
     setSubmitting(true)

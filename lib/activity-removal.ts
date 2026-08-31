@@ -9,6 +9,9 @@
  * a scrivere quella frase una volta sola.
  */
 
+import { fromDatetimeLocalValue, formatTimeRange } from './format'
+import { generateSlots } from './slots'
+
 /** Quanto pesa una sparizione su chi aveva prenotato. */
 export interface RegistrationImpact {
   /** Prenotazioni con una selezione su ciò che sparisce. */
@@ -59,4 +62,78 @@ export function activityRemovalWarning(lost: LostSelection[]): string | null {
     '',
     'Salvare comunque?',
   ].join('\n')
+}
+
+/** Un'Attività così come sta nel form: gli orari sono valori `datetime-local`. */
+export interface FormActivity {
+  /** Presente solo per le Attività già persistite (ADR 0008). */
+  id?: string
+  title: string
+  start: string
+  end: string
+  slotDurationMinutes: number
+  capacityPerSlot: number
+  freeAccess?: boolean
+}
+
+/**
+ * Ciò che il salvataggio farebbe sparire davvero, con l'impatto su chi
+ * l'aveva prenotato (ADR 0008): un'Attività che il form non rimanda più, e
+ * — per quelle che restano — le fasce prenotate che i nuovi orari, la nuova
+ * Durata o l'accesso libero non generano più. Tutto il resto conserva la
+ * propria identità e non ha nulla da segnalare: cambiare Raccolta nomi, il
+ * Testo dell'email o il titolo non tocca nessuna selezione.
+ */
+export function lostSelections({
+  initial,
+  submitted,
+  impact,
+}: {
+  /** Le Attività com'erano all'apertura del form. */
+  initial: FormActivity[]
+  /** Le Attività così come il form le sta per salvare. */
+  submitted: FormActivity[]
+  /** Il conteggio dal server: `undefined` finché non è arrivato. */
+  impact: ActivityImpact[] | undefined
+}): LostSelection[] {
+  const impactById = new Map(impact?.map((i) => [i.activityId, i]))
+  const submittedById = new Map(submitted.flatMap((a) => (a.id ? [[a.id, a] as const] : [])))
+
+  const lost: LostSelection[] = []
+  for (const before of initial) {
+    if (!before.id) continue
+    const activityImpact = impactById.get(before.id)
+    const after = submittedById.get(before.id)
+
+    if (!after) {
+      lost.push({ label: `«${before.title}»`, impact: activityImpact })
+      continue
+    }
+    if (!activityImpact) continue
+
+    // Le finestre che l'Attività genererebbe salvando: una fascia prenotata
+    // che non è più fra queste sparisce, e con lei le sue selezioni. Ad
+    // accesso libero la finestra è una sola e larga quanto l'Attività (ADR
+    // 0011): leggere lì Durata e capienza — che l'admin non vede nemmeno —
+    // inventerebbe fasce che il salvataggio non creerà mai, e con loro un
+    // avviso a ogni salvataggio, anche a orari intoccati.
+    const windows = new Set(
+      generateSlots(
+        before.id,
+        fromDatetimeLocalValue(after.start),
+        fromDatetimeLocalValue(after.end),
+        after.slotDurationMinutes,
+        after.capacityPerSlot,
+        after.freeAccess ?? false,
+      ).map((slot) => `${slot.start}|${slot.end}`),
+    )
+    for (const slot of activityImpact.slots) {
+      if (windows.has(`${slot.start}|${slot.end}`)) continue
+      lost.push({
+        label: `«${after.title}», fascia ${formatTimeRange(slot.start, slot.end)}`,
+        impact: slot,
+      })
+    }
+  }
+  return lost
 }
