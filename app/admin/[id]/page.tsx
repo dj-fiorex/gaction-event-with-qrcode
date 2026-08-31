@@ -312,6 +312,8 @@ function EventDetailContent() {
           eventId={event.id}
           embedEnabled={event.embedEnabled}
           allowedOrigins={event.allowedOrigins}
+          embedShowTitle={event.embedShowTitle}
+          embedShowLocation={event.embedShowLocation}
         />
 
         <DeclinesCard declines={declines ?? []} />

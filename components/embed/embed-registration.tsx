@@ -60,10 +60,27 @@ export function EmbedRegistration({ eventId }: EmbedRegistrationProps) {
         />
       ) : (
         <div className="flex flex-col gap-6">
-          <div>
-            <h1 className="text-lg font-semibold tracking-tight text-balance">{event.title}</h1>
-            <p className="text-sm text-muted-foreground">{event.location}</p>
-          </div>
+          {/* Titolo nascosto vuol dire nascosto agli occhi, non all'albero di
+              accessibilità: dentro l'iframe l'h1 è l'unica cosa che dice a
+              quale Evento ci si iscrive, perché il sito ospitante è un altro
+              documento e il <title> della scheda è generico. In `sr-only` è
+              fuori flusso, quindi non apre un `gap-6` vuoto sopra il form. */}
+          {!event.embedShowTitle && <h1 className="sr-only">{event.title}</h1>}
+          {(event.embedShowTitle || event.embedShowLocation) && (
+            <div>
+              {event.embedShowTitle && (
+                <h1 className="text-lg font-semibold tracking-tight text-balance">
+                  {event.title}
+                </h1>
+              )}
+              {/* Il luogo non cambia resa quando resta da solo: uno stile
+                  condizionale qui varrebbe meno della regressione che rischia
+                  sul caso normale. */}
+              {event.embedShowLocation && (
+                <p className="text-sm text-muted-foreground">{event.location}</p>
+              )}
+            </div>
+          )}
           <RegistrationForm event={event} embed />
         </div>
       )}

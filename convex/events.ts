@@ -721,8 +721,10 @@ export const setEmbedSettings = mutation({
     eventId: v.id('events'),
     embedEnabled: v.boolean(),
     allowedOrigins: v.array(v.string()),
+    embedShowTitle: v.boolean(),
+    embedShowLocation: v.boolean(),
   },
-  handler: async (ctx, { eventId, embedEnabled, allowedOrigins }) => {
+  handler: async (ctx, { eventId, embedEnabled, allowedOrigins, embedShowTitle, embedShowLocation }) => {
     const event = await ctx.db.get(eventId)
     if (!event) throw new ConvexError('Evento non trovato')
     await requireCanOperate(ctx, event)
@@ -737,8 +739,13 @@ export const setEmbedSettings = mutation({
       throw new ConvexError('Aggiungi almeno un dominio autorizzato per abilitare l\u2019incorporamento')
     }
 
-    await ctx.db.patch(eventId, { embedEnabled, allowedOrigins: valid })
-    return { embedEnabled, allowedOrigins: valid }
+    await ctx.db.patch(eventId, {
+      embedEnabled,
+      allowedOrigins: valid,
+      embedShowTitle,
+      embedShowLocation,
+    })
+    return { embedEnabled, allowedOrigins: valid, embedShowTitle, embedShowLocation }
   },
 })
 
