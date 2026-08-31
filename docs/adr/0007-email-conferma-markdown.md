@@ -34,4 +34,4 @@ Il rischio del markdown è che il testo dell'Utente (nomi, allergie) entri nel d
 - Il corpo del markdown viene emesso come HTML semantico (`<h1>`, `<p>`, `<ul>`) dentro un `<div>` con stili inline, mentre la struttura esterna è tabellare e completamente inline. Adeguato per Gmail e Outlook; un client che azzera gli stili degli heading mostrerà l'`<h1>` col proprio default. Il rimedio, se servirà, è un override del tema nel frontmatter.
 - L'editor (`@emailmd/react`) porta con sé CodeMirror e `mjml-browser`: è caricato con `next/dynamic` e `ssr: false`, quindi resta fuori dal bundle di chi non apre il form di un Evento.
 - L'email ha ora anche una parte `text/plain`, generata dallo stesso `render()`: un miglioramento di recapitabilità che prima non c'era.
-- Il [[Reinvio dell'email dei biglietti]] non ha più bisogno di ricevere il testo dal client, quindi non può più divergere dal primo invio: entrambi passano dalla stessa lettura server-side.
+- Il [[Reinvio dell'email di conferma]] non ha più bisogno di ricevere il testo dal client, quindi non può più divergere dal primo invio: entrambi passano dalla stessa lettura server-side.

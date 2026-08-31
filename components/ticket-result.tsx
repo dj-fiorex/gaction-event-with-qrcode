@@ -2,14 +2,18 @@
 
 import { Fragment, useState } from 'react'
 import Image from 'next/image'
-import { CheckCircle2, Download, Loader2 } from 'lucide-react'
+import { AlertTriangle, CheckCircle2, Download, Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
+import { useQuery } from 'convex/react'
+import { api } from '@/convex/_generated/api'
+import type { Id } from '@/convex/_generated/dataModel'
 import { Button } from '@/components/ui/button'
 import { CATEGORY_LABEL } from '@/lib/person-labels'
 import { linkify, resultBody, resultClosing, resultTitle, toParagraphs } from '@/lib/result-content'
 import type { RegisteredPerson } from '@/lib/types'
 import type { TicketPdfEvent } from '@/lib/pdf/ticket-document'
 import { downloadAllTickets, downloadPersonTicket } from '@/lib/pdf/download-tickets'
+import type { DeliveryOutcome } from '@/lib/email-delivery'
 
 interface TicketResultProps {
   persons: RegisteredPerson[]
@@ -21,6 +25,13 @@ interface TicketResultProps {
   resultTitle: string
   resultBody: string
   resultClosing: string
+  /**
+   * Prenotazione a cui iscriversi per l'esito della Consegna dell'email di
+   * conferma (ADR 0016). null = nessuna iscrizione, e nessun messaggio.
+   */
+  registrationId: Id<'registrations'> | null
+  /** Destinatario da nominare a consegna riuscita: il server non lo ritorna. */
+  contactEmail: string
   /** false = la griglia dei biglietti non si rende (solo dentro l'iframe). */
   showTickets: boolean
   /** false = «Nuova registrazione» non si rende (solo dentro l'iframe). */
@@ -46,12 +57,22 @@ export function TicketResult({
   resultTitle: titleCopy,
   resultBody: bodyCopy,
   resultClosing: closingCopy,
+  registrationId,
+  contactEmail,
   showTickets,
   showNewRegistration,
   onReset,
 }: TicketResultProps) {
   const [downloadingAll, setDownloadingAll] = useState(false)
   const [downloadingCode, setDownloadingCode] = useState<string | null>(null)
+
+  // L'invio è passato al server e non ritorna più nulla al browser, ma Convex è
+  // reattivo: restiamo iscritti e l'esito arriva dal vivo (ADR 0016). La query
+  // ritorna **solo l'enum** — nessun indirizzo, nessun nome.
+  const deliveryOutcome = useQuery(
+    api.emailDeliveries.outcomeForRegistration,
+    registrationId ? { registrationId } : 'skip',
+  )
 
   const title = resultTitle(titleCopy)
   const body = resultBody(bodyCopy, { personsCount: persons.length, showTickets })
@@ -90,6 +111,8 @@ export function TicketResult({
           <ResultText text={body} className="mt-1 text-sm text-muted-foreground text-pretty" />
         </div>
       </div>
+
+      <DeliveryNotice outcome={deliveryOutcome} contactEmail={contactEmail} />
 
       {/* Il download non è mai spegnibile: con la griglia dei biglietti via,
           questo PDF è l'unica presa che resta a chi non riceve l'email. */}
@@ -150,6 +173,57 @@ export function TicketResult({
           Nuova registrazione
         </Button>
       )}
+    </div>
+  )
+}
+
+/**
+ * Esito della Consegna dell'email di conferma, sotto il corpo dell'Esito e
+ * sopra il bottone di download (ADR 0016).
+ *
+ * A consegna riuscita conferma con l'indirizzo. A guasto invita a scaricare il
+ * PDF **adesso**, che è l'unico istante in cui l'Utente può ancora rimediare da
+ * solo: fra dieci minuti ha chiuso la scheda e il suo ticketCode vive solo in
+ * un'email che non arriverà — e vale doppio quando i biglietti a schermo sono
+ * spenti e i QR non si vedono nemmeno.
+ *
+ * «In corso» non dice niente: dura secondi, e un avviso che compare per poi
+ * sparire da sé è peggio del silenzio. `undefined` è la query non ancora
+ * arrivata, `null` una Prenotazione senza Consegne registrate.
+ */
+function DeliveryNotice({
+  outcome,
+  contactEmail,
+}: {
+  /** undefined = query non ancora arrivata; null = nessuna Consegna registrata. */
+  outcome: DeliveryOutcome | null | undefined
+  contactEmail: string
+}) {
+  if (outcome === undefined || outcome === null || outcome === 'pending') return null
+
+  if (outcome === 'delivered') {
+    return (
+      <p className="text-center text-sm text-muted-foreground text-pretty">
+        Abbiamo inviato l&rsquo;email di conferma
+        {contactEmail ? <> a <span className="font-medium">{contactEmail}</span></> : null}, con i
+        biglietti in allegato.
+      </p>
+    )
+  }
+
+  // «Simulata» non è un caso da sviluppo che si possa tacere all'Utente: in
+  // produzione significa che nessuna email partirà, per nessuno.
+  return (
+    <div
+      role="status"
+      className="flex w-full items-start gap-3 rounded-lg border border-destructive/40 bg-destructive/5 p-4 text-sm text-pretty"
+    >
+      <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-destructive" aria-hidden="true" />
+      <p>
+        Non siamo riusciti a inviarti l&rsquo;email di conferma.{' '}
+        <span className="font-medium">Scarica adesso i biglietti</span> con il bottone qui sotto:
+        senza l&rsquo;email è l&rsquo;unico modo per conservarli.
+      </p>
     </div>
   )
 }

@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { useQuery } from 'convex/react'
-import { CalendarDays, Plus, Ticket, Users } from 'lucide-react'
+import { AlertTriangle, CalendarDays, Plus, Ticket, Users } from 'lucide-react'
 import { api } from '@/convex/_generated/api'
 import { AuthGate } from '@/components/auth/auth-gate'
 import { AdminHeader } from '@/components/admin/admin-header'
@@ -14,6 +14,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Skeleton } from '@/components/ui/skeleton'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { eventCreationDisabled } from '@/lib/feature-flags'
+import { deliveryNeedsAttention } from '@/lib/email-delivery'
 
 interface StatCardProps {
   label: string
@@ -44,6 +45,15 @@ function AdminDashboard() {
 
   const loading = events === undefined || registrations === undefined
   const totalPersons = registrations?.reduce((sum, r) => sum + r.persons.length, 0) ?? 0
+
+  // Consegne dell'email di conferma che chiedono attenzione (ADR 0016). È la
+  // parte che fa il lavoro vero: il guasto dominante — dominio non verificato,
+  // quota esaurita, RESEND_API_KEY assente in produzione — non rompe *una*
+  // Prenotazione, le rompe tutte, e duecento icone identiche non sono un
+  // allarme ma carta da parati.
+  const now = Date.now()
+  const deliveriesNeedingAttention =
+    registrations?.filter((r) => deliveryNeedsAttention(r.emailDelivery, now)).length ?? 0
 
   return (
     <div className="min-h-svh bg-muted/40">
@@ -94,6 +104,18 @@ function AdminDashboard() {
                       <CardDescription>
                         Elenco completo delle registrazioni a tutti gli eventi.
                       </CardDescription>
+                      {deliveriesNeedingAttention > 0 && (
+                        <p className="mt-2 flex items-center gap-1.5 text-sm font-medium text-destructive">
+                          <AlertTriangle className="h-4 w-4 shrink-0" aria-hidden="true" />
+                          {/* Non «non sono arrivate»: fra queste ci sono le
+                              consegne rimaste in corso, di cui sappiamo solo
+                              che non ne abbiamo più saputo nulla. È la stessa
+                              bugia per cui l'ADR 0016 ha scartato il cron. */}
+                          {deliveriesNeedingAttention === 1
+                            ? '1 email di conferma da controllare'
+                            : `${deliveriesNeedingAttention} email di conferma da controllare`}
+                        </p>
+                      )}
                     </div>
                     <ExportButton
                       registrations={registrations}

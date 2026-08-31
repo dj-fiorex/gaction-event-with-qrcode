@@ -1,32 +1,55 @@
 import { ConvexError, v } from 'convex/values'
 import { internalQuery } from './_generated/server'
+import { personCategory } from './schema'
+import { resolveEventDates } from './model'
 import { buildTicketsEmailMarkdown, ticketsEmailSubject } from '../lib/email-content'
+import { EVENT_TIME_ZONE, formatDateRange } from '../lib/format'
+import { ticketsPdfFilename } from '../lib/pdf/filename'
 
 /**
- * Testo dell'email di conferma (issue #42), letto e composto server-side.
+ * Tutto ciò che serve a spedire l'email di conferma (issue #42, ADR 0015),
+ * letto e composto server-side.
  *
  * Vive fuori da `emails.ts` perché quel modulo è `'use node'` e può esportare
- * solo action: l'action di invio chiama questa query per leggere Evento, copy,
- * Persone e destinatario, invece di riceverli dal browser.
+ * solo action: l'action di invio chiama questa query per leggere Evento, copy e
+ * Persone, invece di riceverli dal browser.
  *
  * Restituisce già il documento markdown completo — corpo dell'Evento (o
- * ripiego) più Riepilogo della Prenotazione — così l'unico compito che resta
- * alla action è `render()` e la consegna.
+ * ripiego) più Riepilogo della Prenotazione — e il payload del PDF allegato,
+ * così alla action restano solo `renderToBuffer()`, `render()` e la consegna.
  */
 export const ticketEmailDocument = internalQuery({
-  args: {
-    registrationId: v.id('registrations'),
-    /**
-     * Se l'email porterà il PDF dei biglietti. Il corpo di ripiego lo annuncia,
-     * e l'allegato è best-effort: può mancare.
-     */
-    hasPdf: v.boolean(),
-  },
+  args: { registrationId: v.id('registrations') },
   returns: v.object({
-    contactEmail: v.string(),
+    // Nessun `contactEmail`, di proposito: il destinatario non si rilegge qui.
+    // Arriva alla action congelato dalla transazione che ha aperto la Consegna,
+    // altrimenti un Reinvio in volo lo cambierebbe sotto i piedi e la riga
+    // direbbe il falso su a chi era andata l'email (ADR 0016).
     subject: v.string(),
     markdown: v.string(),
     personsCount: v.number(),
+    /**
+     * Persone e Evento come li chiede `renderTicketsPdfBuffer`. I QR non
+     * viaggiano di qui: li rigenera il renderer dai `ticketCode`, che restano
+     * gli originali — i biglietti già in mano all'Utente continuano a valere.
+     */
+    pdf: v.object({
+      filename: v.string(),
+      eventTitle: v.string(),
+      eventLocation: v.string(),
+      eventDateRange: v.string(),
+      /** URL della copertina sullo storage. null = nessuna copertina. */
+      coverUrl: v.union(v.string(), v.null()),
+      persons: v.array(
+        v.object({
+          name: v.string(),
+          category: personCategory,
+          age: v.union(v.number(), v.null()),
+          allergies: v.union(v.string(), v.null()),
+          ticketCode: v.string(),
+        }),
+      ),
+    }),
   }),
   handler: async (ctx, args) => {
     const registration = await ctx.db.get(args.registrationId)
@@ -40,23 +63,49 @@ export const ticketEmailDocument = internalQuery({
       .withIndex('by_registration', (q) => q.eq('registrationId', registration._id))
       .collect()
 
+    // Date come le risolve la pagina dell'Evento, dalla stessa funzione: un
+    // biglietto che raccontasse una data diversa sarebbe peggio di un
+    // biglietto senza data (ADR 0009).
+    const activities = await ctx.db
+      .query('activities')
+      .withIndex('by_event', (q) => q.eq('eventId', event._id))
+      .collect()
+    const dates = resolveEventDates(event, activities)
+
+    const pdfPersons = persons.map((person) => ({
+      name: person.name,
+      category: person.category,
+      age: person.age,
+      allergies: person.allergies ?? null,
+      ticketCode: person.ticketCode,
+    }))
+
     return {
-      contactEmail: registration.contactEmail,
       subject: ticketsEmailSubject(event.emailSubject, event.title),
       markdown: buildTicketsEmailMarkdown({
         emailBody: event.emailBody,
         event: { title: event.title, location: event.location },
-        persons: persons.map((person) => ({
-          name: person.name,
-          category: person.category,
-          age: person.age,
-          allergies: person.allergies ?? null,
-          ticketCode: person.ticketCode,
-        })),
+        persons: pdfPersons,
         collectNames: event.collectNames ?? true,
-        hasPdf: args.hasPdf,
+        // L'allegato non è più best-effort: o il PDF si renderizza e l'email
+        // parte con lui, o la Consegna si chiude «non riuscita» (ADR 0015).
+        // Il corpo di ripiego può quindi annunciarlo senza riserve.
+        hasPdf: true,
       }),
       personsCount: persons.length,
+      pdf: {
+        filename: ticketsPdfFilename(event.title),
+        eventTitle: event.title,
+        eventLocation: event.location,
+        // Il fuso è dichiarato: la query gira in un runtime su UTC, e senza
+        // dirlo il biglietto spedito porterebbe un orario diverso da quello
+        // scaricato dalla stessa pagina.
+        eventDateRange: formatDateRange(dates.startsAt, dates.endsAt, {
+          timeZone: EVENT_TIME_ZONE,
+        }),
+        coverUrl: event.imageStorageId ? await ctx.storage.getUrl(event.imageStorageId) : null,
+        persons: pdfPersons,
+      },
     }
   },
 })

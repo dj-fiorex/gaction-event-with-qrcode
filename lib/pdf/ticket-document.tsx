@@ -1,6 +1,6 @@
 import { Document, Page, View, Text, Image, StyleSheet } from '@react-pdf/renderer'
-import { CATEGORY_LABEL } from '@/lib/person-labels'
-import type { RegisteredPerson } from '@/lib/types'
+import { CATEGORY_LABEL } from '../person-labels'
+import type { RegisteredPerson } from '../types'
 
 /** Dati dell'Evento mostrati nell'header di ogni pagina biglietto. */
 export interface TicketPdfEvent {

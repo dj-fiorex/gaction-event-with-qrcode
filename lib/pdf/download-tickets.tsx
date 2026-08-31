@@ -3,18 +3,7 @@
 import { pdf } from '@react-pdf/renderer'
 import { TicketsDocument, type TicketPdfEvent } from './ticket-document'
 import type { RegisteredPerson } from '@/lib/types'
-
-/** Rende un testo sicuro per un nome file: solo alfanumerici e trattini. */
-export function slugify(value: string): string {
-  return (
-    value
-      .normalize('NFD')
-      .replace(/[\u0300-\u036f]/g, '')
-      .replace(/[^a-zA-Z0-9]+/g, '-')
-      .replace(/^-+|-+$/g, '')
-      .toLowerCase() || 'evento'
-  )
-}
+import { slugify, ticketsPdfFilename } from './filename'
 
 function loadImageFromBlob(blob: Blob): Promise<HTMLImageElement> {
   return new Promise((resolve, reject) => {
@@ -59,18 +48,20 @@ async function fetchCoverAsJpegDataUrl(url: string): Promise<string | undefined>
 
 /**
  * Renderizza il PDF dei biglietti (una pagina per Persona) come Blob.
- * Con `includeCover: false` la copertina viene omessa anche se presente:
- * serve all'allegato email quando il file supererebbe i limiti di invio.
+ *
+ * L'opzione `includeCover` non c'è più: esisteva solo per l'allegato email,
+ * che quando superava il tetto degli argomenti di una action si ritentava
+ * senza copertina — in silenzio. Il PDF ora si renderizza server-side e non
+ * attraversa più quegli argomenti, quindi né il tetto né il ripiego hanno
+ * ragione di esistere (ADR 0015).
  */
 export async function renderTicketsPdfBlob(
   persons: RegisteredPerson[],
   event: TicketPdfEvent,
-  { includeCover = true }: { includeCover?: boolean } = {},
 ): Promise<Blob> {
-  const coverDataUrl =
-    includeCover && event.imageUrl
-      ? await fetchCoverAsJpegDataUrl(event.imageUrl)
-      : undefined
+  const coverDataUrl = event.imageUrl
+    ? await fetchCoverAsJpegDataUrl(event.imageUrl)
+    : undefined
   const resolvedEvent: TicketPdfEvent = { ...event, coverDataUrl }
   return pdf(<TicketsDocument persons={persons} event={resolvedEvent} />).toBlob()
 }
@@ -96,7 +87,7 @@ export function downloadAllTickets(
   persons: RegisteredPerson[],
   event: TicketPdfEvent,
 ): Promise<void> {
-  return triggerPdfDownload(persons, event, `${slugify(event.title)}-biglietti.pdf`)
+  return triggerPdfDownload(persons, event, ticketsPdfFilename(event.title))
 }
 
 /** Scarica un PDF con il solo biglietto della Persona indicata. */

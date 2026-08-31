@@ -2,12 +2,17 @@ import { ConvexError, v } from 'convex/values'
 import { mutation, query } from './_generated/server'
 import type { Doc, Id } from './_generated/dataModel'
 import {
+  deleteDeliveriesOfRegistration,
+  enqueueConfirmationEmail,
+  latestDelivery,
+  toDeliverySnapshot,
+} from './emailDeliveries'
+import {
   requireAdmin,
   generateTicketCode,
   getCurrentUser,
   normalizeEmail,
   requireEmailUnusedForEvent,
-  resolveEventDates,
 } from './model'
 import { intervalsOverlap } from '../lib/slots'
 import { getAuthUserId } from '@convex-dev/auth/server'
@@ -328,6 +333,17 @@ export const register = mutation({
       })
     }
 
+    // Consegna dell'email di conferma (ADR 0015, 0016). La riga «in corso» e
+    // la pianificazione dell'invio stanno **in questa transazione**: o commitano
+    // con la Prenotazione, o non commita nessuno dei tre. «L'email non è mai
+    // partita perché il client non è tornato» — scheda chiusa, rete caduta,
+    // iframe smontato dalla pagina ospite — smette così di essere una categoria
+    // di guasto: se la Prenotazione esiste, l'action girerà.
+    await enqueueConfirmationEmail(ctx, {
+      registrationId,
+      recipient: persistedContactEmail,
+    })
+
     return {
       registrationId,
       eventTitle: event.title,
@@ -395,6 +411,13 @@ async function buildRegistrationDTO(
     createdAt: new Date(registration._creationTime).toISOString(),
     selections: selections.map((s) => ({ activityId: s.activityId, slotId: s.slotId })),
     persons: personDTOs,
+    // Ultima Consegna dell'email di conferma (ADR 0016): l'admin ne ricava
+    // l'icona accanto al Contatto e il conteggio sopra la tabella. Una lettura
+    // in più per riga, e non è una classe di problema nuova — questa query fa
+    // già `.collect()` sull'intera tabella e legge Persone e selezioni per
+    // Prenotazione. null = nessuna Consegna registrata (le Prenotazioni
+    // anteriori a questo lavoro non ne hanno: nessun backfill).
+    emailDelivery: toDeliverySnapshot(await latestDelivery(ctx, registration._id)),
   }
 }
 
@@ -490,33 +513,31 @@ export const myRegistrations = query({
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
 /**
- * Prepara il reinvio dell'email dei biglietti di una Prenotazione e persiste
- * l'eventuale correzione del destinatario.
+ * Reinvio dell'email di conferma di una Prenotazione: apre una nuova Consegna,
+ * persiste l'eventuale correzione del destinatario e pianifica l'invio.
  *
- * Restituisce quel che serve al client per costruire il PDF allegato: le
- * Persone attuali della Prenotazione, più titolo, luogo, date e copertina
- * dell'Evento per l'header del PDF. Il testo dell'email non passa più di qui —
- * lo compone `emails.sendTickets` rileggendo la Prenotazione (issue #42). I QR
- * sono rigenerati dal client a partire dai `ticketCode`, che restano quelli
- * originali: i biglietti già in mano all'Utente continuano a valere.
+ * Non prepara più un payload per il browser. Da quando il PDF si renderizza
+ * server-side (ADR 0015) il reinvio è la stessa manovra del primo invio — riga
+ * «in corso» più pianificazione, nella stessa transazione — e il testo, le
+ * etichette, le età e le allergie sono comunque quelli **attuali**, perché
+ * l'action rilegge la Prenotazione. I `ticketCode` non cambiano: i
+ * biglietti già in mano all'Utente continuano a valere.
  *
  * Il destinatario di sostituzione è facoltativo: omesso, si riusa l'email
  * memorizzata. Se invece è diverso da quella memorizzata viene scritto sulla
  * Prenotazione (user story 28): la correzione vale per ogni comunicazione
  * futura, non solo per questo invio.
  */
-export const prepareTicketResend = mutation({
+export const resendTickets = mutation({
   args: {
     registrationId: v.id('registrations'),
     contactEmail: v.optional(v.string()),
   },
+  returns: v.object({ contactEmail: v.string() }),
   handler: async (ctx, args) => {
     await requireAdmin(ctx)
     const registration = await ctx.db.get(args.registrationId)
     if (!registration) throw new ConvexError('Prenotazione non trovata')
-
-    const event = await ctx.db.get(registration.eventId)
-    if (!event) throw new ConvexError('Evento non trovato')
 
     // Solo un destinatario di sostituzione viene validato: quello memorizzato
     // esiste già ed è la destinazione di default, non un dato in ingresso.
@@ -529,42 +550,16 @@ export const prepareTicketResend = mutation({
       }
     }
 
-    const persons = await ctx.db
-      .query('persons')
-      .withIndex('by_registration', (q) => q.eq('registrationId', registration._id))
-      .collect()
+    // Una Consegna per tentativo (ADR 0016): il Reinvio ne apre un'altra
+    // invece di sovrascrivere la precedente. È il punto su cui la tabella si
+    // ripaga — avendo potuto cambiare qui il destinatario, un campo solo non
+    // saprebbe più dire a quale indirizzo erano andate le email di prima.
+    await enqueueConfirmationEmail(ctx, {
+      registrationId: registration._id,
+      recipient: contactEmail,
+    })
 
-    // Date e copertina servono al client per l'header del PDF allegato: le
-    // stesse che risolve `loadEventWithStats`, dalla stessa funzione — un
-    // biglietto che raccontasse una data diversa dalla pagina dell'Evento
-    // sarebbe peggio di un biglietto senza data (ADR 0009).
-    const activities = await ctx.db
-      .query('activities')
-      .withIndex('by_event', (q) => q.eq('eventId', event._id))
-      .collect()
-    const dates = resolveEventDates(event, activities)
-
-    return {
-      eventTitle: event.title,
-      eventLocation: event.location,
-      eventStartsAt: dates.startsAt,
-      eventEndsAt: dates.endsAt,
-      eventImageUrl: event.imageStorageId
-        ? await ctx.storage.getUrl(event.imageStorageId)
-        : null,
-      contactEmail,
-      // Il testo dell'email non si costruisce più da qui (lo compone
-      // `emails.sendTickets` rileggendo la Prenotazione): questi campi restano
-      // perché sono la forma che `toRegisteredPersons` chiede per rigenerare i
-      // QR e comporre il PDF allegato, la stessa del primo invio.
-      persons: persons.map((person) => ({
-        name: person.name,
-        category: person.category,
-        age: person.age,
-        allergies: person.allergies ?? null,
-        ticketCode: person.ticketCode,
-      })),
-    }
+    return { contactEmail }
   },
 })
 
@@ -603,6 +598,13 @@ export const cancel = mutation({
       .withIndex('by_registration', (q) => q.eq('registrationId', registrationId))
       .collect()
     for (const selection of selections) await ctx.db.delete(selection._id)
+
+    // Anche le Consegne dell'email di conferma (ADR 0016). Qui la regola «si
+    // cancella l'impegno, non il fatto» dell'ADR 0008 non si applica: questa è
+    // già una cancellazione dura che porta via i Check-in, e la riga contiene
+    // un indirizzo email — un dato personale non deve sopravvivere alla riga
+    // che lo giustificava.
+    await deleteDeliveriesOfRegistration(ctx, registrationId)
 
     await ctx.db.delete(registrationId)
     return { success: true }

@@ -3,6 +3,8 @@
  * Terminologia allineata a CONTEXT.md (Utente, Persona, Evento, Attività, Slot).
  */
 
+import type { DeliverySnapshot } from './email-delivery'
+
 import type { PersonStatus } from './person-status'
 
 /** Policy con cui una Prenotazione viene associata alle Attività dell'Evento. */
@@ -187,6 +189,12 @@ export interface Registration {
   selections: SlotSelection[]
   persons: Person[]
   createdAt: string
+  /**
+   * Ultima Consegna dell'email di conferma (ADR 0016). null = nessuna
+   * registrata: le Prenotazioni anteriori a quel lavoro non ne hanno, per
+   * scelta, e l'assenza non è un allarme.
+   */
+  emailDelivery: DeliverySnapshot | null
 }
 
 /**

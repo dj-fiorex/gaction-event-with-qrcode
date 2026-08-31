@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { useMutation } from 'convex/react'
-import { Ban } from 'lucide-react'
+import { AlertTriangle, Ban } from 'lucide-react'
 import { toast } from 'sonner'
 import { api } from '@/convex/_generated/api'
 import type { Id } from '@/convex/_generated/dataModel'
@@ -19,14 +19,48 @@ import { Button } from '@/components/ui/button'
 import { PdfDownloadButton } from '@/components/admin/pdf-download-button'
 import { ResendTicketsDialog } from '@/components/admin/resend-tickets-dialog'
 import { downloadAllTickets } from '@/lib/pdf/download-tickets'
-import { formatDateRange, formatDateTime } from '@/lib/format'
+import { formatDateRange, formatDateTime, EVENT_TIME_ZONE } from '@/lib/format'
 import { toRegisteredPersons } from '@/lib/qr-client'
 import type { EventWithStats, Registration } from '@/lib/types'
 import { messageFromError } from '@/lib/errors'
+import {
+  deliveryNeedsAttention,
+  type DeliveryOutcome,
+  type DeliverySnapshot,
+} from '@/lib/email-delivery'
 
 interface RegistrationsTableProps {
   registrations: Registration[]
   events: EventWithStats[]
+}
+
+/**
+ * Perché la Consegna chiede attenzione, in una frase per l'admin. Il motivo del
+ * rifiuto non compare: sta sulla riga `emailDeliveries` per chi indaga, mentre
+ * qui riempirebbe il tooltip di testo del provider.
+ */
+const DELIVERY_WARNING: Partial<Record<DeliveryOutcome, string>> = {
+  rejected: 'Email rifiutata dal provider: correggi l’indirizzo e reinvia',
+  failed: 'Invio non riuscito: puoi reinviare',
+  simulated: 'Email non inviata: nessun provider email configurato',
+  pending: 'Invio ancora in corso da troppo tempo: puoi reinviare',
+}
+
+/** Icona accanto al Contatto, solo dove la Consegna chiede attenzione. */
+function DeliveryWarning({
+  delivery,
+  now,
+}: {
+  delivery: DeliverySnapshot | null
+  now: number
+}) {
+  if (!delivery || !deliveryNeedsAttention(delivery, now)) return null
+  const label = DELIVERY_WARNING[delivery.outcome] ?? 'Email di conferma da verificare'
+  return (
+    <span title={label} aria-label={label} role="img">
+      <AlertTriangle className="h-4 w-4 shrink-0 text-destructive" aria-hidden="true" />
+    </span>
+  )
 }
 
 export function RegistrationsTable({ registrations, events }: RegistrationsTableProps) {
@@ -61,6 +95,10 @@ export function RegistrationsTable({ registrations, events }: RegistrationsTable
   }
 
   const eventById = new Map(events.map((e) => [e.id, e]))
+
+  // Soglia sul «in corso» letta una volta per render, non per riga: due
+  // Prenotazioni pianificate nello stesso istante devono decidersi insieme.
+  const now = Date.now()
 
   return (
     <div className="overflow-x-auto rounded-lg border">
@@ -97,7 +135,17 @@ export function RegistrationsTable({ registrations, events }: RegistrationsTable
             return (
               <TableRow key={r.id}>
                 <TableCell className="font-medium">{event?.title ?? r.eventId}</TableCell>
-                <TableCell className="text-muted-foreground">{r.contactEmail}</TableCell>
+                <TableCell className="text-muted-foreground">
+                  <span className="flex items-center gap-1.5">
+                    {r.contactEmail}
+                    {/* Consegna dell'email di conferma (ADR 0016): l'icona
+                        compare solo dove serve attenzione. Una consegna
+                        riuscita non mostra niente — una tabella in cui ogni
+                        riga porta una spunta verde insegna a ignorare la
+                        colonna. */}
+                    <DeliveryWarning delivery={r.emailDelivery} now={now} />
+                  </span>
+                </TableCell>
                 <TableCell>
                   <div className="flex flex-col gap-1.5">
                     <div className="flex flex-wrap gap-1">
@@ -145,7 +193,9 @@ export function RegistrationsTable({ registrations, events }: RegistrationsTable
                       await downloadAllTickets(persons, {
                         title: event.title,
                         location: event.location,
-                        dateRange: formatDateRange(event.startsAt, event.endsAt),
+                        dateRange: formatDateRange(event.startsAt, event.endsAt, {
+                          timeZone: EVENT_TIME_ZONE,
+                        }),
                         imageUrl: event.imageUrl,
                       })
                     }}

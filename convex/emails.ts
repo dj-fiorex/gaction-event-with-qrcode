@@ -3,90 +3,143 @@
 import { v } from 'convex/values'
 import { Resend } from 'resend'
 import { render } from 'emailmd'
-import { action, internalAction } from './_generated/server'
+import type { GenericActionCtx } from 'convex/server'
+import { internalAction } from './_generated/server'
 import { internal } from './_generated/api'
+import type { DataModel, Id } from './_generated/dataModel'
+import { renderTicketsPdfBuffer } from '../lib/pdf/render-tickets'
+import { closureFor, type SendAttempt } from '../lib/email-delivery'
 
 const FROM_ADDRESS = process.env.RESEND_FROM_EMAIL ?? 'Eventi <onboarding@resend.dev>'
 
 /**
- * Invio best-effort dei ticket via email (Resend).
+ * Invio dell'email di conferma con i biglietti (Resend).
  *
- * Riceve solo la Prenotazione e il PDF: Evento, Testo dell'email di conferma,
- * Persone e destinatario sono letti server-side (issue #42), non accettati dal
- * browser. I QR code non stanno più nel corpo — viaggiano solo nel PDF
- * allegato, che porta già una pagina per Persona (ADR 0007).
+ * È **interna** e pianificata dalla mutation che apre la Consegna
+ * (`registrations.register`, `registrations.resendTickets`), non
+ * chiamata dal browser: l'invio è un lavoro del server (ADR 0015). Sparisce
+ * così anche la superficie pubblica da cui chiunque conoscesse un
+ * `registrationId` poteva innescare un reinvio.
  *
- * Se RESEND_API_KEY non è configurata, simula l'invio.
+ * Non ritorna un esito a nessuno — non c'è più un chiamante che lo aspetti:
+ * lo **scrive** sulla riga `emailDeliveries` aperta insieme alla Prenotazione,
+ * e la schermata di Esito ci si iscrive sopra (ADR 0016).
  */
-export const sendTickets = action({
+export const sendTickets = internalAction({
   args: {
     registrationId: v.id('registrations'),
+    /** Riga «in corso» da chiudere appena il provider risponde. */
+    deliveryId: v.id('emailDeliveries'),
     /**
-     * PDF dei biglietti (una pagina per Persona), renderizzato dal client come
-     * per il pulsante «Scarica PDF». Il base64 arriva spezzato in blocchi
-     * perché Convex limita ogni singola stringa a 1 MiB. Assente = nessun
-     * allegato (l'email resta valida: il Riepilogo porta i codici biglietto).
+     * Destinatario di *questo* tentativo, congelato nella transazione che ha
+     * aperto la riga. Non si rilegge dalla Prenotazione: un Reinvio che
+     * corregge `contactEmail` mentre questa action è in volo farebbe spedire a
+     * un indirizzo diverso da quello che la riga dichiara, e la riga esiste
+     * proprio per dire **a chi** era andata l'email (ADR 0016).
      */
-    pdf: v.optional(
-      v.object({
-        filename: v.string(),
-        base64Chunks: v.array(v.string()),
-      }),
-    ),
+    recipient: v.string(),
   },
-  returns: v.object({ delivered: v.boolean(), simulated: v.boolean() }),
+  returns: v.null(),
   handler: async (ctx, args) => {
-    // Prima la lettura: una Prenotazione inesistente è un errore da mostrare
-    // all'admin che sta reinviando, non un invio silenziosamente saltato.
+    // Un solo punto di uscita: il tentativo si osserva, poi `closureFor` lo
+    // traduce in esito e la riga si chiude una volta sola. Con una `close` per
+    // ramo era facile aggiungerne uno e dimenticarsi di chiudere, cioè lasciare
+    // «in corso» per sempre proprio il caso nuovo.
+    const attempt = await attemptSend(ctx, args.registrationId, args.recipient)
+    await ctx.runMutation(internal.emailDeliveries.close, {
+      deliveryId: args.deliveryId,
+      ...closureFor(attempt),
+    })
+    return null
+  },
+})
+
+/**
+ * Prova a spedire l'email di conferma e riferisce **come è andata**, senza
+ * decidere che cosa significhi: la traduzione in esito è di `closureFor`, che è
+ * pura e testabile, mentre qui vivono solo gli effetti.
+ */
+async function attemptSend(
+  ctx: GenericActionCtx<DataModel>,
+  registrationId: Id<'registrations'>,
+  recipient: string,
+): Promise<SendAttempt> {
+  try {
+    // Evento, copy e Persone si leggono qui: dal browser non arriva più nulla,
+    // nemmeno il PDF. Il destinatario invece **non** si rilegge — arriva
+    // congelato dalla transazione che ha aperto la riga.
     const document = await ctx.runQuery(internal.emailContent.ticketEmailDocument, {
-      registrationId: args.registrationId,
-      hasPdf: args.pdf !== undefined,
+      registrationId,
     })
 
     const apiKey = process.env.RESEND_API_KEY
     if (!apiKey) {
       console.log(
-        `[v0] RESEND_API_KEY non configurata. Email simulata per ${document.contactEmail} (${document.personsCount} biglietti).`,
+        `[email] RESEND_API_KEY non configurata. Email simulata per ${recipient} (${document.personsCount} biglietti).`,
       )
-      return { delivered: false, simulated: true }
+      return { kind: 'no-provider' }
     }
 
-    try {
-      // Corpo dell'Evento e Riepilogo sono già concatenati come markdown: una
-      // sola render(), nessuno splicing di HTML, così l'anteprima nel form
-      // admin resta fedele a ciò che parte davvero.
-      const { html, text } = await render(document.markdown)
+    // Il PDF si renderizza qui, dallo stesso documento del pulsante «Scarica
+    // PDF», e non si salva da nessuna parte: si rigenera a ogni invio e si
+    // butta, così porta sempre le etichette, le età e le allergie attuali.
+    const pdfBuffer = await renderTicketsPdfBuffer(document.pdf.persons, {
+      title: document.pdf.eventTitle,
+      location: document.pdf.eventLocation,
+      dateRange: document.pdf.eventDateRange,
+      coverBytes: await fetchCoverBytes(document.pdf.coverUrl),
+    })
 
-      const resend = new Resend(apiKey)
-      const res = await resend.emails.send({
-        from: FROM_ADDRESS,
-        to: document.contactEmail,
-        subject: document.subject,
-        html,
-        text,
-        ...(args.pdf
-          ? {
-              attachments: [
-                { filename: args.pdf.filename, content: args.pdf.base64Chunks.join('') },
-              ],
-            }
-          : {}),
-      })
-      // Il SDK Resend NON lancia sugli errori API: ritorna { data, error }.
-      // Senza questo controllo ogni rifiuto (dominio, destinatario, quota)
-      // veniva riportato come "inviato" e spariva senza traccia.
-      if (res.error) {
-        console.error("[email] Resend ha rifiutato l'invio:", res.error)
-        return { delivered: false, simulated: false }
-      }
-      console.log('[email] Email inviata con Resend:', res.data)
-      return { delivered: true, simulated: false }
-    } catch (error) {
-      console.log('[v0] Errore invio email Resend:', error)
-      return { delivered: false, simulated: false }
+    // Corpo dell'Evento e Riepilogo sono già concatenati come markdown: una
+    // sola render(), nessuno splicing di HTML, così l'anteprima nel form
+    // admin resta fedele a ciò che parte davvero.
+    const { html, text } = await render(document.markdown)
+
+    const resend = new Resend(apiKey)
+    const res = await resend.emails.send({
+      from: FROM_ADDRESS,
+      to: recipient,
+      subject: document.subject,
+      html,
+      text,
+      attachments: [{ filename: document.pdf.filename, content: pdfBuffer.toString('base64') }],
+    })
+
+    // Il SDK Resend NON lancia sugli errori API: ritorna { data, error }. È
+    // questo ramo a rendere osservabile la differenza fra «rifiutata» e «non
+    // riuscita», che senza di lui collasserebbe come collassava prima.
+    if (res.error) {
+      console.error("[email] Resend ha rifiutato l'invio:", res.error)
+      return { kind: 'provider-error', error: res.error }
     }
-  },
-})
+    return { kind: 'accepted' }
+  } catch (error) {
+    // Non siamo riusciti nemmeno a chiedere: rete, SDK, o il render del PDF.
+    // L'email non parte monca — l'allegato non è best-effort (ADR 0015) — e il
+    // rimedio è il Reinvio, che è dell'admin e a un clic dalla riga.
+    console.error('[email] Invio non riuscito:', error)
+    return { kind: 'threw', error }
+  }
+}
+
+/**
+ * Scarica la copertina dallo storage Convex come byte.
+ *
+ * Server-side non esiste il canvas su cui si appoggia il ramo browser: i byte
+ * vanno presi così come sono, e a decidere se sono incorporabili è
+ * `renderTicketsPdfBuffer`. Best-effort come di là: una copertina che non si
+ * scarica vale un PDF senza copertina, non un invio mancato.
+ */
+async function fetchCoverBytes(url: string | null): Promise<ArrayBuffer | null> {
+  if (!url) return null
+  try {
+    const response = await fetch(url)
+    if (!response.ok) return null
+    return await response.arrayBuffer()
+  } catch {
+    return null
+  }
+}
 
 export const sendMemberVerificationEmail = internalAction({
   args: {

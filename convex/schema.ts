@@ -35,6 +35,20 @@ export const embedFontStack = v.union(
   v.literal('mono'),
 )
 
+/**
+ * Esiti della Consegna dell'email di conferma (ADR 0016). I valori sono quelli
+ * di `DeliveryOutcome` in `lib/email-delivery.ts`, che ne tiene le regole:
+ * `rifiutata` (il provider ha detto no) non è `non riuscita` (non siamo
+ * riusciti nemmeno a chiedere), perché chiedono rimedi diversi.
+ */
+export const emailDeliveryOutcome = v.union(
+  v.literal('pending'),
+  v.literal('delivered'),
+  v.literal('rejected'),
+  v.literal('failed'),
+  v.literal('simulated'),
+)
+
 export default defineSchema({
   // Tabelle di Convex Auth (users, authSessions, authAccounts, ...).
   ...authTables,
@@ -314,6 +328,42 @@ export default defineSchema({
     .index('by_event', ['eventId'])
     .index('by_user', ['userId'])
     .index('by_event_user', ['eventId', 'userId']),
+
+  /**
+   * Consegna dell'email di conferma (ADR 0016): una riga per **tentativo**, non
+   * per Prenotazione. Ogni Prenotazione ne apre una alla nascita e ogni Reinvio
+   * ne apre un'altra, quindi la più recente è quella che conta.
+   *
+   * È una tabella e non un campo sulla Prenotazione per avere lo storico, che
+   * si ripaga su un punto preciso: il Reinvio può **cambiare il destinatario**
+   * salvato sulla Prenotazione, e un campo solo non saprebbe più dire a quale
+   * indirizzo erano andate le email precedenti.
+   *
+   * Nessun backfill: le Prenotazioni anteriori non hanno righe, e l'assenza non
+   * è un allarme (`deliveryNeedsAttention` in `lib/email-delivery.ts`).
+   */
+  emailDeliveries: defineTable({
+    registrationId: v.id('registrations'),
+    /**
+     * Destinatario **effettivamente usato** per questo tentativo — congelato
+     * qui, non riletto dalla Prenotazione al momento dell'invio. Senza, lo
+     * storico non risponderebbe alla domanda per cui lo si è voluto.
+     */
+    recipient: v.string(),
+    outcome: emailDeliveryOutcome,
+    /**
+     * Perché il tentativo non è andato a buon fine, in parole leggibili:
+     * il rifiuto del provider, l'eccezione, o l'assenza di configurazione.
+     * Assente sulle consegne riuscite, dove non c'è niente da spiegare.
+     */
+    reason: v.optional(v.string()),
+    /**
+     * ISO dell'istante in cui il tentativo si è chiuso. Assente = ancora in
+     * corso. L'apertura non ha un campo suo: la dice `_creationTime`, ed è su
+     * quella che la soglia in lettura misura un «in corso» stantio.
+     */
+    closedAt: v.optional(v.string()),
+  }).index('by_registration', ['registrationId']),
 
   // Rinuncia (ADR 0004): risposta «no» a Conferma di partecipazione.
   // Non è una Prenotazione: nessuna Persona, nessun posto, nessun QR.

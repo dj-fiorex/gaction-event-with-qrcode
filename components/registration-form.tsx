@@ -17,7 +17,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { useAction, useMutation } from 'convex/react'
+import { useMutation } from 'convex/react'
 import { api } from '@/convex/_generated/api'
 import type { Id } from '@/convex/_generated/dataModel'
 import {
@@ -27,8 +27,7 @@ import {
   type RegistrationInput,
 } from '@/lib/schemas'
 import { typedZodResolver } from '@/lib/zod-resolver'
-import { formatTime, formatTimeRange, formatDateRange } from '@/lib/format'
-import { buildTicketsEmailPdf } from '@/lib/pdf/email-attachment'
+import { formatTime, formatTimeRange, formatDateRange, EVENT_TIME_ZONE } from '@/lib/format'
 import { generateQrDataUrl } from '@/lib/qr-client'
 import { intervalsOverlap } from '@/lib/slots'
 import type { EventWithStats, RegisteredPerson, SlotWithAvailability } from '@/lib/types'
@@ -85,10 +84,16 @@ export function RegistrationForm({
 }) {
   const registerMutation = useMutation(api.registrations.register)
   const declineMutation = useMutation(api.declines.decline)
-  const sendTickets = useAction(api.emails.sendTickets)
   const pathname = usePathname()
   const { user, isLoading } = useCurrentUser()
   const [tickets, setTickets] = useState<RegisteredPerson[] | null>(null)
+  // Serve all'Esito per iscriversi all'esito della Consegna dell'email di
+  // conferma (ADR 0016): il browser non riceve più alcun valore di ritorno
+  // dall'invio, ma resta iscritto e lo vede arrivare.
+  const [registrationId, setRegistrationId] = useState<Id<'registrations'> | null>(null)
+  // Il destinatario effettivamente persistito, che per un Membro è l'email
+  // dell'account e non quella digitata nel form.
+  const [confirmedEmail, setConfirmedEmail] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [slotByActivity, setSlotByActivity] = useState<Record<string, string>>({})
   const [participationAnswer, setParticipationAnswer] = useState<'yes' | 'no' | null>(
@@ -286,25 +291,15 @@ export function RegistrationForm({
       )
 
       setTickets(registeredPersons)
+      setRegistrationId(result.registrationId)
+      setConfirmedEmail(result.contactEmail)
       toast.success('Registrazione completata')
 
-      // L'email allega lo stesso PDF del pulsante «Scarica PDF» (una pagina
-      // per Persona); se la generazione fallisce l'email parte comunque senza
-      // allegato — il Riepilogo porta i codici biglietto.
-      void (async () => {
-        const pdf = await buildTicketsEmailPdf(registeredPersons, {
-          title: event.title,
-          location: event.location,
-          dateRange: formatDateRange(event.startsAt, event.endsAt),
-          imageUrl: event.imageUrl,
-        })
-        // L'action legge Evento, copy, Persone e destinatario dalla
-        // Prenotazione: dal browser viaggia solo il PDF.
-        await sendTickets({
-          registrationId: result.registrationId,
-          pdf,
-        })
-      })().catch(() => undefined)
+      // Qui non parte più nessuna email. L'invio è un lavoro del server
+      // (ADR 0015): `register` ha già aperto la Consegna e pianificato l'action
+      // nella propria transazione, quindi non esiste più il caso «il browser
+      // non è tornato e l'email non è mai partita». L'esito arriva a schermo
+      // dal vivo, per iscrizione reattiva, dentro `TicketResult`.
     } catch (error) {
       toast.error(messageFromError(error, 'Registrazione non riuscita'))
     } finally {
@@ -361,9 +356,20 @@ export function RegistrationForm({
         event={{
           title: event.title,
           location: event.location,
-          dateRange: formatDateRange(event.startsAt, event.endsAt),
+          // Stesso fuso del render server-side (ADR 0015): il biglietto
+          // scaricato e quello spedito devono leggersi identici, anche per chi
+          // apre la pagina da un altro fuso.
+          dateRange: formatDateRange(event.startsAt, event.endsAt, {
+            timeZone: EVENT_TIME_ZONE,
+          }),
           imageUrl: event.imageUrl,
         }}
+        // Consegna dell'email di conferma (ADR 0016): l'Esito si iscrive
+        // all'esito e lo vede arrivare dal vivo. L'indirizzo da confermare non
+        // torna dal server — la query pubblica ritorna solo l'enum — ed è
+        // quello che l'Utente ha appena digitato.
+        registrationId={registrationId}
+        contactEmail={confirmedEmail}
         // Esito della Prenotazione (ADR 0014): i testi sono dell'Evento e
         // valgono su ogni superficie; i due interruttori sono
         // dell'Incorporamento, quindi fuori dall'iframe non hanno effetto —

@@ -1,5 +1,5 @@
 import QRCode from 'qrcode'
-import type { RegisteredPerson } from '@/lib/types'
+import type { RegisteredPerson } from './types'
 
 /** Genera un data URL PNG con il QR code del codice fornito (browser-safe). */
 export async function generateQrDataUrl(code: string): Promise<string> {

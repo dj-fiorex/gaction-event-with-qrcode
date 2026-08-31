@@ -6,6 +6,8 @@ import { internal } from '../../convex/_generated/api'
 import type { Id } from '../../convex/_generated/dataModel'
 import schema from '../../convex/schema'
 
+import { buildTicketsEmailMarkdown } from '../../lib/email-content'
+
 const modules = import.meta.glob('../../convex/**/*.ts')
 
 async function createEventFixture(
@@ -97,7 +99,7 @@ test('ticketEmailDocument fails with a clear error for a booking that does not e
   await t.run((ctx) => ctx.db.delete(registrationId))
 
   await expect(
-    t.query(internal.emailContent.ticketEmailDocument, { registrationId, hasPdf: true }),
+    t.query(internal.emailContent.ticketEmailDocument, { registrationId }),
   ).rejects.toThrow('Prenotazione non trovata')
 })
 
@@ -117,7 +119,6 @@ test('ticketEmailDocument uses the event subject, and falls back when it is empt
     [authored, withoutSubject, blankSubject].map(async (eventId) =>
       t.query(internal.emailContent.ticketEmailDocument, {
         registrationId: await createBookingFixture(t, eventId),
-        hasPdf: true,
       }),
     ),
   )
@@ -146,10 +147,8 @@ test('ticketEmailDocument appends the booking summary built from the booking’s
 
   const document = await t.query(internal.emailContent.ticketEmailDocument, {
     registrationId,
-    hasPdf: true,
   })
 
-  expect(document.contactEmail).toBe('utente@example.com')
   expect(document.markdown).toBe(
     [
       'Grazie per la tua prenotazione!',
@@ -185,7 +184,6 @@ test('ticketEmailDocument names the category of every person when the event coll
 
   const document = await t.query(internal.emailContent.ticketEmailDocument, {
     registrationId,
-    hasPdf: true,
   })
 
   expect(document.markdown).toContain('- **Mario Rossi** — Iscritto')
@@ -202,7 +200,6 @@ test('ticketEmailDocument falls back to today’s wording when the event has no 
 
   const document = await t.query(internal.emailContent.ticketEmailDocument, {
     registrationId,
-    hasPdf: true,
   })
 
   expect(document.markdown).toBe(
@@ -226,23 +223,26 @@ test('ticketEmailDocument falls back to today’s wording when the event has no 
   )
 })
 
-test('ticketEmailDocument stops promising a QR when the fallback body ships without the PDF', async () => {
-  const t = convexTest(schema, modules)
-  const eventId = await createEventFixture(t)
-  const registrationId = await createBookingFixture(t, eventId, {
-    persons: [{ name: 'Mario Rossi', category: 'user', ticketCode: 'ABC-123' }],
-  })
-
-  const document = await t.query(internal.emailContent.ticketEmailDocument, {
-    registrationId,
+test('il corpo di ripiego smette di promettere il QR quando non c’è allegato', () => {
+  // La query non passa più per questo ramo: da quando il PDF si renderizza
+  // server-side l'allegato non è più best-effort, e senza di lui la Consegna si
+  // chiude «non riuscita» invece di spedire un'email monca (ADR 0015). La
+  // regola di composizione resta però del lib, e qui si prova là.
+  const markdown = buildTicketsEmailMarkdown({
+    emailBody: undefined,
+    event: { title: 'Maestri d’Acciaio', location: 'Brescia' },
+    persons: [
+      { name: 'Mario Rossi', category: 'user', age: null, allergies: null, ticketCode: 'ABC-123' },
+    ],
+    collectNames: true,
     hasPdf: false,
   })
 
   // Senza allegato il QR non è da nessuna parte nell'email: prometterlo
   // sarebbe falso, e all'Utente resta il codice del Riepilogo.
-  expect(document.markdown).not.toContain('PDF dei biglietti')
-  expect(document.markdown).not.toContain('QR code')
-  expect(document.markdown).toContain(
+  expect(markdown).not.toContain('PDF dei biglietti')
+  expect(markdown).not.toContain('QR code')
+  expect(markdown).toContain(
     'Ogni persona ha un proprio biglietto. Presentate il codice qui sotto all\u2019ingresso e a ogni attività prenotata.',
   )
 })
@@ -263,7 +263,6 @@ test('ticketEmailDocument neutralises markdown and HTML written by the user', as
 
   const document = await t.query(internal.emailContent.ticketEmailDocument, {
     registrationId,
-    hasPdf: true,
   })
 
   expect(document.markdown).toContain('- **Mario \\<b\\>Rossi\\</b\\>** — Iscritto')

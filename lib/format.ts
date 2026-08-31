@@ -28,29 +28,58 @@ export function toDatetimeLocalValue(iso: string): string {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
 }
 
+/**
+ * Fuso in cui leggere un istante quando chi formatta non è il browser.
+ *
+ * Questi formatter nascono nel browser, dove «ora locale» è quella di chi
+ * legge ed è la risposta giusta. Da quando il PDF dei biglietti si renderizza
+ * anche server-side (ADR 0015) lo stesso documento si compone in un runtime che
+ * sta su UTC: senza dichiarare il fuso, il biglietto spedito porterebbe un
+ * orario spostato rispetto a quello scaricato dalla stessa pagina.
+ *
+ * Il fuso è quello dell'Evento, non quello di chi guarda: un orario d'ingresso
+ * è un fatto del posto in cui si entra.
+ */
+export const EVENT_TIME_ZONE = 'Europe/Rome'
+
+/** Assente = ora locale di chi legge, cioè il comportamento del browser. */
+interface TimeZoneOption {
+  timeZone?: string
+}
+
 /** Solo l'orario (HH:mm) di un istante ISO. */
-export function formatTime(iso: string): string {
+export function formatTime(iso: string, { timeZone }: TimeZoneOption = {}): string {
   return new Date(iso).toLocaleTimeString('it-IT', {
     hour: '2-digit',
     minute: '2-digit',
+    ...(timeZone ? { timeZone } : {}),
   })
 }
 
 /** Intervallo orario compatto, es. "10:00 – 10:30". */
-export function formatTimeRange(startIso: string, endIso: string): string {
-  return `${formatTime(startIso)} \u2013 ${formatTime(endIso)}`
+export function formatTimeRange(
+  startIso: string,
+  endIso: string,
+  options: TimeZoneOption = {},
+): string {
+  return `${formatTime(startIso, options)} \u2013 ${formatTime(endIso, options)}`
 }
 
 /** Data + intervallo orario, es. "20 luglio 2026, 10:00 – 13:00". */
-export function formatDateRange(startIso: string | null, endIso: string | null): string {
+export function formatDateRange(
+  startIso: string | null,
+  endIso: string | null,
+  options: TimeZoneOption = {},
+): string {
   if (!startIso) return 'Data da definire'
   const day = new Date(startIso).toLocaleDateString('it-IT', {
     day: 'numeric',
     month: 'long',
     year: 'numeric',
+    ...(options.timeZone ? { timeZone: options.timeZone } : {}),
   })
-  if (!endIso) return `${day}, ${formatTime(startIso)}`
-  return `${day}, ${formatTimeRange(startIso, endIso)}`
+  if (!endIso) return `${day}, ${formatTime(startIso, options)}`
+  return `${day}, ${formatTimeRange(startIso, endIso, options)}`
 }
 
 /**

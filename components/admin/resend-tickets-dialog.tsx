@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, type FormEvent } from 'react'
-import { useAction, useMutation } from 'convex/react'
+import { useMutation } from 'convex/react'
 import { Mail } from 'lucide-react'
 import { toast } from 'sonner'
 import { api } from '@/convex/_generated/api'
@@ -19,9 +19,6 @@ import {
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { formatDateRange } from '@/lib/format'
-import { buildTicketsEmailPdf } from '@/lib/pdf/email-attachment'
-import { toRegisteredPersons } from '@/lib/qr-client'
 import { messageFromError } from '@/lib/errors'
 
 interface ResendTicketsDialogProps {
@@ -31,15 +28,19 @@ interface ResendTicketsDialogProps {
 }
 
 /**
- * Reinvio dell'email dei biglietti di una Prenotazione (issue #40).
+ * Reinvio dell'email di conferma di una Prenotazione (issue #40).
  *
  * Il destinatario è precompilato con l'email memorizzata ed è modificabile: una
  * correzione viene salvata sulla Prenotazione dalla mutation, così vale anche
  * per le comunicazioni future e non solo per questo invio.
+ *
+ * Qui non si costruisce più né il PDF né l'email: il reinvio **pianifica** una
+ * nuova Consegna e finisce lì (ADR 0015). Il bottone conferma quindi che
+ * l'invio è stato messo in coda, non che è arrivato — l'esito compare accanto
+ * al Contatto, nella riga, appena il provider risponde.
  */
 export function ResendTicketsDialog({ registrationId, contactEmail }: ResendTicketsDialogProps) {
-  const prepareResend = useMutation(api.registrations.prepareTicketResend)
-  const sendTickets = useAction(api.emails.sendTickets)
+  const resendTickets = useMutation(api.registrations.resendTickets)
   const [open, setOpen] = useState(false)
   const [email, setEmail] = useState(contactEmail)
   const [sending, setSending] = useState(false)
@@ -56,37 +57,14 @@ export function ResendTicketsDialog({ registrationId, contactEmail }: ResendTick
     setSending(true)
     const id = registrationId as Id<'registrations'>
     try {
-      // La mutation valida il destinatario, persiste l'eventuale correzione e
-      // restituisce il payload costruito dalle Persone attuali.
-      const payload = await prepareResend({ registrationId: id, contactEmail: email })
-      // I QR sono rigenerati qui dai ticketCode originali, come alla prima
-      // registrazione: il biglietto già in mano all'Utente resta valido.
-      const persons = await toRegisteredPersons(payload.persons)
-      // Stesso allegato della prima email: il PDF con una pagina per Persona.
-      const pdf = await buildTicketsEmailPdf(persons, {
-        title: payload.eventTitle,
-        location: payload.eventLocation,
-        dateRange: formatDateRange(payload.eventStartsAt, payload.eventEndsAt),
-        imageUrl: payload.eventImageUrl,
-      })
-      // L'action rilegge la Prenotazione: il testo, le etichette, le età e le
-      // allergie dell'email sono quelli attuali, come al primo invio.
-      const result = await sendTickets({ registrationId: id, pdf })
-
-      if (!result.delivered && !result.simulated) {
-        // Il dialog resta aperto: l'indirizzo è già stato salvato, ma l'email
-        // non è partita e l'admin deve poter ritentare senza ridigitarlo.
-        toast.error('Invio non riuscito: indirizzo salvato, riprova')
-        return
-      }
-
-      toast.success(
-        result.simulated
-          ? `Invio simulato verso ${payload.contactEmail}: nessun provider email configurato`
-          : `Biglietti inviati a ${payload.contactEmail}`,
-      )
+      // La mutation valida il destinatario, persiste l'eventuale correzione,
+      // apre la Consegna e pianifica l'invio: tutto in una transazione.
+      const result = await resendTickets({ registrationId: id, contactEmail: email })
+      toast.success(`Invio a ${result.contactEmail} in corso: l’esito compare nella riga`)
       setOpen(false)
     } catch (error) {
+      // Il dialog resta aperto solo sul rifiuto della mutation (indirizzo non
+      // valido, Prenotazione sparita): l'admin corregge senza ridigitare.
       toast.error(messageFromError(error, 'Invio non riuscito'))
     } finally {
       setSending(false)
