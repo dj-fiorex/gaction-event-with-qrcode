@@ -9,6 +9,7 @@ import { api } from '@/convex/_generated/api'
 import type { Id } from '@/convex/_generated/dataModel'
 import { Button } from '@/components/ui/button'
 import { CATEGORY_LABEL } from '@/lib/person-labels'
+import { cn } from '@/lib/utils'
 import { linkify, resultBody, resultClosing, resultTitle, toParagraphs } from '@/lib/result-content'
 import type { RegisteredPerson } from '@/lib/types'
 import { fullName } from '@/lib/person-name'
@@ -109,7 +110,7 @@ export function TicketResult({
         </span>
         <div>
           <h2 className="text-xl font-semibold tracking-tight">{title}</h2>
-          <ResultText text={body} className="mt-1 text-sm text-muted-foreground text-pretty" />
+          <ResultText text={body} className="mt-1" />
         </div>
       </div>
 
@@ -167,7 +168,7 @@ export function TicketResult({
         </ul>
       )}
 
-      {closing && <ResultText text={closing} className="text-center text-sm text-pretty" />}
+      {closing && <ResultText text={closing} className="text-center" />}
 
       {showNewRegistration && (
         <Button variant="outline" onClick={onReset}>
@@ -235,13 +236,18 @@ function DeliveryNotice({
  * resta dentro il paragrafo — lo rende `whitespace-pre-line` — e gli indirizzi
  * diventano cliccabili, perché «scrivici a info@…» dentro un iframe, su un
  * telefono, costringerebbe altrimenti a trascriverlo a mano.
+ *
+ * Lo stile tipografico vive **qui** e non nelle chiamate: corpo e chiusura sono
+ * la stessa voce che continua, e tenerlo in due className separate li ha già
+ * fatti divergere una volta — corpo attenuato, chiusura a colore pieno. Chi
+ * chiama passa solo posizione e allineamento.
  */
 function ResultText({ text, className }: { text: string; className?: string }) {
   const paragraphs = toParagraphs(text)
   if (paragraphs.length === 0) return null
 
   return (
-    <div className={className}>
+    <div className={cn('text-sm text-muted-foreground text-pretty', className)}>
       {paragraphs.map((paragraph, index) => (
         <p key={index} className={index > 0 ? 'mt-2 whitespace-pre-line' : 'whitespace-pre-line'}>
           {linkify(paragraph).map((segment, segmentIndex) =>
