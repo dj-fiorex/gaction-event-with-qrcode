@@ -1,4 +1,5 @@
 import { CATEGORY_LABEL } from './person-labels'
+import { fullName } from './person-name'
 import type { PersonCategory } from './types'
 
 /**
@@ -16,7 +17,15 @@ import type { PersonCategory } from './types'
 
 /** Persona come serve al Riepilogo: i campi mostrati, niente QR. */
 export interface EmailSummaryPerson {
-  name: string
+  firstName: string
+  /** Cognome. null per Figli, Ospiti ed Etichette posizionali (ADR 0017). */
+  lastName: string | null
+  /**
+   * Il nome è dichiarato o generato dal server? Arriva **sulla riga** e non si
+   * ricava da `collectNames`: l'impostazione dell'Evento è patchabile, e
+   * rileggerla qui reinterpreterebbe Prenotazioni già chiuse (ADR 0017).
+   */
+  nameProvided: boolean
   category: PersonCategory
   age: number | null
   /** Allergie e intolleranze dichiarate. null = nessuna dichiarazione. */
@@ -60,17 +69,17 @@ function inlineCode(value: string): string {
 }
 
 /** Riga di intestazione di una Persona nel Riepilogo. */
-function personHeading(person: EmailSummaryPerson, collectNames: boolean): string {
+function personHeading(person: EmailSummaryPerson): string {
   const ageLabel = person.category === 'child' && person.age != null ? ` · ${person.age} anni` : ''
-  // Con «Raccolta nomi» disattiva (issue #36) il nome di Figli/Ospiti È già
-  // l'Etichetta posizionale («Figlio 1», «Ospite 1»): si mostra da sola (con
-  // l'età per i Figli), senza ripetere la categoria. L'Iscritto conserva sempre
-  // il proprio nome, quindi la categoria «Iscritto» resta indicata.
-  const isPositionalLabel = !collectNames && person.category !== 'user'
-  const name = escapeInlineUserText(person.name)
-  return isPositionalLabel
-    ? `**${name}**${ageLabel}`
-    : `**${name}** — ${CATEGORY_LABEL[person.category]}${ageLabel}`
+  // Quando il nome è l'Etichetta posizionale («Figlio 1», «Ospite 1») si mostra
+  // da sola, con l'età per i Figli: ripetere la categoria direbbe due volte la
+  // stessa cosa. Lo dice la riga stessa (ADR 0017) e non più l'impostazione
+  // dell'Evento, che nel frattempo può essere cambiata — spegnere la Raccolta
+  // nomi dopo una Prenotazione stampava «Luca Rossi» come se fosse un'etichetta.
+  const name = escapeInlineUserText(fullName(person))
+  return person.nameProvided
+    ? `**${name}** — ${CATEGORY_LABEL[person.category]}${ageLabel}`
+    : `**${name}**${ageLabel}`
 }
 
 /**
@@ -81,9 +90,9 @@ function personHeading(person: EmailSummaryPerson, collectNames: boolean): strin
  * PDF dei biglietti non le riporta, per non portare un dato sanitario sul
  * foglio mostrato al varco.
  */
-function buildBookingSummary(persons: EmailSummaryPerson[], collectNames: boolean): string {
+function buildBookingSummary(persons: EmailSummaryPerson[]): string {
   const items = persons.map((person) => {
-    const lines = [`- ${personHeading(person, collectNames)}`]
+    const lines = [`- ${personHeading(person)}`]
     lines.push(`  - Biglietto: ${inlineCode(person.ticketCode)}`)
     if (person.allergies) {
       lines.push(`  - Allergie e intolleranze: ${escapeInlineUserText(person.allergies)}`)
@@ -134,7 +143,6 @@ export function buildTicketsEmailMarkdown(args: {
   emailBody: string | undefined
   event: { title: string; location: string }
   persons: EmailSummaryPerson[]
-  collectNames: boolean
   hasPdf: boolean
 }): string {
   const body =
@@ -144,5 +152,5 @@ export function buildTicketsEmailMarkdown(args: {
       location: args.event.location,
       hasPdf: args.hasPdf,
     })
-  return `${body}\n\n---\n\n${buildBookingSummary(args.persons, args.collectNames)}\n`
+  return `${body}\n\n---\n\n${buildBookingSummary(args.persons)}\n`
 }

@@ -8,7 +8,9 @@ import { statusOfPerson, type PersonStatus } from '../lib/person-status'
 const checkInMode = v.union(v.literal('event'), v.literal('activity'), v.literal('exit'))
 
 const personSummaryValidator = v.object({
-  name: v.string(),
+  /** Nome e cognome in due campi (ADR 0017); il cognome è solo dell'Iscritto. */
+  firstName: v.string(),
+  lastName: v.union(v.string(), v.null()),
   category: v.union(v.literal('user'), v.literal('child'), v.literal('companion')),
   age: v.union(v.number(), v.null()),
   /** Allergie e intolleranze dichiarate (issue #37). null = nessuna dichiarazione. */
@@ -69,7 +71,8 @@ type CheckInResultValue = Infer<typeof checkInResultValidator>
 
 function summarize(person: Doc<'persons'>) {
   return {
-    name: person.name,
+    firstName: person.firstName,
+    lastName: person.lastName ?? null,
     category: person.category,
     age: person.age,
     allergies: person.allergies ?? null,

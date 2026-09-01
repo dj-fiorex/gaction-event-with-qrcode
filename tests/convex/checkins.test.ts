@@ -80,7 +80,9 @@ async function createFixture(
     const personId = await ctx.db.insert('persons', {
       registrationId,
       eventId,
-      name: 'Mario Rossi',
+      firstName: 'Mario',
+      lastName: 'Rossi',
+      nameProvided: true,
       category: 'user',
       age: null,
       ticketCode: 'TCK-TEST-0001',

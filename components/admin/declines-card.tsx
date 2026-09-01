@@ -17,6 +17,7 @@ import {
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { formatDateTime } from '@/lib/format'
+import { fullName } from '@/lib/person-name'
 import type { Decline } from '@/lib/types'
 import { messageFromError } from '@/lib/errors'
 
@@ -71,7 +72,7 @@ export function DeclinesCard({ declines }: DeclinesCardProps) {
               <TableBody>
                 {declines.map((d) => (
                   <TableRow key={d.id}>
-                    <TableCell className="font-medium">{d.name}</TableCell>
+                    <TableCell className="font-medium">{fullName(d)}</TableCell>
                     <TableCell className="text-muted-foreground">{d.email}</TableCell>
                     <TableCell className="text-muted-foreground">
                       {formatDateTime(d.respondedAt)}

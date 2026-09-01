@@ -21,6 +21,7 @@ import { ResendTicketsDialog } from '@/components/admin/resend-tickets-dialog'
 import { downloadAllTickets } from '@/lib/pdf/download-tickets'
 import { formatDateRange, formatDateTime, EVENT_TIME_ZONE } from '@/lib/format'
 import { toRegisteredPersons } from '@/lib/qr-client'
+import { fullName } from '@/lib/person-name'
 import type { EventWithStats, Registration } from '@/lib/types'
 import { messageFromError } from '@/lib/errors'
 import {
@@ -160,7 +161,7 @@ export function RegistrationsTable({ registrations, events }: RegistrationsTable
                       <ul className="text-xs text-muted-foreground">
                         {withAllergies.map((p) => (
                           <li key={p.id}>
-                            <span className="font-medium">{p.name}</span>: {p.allergies}
+                            <span className="font-medium">{fullName(p)}</span>: {p.allergies}
                           </li>
                         ))}
                       </ul>

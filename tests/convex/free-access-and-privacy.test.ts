@@ -153,7 +153,8 @@ test('la visita libera non collide con un’Attività che le cade dentro', async
   // l'esenzione questa prenotazione verrebbe rifiutata.
   const { registrationId } = await t.mutation(api.registrations.register, {
     eventId,
-    userName: 'Mario Rossi',
+    userFirstName: 'Mario',
+    userLastName: 'Rossi',
     contactEmail: 'mario@example.com',
     children: [],
     companions: [],
@@ -178,7 +179,8 @@ test('due Attività a fasce sovrapposte restano rifiutate', async () => {
   await expect(
     t.mutation(api.registrations.register, {
       eventId,
-      userName: 'Mario Rossi',
+      userFirstName: 'Mario',
+      userLastName: 'Rossi',
       contactEmail: 'mario@example.com',
       children: [],
       companions: [],
@@ -198,7 +200,8 @@ test('«tutte obbligatorie» non pretende la visita libera', async () => {
   // «non mi interessa» sulla visita resta una risposta valida.
   const { registrationId } = await t.mutation(api.registrations.register, {
     eventId,
-    userName: 'Mario Rossi',
+    userFirstName: 'Mario',
+    userLastName: 'Rossi',
     contactEmail: 'mario@example.com',
     children: [],
     companions: [],
@@ -219,7 +222,8 @@ test('con la sola visita libera nessuna policy ha referente', async () => {
   // chi ha davanti solo un accesso libero.
   const { registrationId } = await t.mutation(api.registrations.register, {
     eventId,
-    userName: 'Mario Rossi',
+    userFirstName: 'Mario',
+    userLastName: 'Rossi',
     contactEmail: 'mario@example.com',
     children: [],
     companions: [],
@@ -237,7 +241,8 @@ test('nessun tetto: la visita libera accoglie più Persone di una capienza', asy
   for (let i = 0; i < 12; i++) {
     await t.mutation(api.registrations.register, {
       eventId,
-      userName: `Persona ${i}`,
+      userFirstName: `Persona`,
+      userLastName: `${i}`,
       contactEmail: `persona${i}@example.com`,
       children: [],
       companions: [],
@@ -263,7 +268,8 @@ test('senza informativa sull’Evento non viene chiesto nulla', async () => {
 
   const { registrationId } = await t.mutation(api.registrations.register, {
     eventId,
-    userName: 'Mario Rossi',
+    userFirstName: 'Mario',
+    userLastName: 'Rossi',
     contactEmail: 'mario@example.com',
     children: [],
     companions: [],
@@ -285,7 +291,8 @@ test('con informativa la mutation rifiuta la Prenotazione senza consenso', async
   await expect(
     t.mutation(api.registrations.register, {
       eventId,
-      userName: 'Mario Rossi',
+      userFirstName: 'Mario',
+      userLastName: 'Rossi',
       contactEmail: 'mario@example.com',
       children: [],
       companions: [],
@@ -303,7 +310,8 @@ test('la Prenotazione si porta dietro il testo accettato', async () => {
 
   const { registrationId } = await t.mutation(api.registrations.register, {
     eventId,
-    userName: 'Mario Rossi',
+    userFirstName: 'Mario',
+    userLastName: 'Rossi',
     contactEmail: 'mario@example.com',
     children: [],
     companions: [],
@@ -331,14 +339,16 @@ test('anche la Rinuncia rifiuta senza consenso e conserva il testo', async () =>
   await expect(
     t.mutation(api.declines.decline, {
       eventId,
-      name: 'Mario Rossi',
+      firstName: 'Mario',
+      lastName: 'Rossi',
       email: 'mario@example.com',
     }),
   ).rejects.toThrow('informativa')
 
   const { id } = await t.mutation(api.declines.decline, {
     eventId,
-    name: 'Mario Rossi',
+    firstName: 'Mario',
+    lastName: 'Rossi',
     email: 'mario@example.com',
     privacyAccepted: true,
   })

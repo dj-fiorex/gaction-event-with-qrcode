@@ -112,9 +112,10 @@ async function setupEventWithBooking(activities: ActivityInput[] = [LABORATORIO,
 
   const { registrationId } = await t.mutation(api.registrations.register, {
     eventId,
-    userName: 'Mario Rossi',
+    userFirstName: 'Mario',
+    userLastName: 'Rossi',
     contactEmail: 'mario@example.com',
-    children: [{ name: 'Luca Rossi', age: 8 }],
+    children: [{ firstName: 'Luca Rossi', age: 8 }],
     companions: [],
     selections: event.activities.map((a) => ({
       activityId: a.id as Id<'activities'>,
@@ -358,7 +359,9 @@ test('accorciare la finestra cancella solo le selezioni delle fasce sparite', as
     await ctx.db.insert('persons', {
       registrationId: reg,
       eventId,
-      name: 'Anna Bianchi',
+      firstName: 'Anna',
+      lastName: 'Bianchi',
+      nameProvided: true,
       category: 'user',
       age: null,
       ticketCode: 'TCK-TEST-0001',

@@ -5,6 +5,7 @@ import { expect, test } from 'vitest'
 import { api, internal } from '../../convex/_generated/api'
 import type { Id } from '../../convex/_generated/dataModel'
 import schema from '../../convex/schema'
+import { fullName } from '../../lib/person-name'
 
 const modules = import.meta.glob('../../convex/**/*.ts')
 
@@ -124,7 +125,8 @@ test('register rejects anonymous callers when the event requires a verified memb
   await expect(
     t.mutation(api.registrations.register, {
       eventId,
-      userName: 'Mario Rossi',
+      userFirstName: 'Mario',
+      userLastName: 'Rossi',
       contactEmail: 'guest@example.com',
       children: [],
       companions: [],
@@ -144,7 +146,8 @@ test('register rejects unverified members when the event requires a verified mem
   await expect(
     t.withIdentity({ subject: subjectFor(memberId) }).mutation(api.registrations.register, {
       eventId,
-      userName: 'Mario Rossi',
+      userFirstName: 'Mario',
+      userLastName: 'Rossi',
       contactEmail: 'guest@example.com',
       children: [],
       companions: [],
@@ -162,7 +165,8 @@ test('register rejects non-member callers when the event requires a verified mem
   await expect(
     t.withIdentity({ subject: subjectFor(adminId) }).mutation(api.registrations.register, {
       eventId,
-      userName: 'Admin',
+      userFirstName: 'Admin',
+      userLastName: 'Test',
       contactEmail: 'admin+guest@example.com',
       children: [],
       companions: [],
@@ -173,7 +177,8 @@ test('register rejects non-member callers when the event requires a verified mem
   await expect(
     t.withIdentity({ subject: subjectFor(staffId) }).mutation(api.registrations.register, {
       eventId,
-      userName: 'Staff',
+      userFirstName: 'Staff',
+      userLastName: 'Test',
       contactEmail: 'staff+guest@example.com',
       children: [],
       companions: [],
@@ -197,7 +202,8 @@ test('register rejects embedded registrations when requireAccount is enabled', a
   await expect(
     t.withIdentity({ subject: subjectFor(memberId) }).mutation(api.registrations.register, {
       eventId,
-      userName: 'Mario Rossi',
+      userFirstName: 'Mario',
+      userLastName: 'Rossi',
       contactEmail: 'guest@example.com',
       children: [],
       companions: [],
@@ -226,10 +232,11 @@ test('register links the verified member, locks contactEmail, and still allows c
     .withIdentity({ subject: subjectFor(memberId) })
     .mutation(api.registrations.register, {
       eventId,
-      userName: 'Mario Rossi',
+      userFirstName: 'Mario',
+      userLastName: 'Rossi',
       contactEmail: 'guest@example.com',
-      children: [{ name: 'Figlio', age: 7 }],
-      companions: [{ name: 'Accompagnatore' }],
+      children: [{ firstName: 'Figlio', age: 7 }],
+      companions: [{ firstName: 'Accompagnatore' }],
       selections: [{ activityId, slotId }],
     })
 
@@ -267,10 +274,11 @@ test('register keeps independent Figli/Ospiti caps when maxCompanionsWithChildre
   await expect(
     t.mutation(api.registrations.register, {
       eventId,
-      userName: 'Mario Rossi',
+      userFirstName: 'Mario',
+      userLastName: 'Rossi',
       contactEmail: 'guest@example.com',
-      children: [{ name: 'Figlio 1', age: 5 }, { name: 'Figlio 2', age: 7 }],
-      companions: [{ name: 'Ospite 1' }],
+      children: [{ firstName: 'Figlio 1', age: 5 }, { firstName: 'Figlio 2', age: 7 }],
+      companions: [{ firstName: 'Ospite 1' }],
       selections: [{ activityId, slotId }],
     }),
   ).resolves.toMatchObject({ eventTitle: 'Evento test' })
@@ -279,10 +287,11 @@ test('register keeps independent Figli/Ospiti caps when maxCompanionsWithChildre
   await expect(
     t.mutation(api.registrations.register, {
       eventId,
-      userName: 'Altra Persona',
+      userFirstName: 'Altra',
+      userLastName: 'Persona',
       contactEmail: 'other@example.com',
       children: [],
-      companions: [{ name: 'Ospite 1' }, { name: 'Ospite 2' }],
+      companions: [{ firstName: 'Ospite 1' }, { firstName: 'Ospite 2' }],
       selections: [{ activityId, slotId }],
     }),
   ).rejects.toThrow('Puoi aggiungere al massimo 1 ospiti')
@@ -301,10 +310,11 @@ test('register rejects more Ospiti than the reduced cap when at least one Figlio
   await expect(
     t.mutation(api.registrations.register, {
       eventId,
-      userName: 'Mario Rossi',
+      userFirstName: 'Mario',
+      userLastName: 'Rossi',
       contactEmail: 'guest@example.com',
-      children: [{ name: 'Figlio 1', age: 5 }],
-      companions: [{ name: 'Ospite 1' }, { name: 'Ospite 2' }],
+      children: [{ firstName: 'Figlio 1', age: 5 }],
+      companions: [{ firstName: 'Ospite 1' }, { firstName: 'Ospite 2' }],
       selections: [{ activityId, slotId }],
     }),
   ).rejects.toThrow('Puoi aggiungere al massimo 1 ospiti')
@@ -323,10 +333,11 @@ test('register allows exactly the reduced Ospiti cap when a Figlio is present (b
   await expect(
     t.mutation(api.registrations.register, {
       eventId,
-      userName: 'Mario Rossi',
+      userFirstName: 'Mario',
+      userLastName: 'Rossi',
       contactEmail: 'guest@example.com',
-      children: [{ name: 'Figlio 1', age: 5 }],
-      companions: [{ name: 'Ospite 1' }],
+      children: [{ firstName: 'Figlio 1', age: 5 }],
+      companions: [{ firstName: 'Ospite 1' }],
       selections: [{ activityId, slotId }],
     }),
   ).resolves.toMatchObject({ eventTitle: 'Evento test' })
@@ -345,10 +356,11 @@ test('register allows the full Ospiti cap when there are no Figli, even with the
   await expect(
     t.mutation(api.registrations.register, {
       eventId,
-      userName: 'Mario Rossi',
+      userFirstName: 'Mario',
+      userLastName: 'Rossi',
       contactEmail: 'guest@example.com',
       children: [],
-      companions: [{ name: 'Ospite 1' }, { name: 'Ospite 2' }],
+      companions: [{ firstName: 'Ospite 1' }, { firstName: 'Ospite 2' }],
       selections: [{ activityId, slotId }],
     }),
   ).resolves.toMatchObject({ eventTitle: 'Evento test' })
@@ -367,10 +379,11 @@ test('register still enforces the full Ospiti cap when there are no Figli and th
   await expect(
     t.mutation(api.registrations.register, {
       eventId,
-      userName: 'Mario Rossi',
+      userFirstName: 'Mario',
+      userLastName: 'Rossi',
       contactEmail: 'guest@example.com',
       children: [],
-      companions: [{ name: 'Ospite 1' }, { name: 'Ospite 2' }, { name: 'Ospite 3' }],
+      companions: [{ firstName: 'Ospite 1' }, { firstName: 'Ospite 2' }, { firstName: 'Ospite 3' }],
       selections: [{ activityId, slotId }],
     }),
   ).rejects.toThrow('Puoi aggiungere al massimo 2 ospiti')
@@ -392,14 +405,15 @@ test('register generates positional labels and ignores client-sent names when Ra
 
   const { registrationId, persons: returned } = await t.mutation(api.registrations.register, {
     eventId,
-    userName: 'Mario Rossi',
+    userFirstName: 'Mario',
+    userLastName: 'Rossi',
     contactEmail: 'guest@example.com',
     // These names must be ignored server-side and replaced by positional labels.
     children: [
-      { name: 'Marco', age: 5 },
-      { name: 'Anna', age: 8 },
+      { firstName: 'Marco', age: 5 },
+      { firstName: 'Anna', age: 8 },
     ],
-    companions: [{ name: 'Zia Pina' }],
+    companions: [{ firstName: 'Zia Pina' }],
     selections: [{ activityId, slotId }],
   })
 
@@ -413,15 +427,19 @@ test('register generates positional labels and ignores client-sent names when Ra
     persons.filter((p) => p.category === cat)
 
   // The Iscritto keeps their own name; Figli/Ospiti get progressive labels.
-  expect(byCategory('user').map((p) => p.name)).toEqual(['Mario Rossi'])
-  expect(byCategory('child').map((p) => p.name).sort()).toEqual(['Figlio 1', 'Figlio 2'])
-  expect(byCategory('companion').map((p) => p.name)).toEqual(['Ospite 1'])
+  expect(byCategory('user').map(fullName)).toEqual(['Mario Rossi'])
+  expect(byCategory('child').map(fullName).sort()).toEqual(['Figlio 1', 'Figlio 2'])
+  expect(byCategory('companion').map(fullName)).toEqual(['Ospite 1'])
+  // L'Etichetta posizionale si ricorda di essere generata (ADR 0017): è ciò
+  // che impedisce a un cambio di «Raccolta nomi» di reinterpretarla.
+  expect(byCategory('child').every((p) => p.nameProvided)).toBe(false)
+  expect(byCategory('user').every((p) => p.nameProvided)).toBe(true)
 
   // Ages are still persisted for Figli even without names.
   expect(byCategory('child').map((p) => p.age).sort()).toEqual([5, 8])
 
   // The mutation return (drives QR/email/tickets) carries the labels, not the client names.
-  const returnedNames = returned.map((p) => p.name).sort()
+  const returnedNames = returned.map(fullName).sort()
   expect(returnedNames).toEqual(['Figlio 1', 'Figlio 2', 'Mario Rossi', 'Ospite 1'])
   expect(returnedNames).not.toContain('Marco')
   expect(returnedNames).not.toContain('Zia Pina')
@@ -439,10 +457,11 @@ test('register keeps client-sent names when Raccolta nomi is on (setting-on unch
 
   const { registrationId } = await t.mutation(api.registrations.register, {
     eventId,
-    userName: 'Mario Rossi',
+    userFirstName: 'Mario',
+    userLastName: 'Rossi',
     contactEmail: 'guest@example.com',
-    children: [{ name: 'Marco', age: 5 }],
-    companions: [{ name: 'Zia Pina' }],
+    children: [{ firstName: 'Marco', age: 5 }],
+    companions: [{ firstName: 'Zia Pina' }],
     selections: [{ activityId, slotId }],
   })
 
@@ -452,7 +471,7 @@ test('register keeps client-sent names when Raccolta nomi is on (setting-on unch
       .withIndex('by_registration', (q) => q.eq('registrationId', registrationId))
       .collect(),
   )
-  expect(persons.map((p) => p.name).sort()).toEqual(['Marco', 'Mario Rossi', 'Zia Pina'])
+  expect(persons.map(fullName).sort()).toEqual(['Marco', 'Mario Rossi', 'Zia Pina'])
 })
 
 test('register treats a legacy event without the collectNames field as Raccolta nomi on', async () => {
@@ -467,10 +486,11 @@ test('register treats a legacy event without the collectNames field as Raccolta 
 
   const { registrationId } = await t.mutation(api.registrations.register, {
     eventId,
-    userName: 'Mario Rossi',
+    userFirstName: 'Mario',
+    userLastName: 'Rossi',
     contactEmail: 'guest@example.com',
-    children: [{ name: 'Marco', age: 5 }],
-    companions: [{ name: 'Zia Pina' }],
+    children: [{ firstName: 'Marco', age: 5 }],
+    companions: [{ firstName: 'Zia Pina' }],
     selections: [{ activityId, slotId }],
   })
 
@@ -480,7 +500,7 @@ test('register treats a legacy event without the collectNames field as Raccolta 
       .withIndex('by_registration', (q) => q.eq('registrationId', registrationId))
       .collect(),
   )
-  expect(persons.map((p) => p.name).sort()).toEqual(['Marco', 'Mario Rossi', 'Zia Pina'])
+  expect(persons.map(fullName).sort()).toEqual(['Marco', 'Mario Rossi', 'Zia Pina'])
 })
 
 test('register links authenticated callers on anonymous events and locks contactEmail for members', async () => {
@@ -495,7 +515,8 @@ test('register links authenticated callers on anonymous events and locks contact
 
   await t.withIdentity({ subject: subjectFor(memberId) }).mutation(api.registrations.register, {
     eventId,
-    userName: 'Mario Rossi',
+    userFirstName: 'Mario',
+    userLastName: 'Rossi',
     contactEmail: 'guest@example.com',
     children: [],
     companions: [],
@@ -503,7 +524,8 @@ test('register links authenticated callers on anonymous events and locks contact
   })
   await t.withIdentity({ subject: subjectFor(adminId) }).mutation(api.registrations.register, {
     eventId,
-    userName: 'Admin User',
+    userFirstName: 'Admin',
+    userLastName: 'User',
     contactEmail: 'typed@example.com',
     children: [],
     companions: [],
@@ -536,7 +558,8 @@ test('register keeps the anonymous flow unchanged and never links ownership by c
 
   const result = await t.mutation(api.registrations.register, {
     eventId,
-    userName: 'Guest',
+    userFirstName: 'Guest',
+    userLastName: 'Test',
     contactEmail: 'same@example.com',
     children: [],
     companions: [],
@@ -561,7 +584,8 @@ test('register blocks an email that already has a Prenotazione on the same event
 
   await t.mutation(api.registrations.register, {
     eventId,
-    userName: 'Mario Rossi',
+    userFirstName: 'Mario',
+    userLastName: 'Rossi',
     contactEmail: 'mario@example.com',
     children: [],
     companions: [],
@@ -572,7 +596,8 @@ test('register blocks an email that already has a Prenotazione on the same event
   await expect(
     t.mutation(api.registrations.register, {
       eventId,
-      userName: 'Mario Rossi',
+      userFirstName: 'Mario',
+      userLastName: 'Rossi',
       contactEmail: '  Mario@Example.com',
       children: [],
       companions: [],
@@ -587,7 +612,8 @@ test('register blocks an email that already has a Prenotazione on the same event
   await expect(
     t.mutation(api.registrations.register, {
       eventId: otherEventId,
-      userName: 'Mario Rossi',
+      userFirstName: 'Mario',
+      userLastName: 'Rossi',
       contactEmail: 'mario@example.com',
       children: [],
       companions: [],
@@ -604,7 +630,8 @@ test('myRegistrations returns only registrations belonging to the caller', async
 
   await t.withIdentity({ subject: subjectFor(memberAId) }).mutation(api.registrations.register, {
     eventId,
-    userName: 'Membro A',
+    userFirstName: 'Membro',
+    userLastName: 'A',
     contactEmail: 'a@example.com',
     children: [],
     companions: [],
@@ -612,7 +639,8 @@ test('myRegistrations returns only registrations belonging to the caller', async
   })
   await t.withIdentity({ subject: subjectFor(memberBId) }).mutation(api.registrations.register, {
     eventId,
-    userName: 'Membro B',
+    userFirstName: 'Membro',
+    userLastName: 'B',
     contactEmail: 'b@example.com',
     children: [],
     companions: [],
@@ -644,7 +672,8 @@ test('myRegistrations excludes anonymous registrations even with matching contac
   // Anonymous registration with the same email as the member
   await t.mutation(api.registrations.register, {
     eventId,
-    userName: 'Guest',
+    userFirstName: 'Guest',
+    userLastName: 'Test',
     contactEmail: 'member@example.com',
     children: [],
     companions: [],
@@ -664,7 +693,8 @@ test('myRegistrations returns empty array for unauthenticated callers', async ()
 
   await t.mutation(api.registrations.register, {
     eventId,
-    userName: 'Guest',
+    userFirstName: 'Guest',
+    userLastName: 'Test',
     contactEmail: 'guest@example.com',
     children: [],
     companions: [],
@@ -688,7 +718,8 @@ test('myRegistrations includes real check-in status for persons', async () => {
     .withIdentity({ subject: subjectFor(memberId) })
     .mutation(api.registrations.register, {
       eventId,
-      userName: 'Mario Rossi',
+      userFirstName: 'Mario',
+      userLastName: 'Rossi',
       contactEmail: 'member@example.com',
       children: [],
       companions: [],
@@ -736,7 +767,8 @@ test('checkins.checkIn rejects member operators on password events', async () =>
     api.registrations.register,
     {
       eventId,
-      userName: 'Mario Rossi',
+      userFirstName: 'Mario',
+      userLastName: 'Rossi',
       contactEmail: 'member@example.com',
       children: [],
       companions: [],
@@ -782,7 +814,8 @@ test('cancel rejects staff, member, and anonymous callers', async () => {
 
   const { registrationId } = await t.mutation(api.registrations.register, {
     eventId,
-    userName: 'Mario Rossi',
+    userFirstName: 'Mario',
+    userLastName: 'Rossi',
     contactEmail: 'guest@example.com',
     children: [],
     companions: [],
@@ -814,7 +847,8 @@ test('cancel throws for a nonexistent registration', async () => {
   const { eventId, activityId, slotId } = await createEventFixture(t)
   const { registrationId } = await t.mutation(api.registrations.register, {
     eventId,
-    userName: 'Mario Rossi',
+    userFirstName: 'Mario',
+    userLastName: 'Rossi',
     contactEmail: 'guest@example.com',
     children: [],
     companions: [],
@@ -841,7 +875,8 @@ test('cancel removes the Prenotazione end-to-end: Persone, selections, check-ins
 
   const { registrationId } = await t.mutation(api.registrations.register, {
     eventId,
-    userName: 'Mario Rossi',
+    userFirstName: 'Mario',
+    userLastName: 'Rossi',
     contactEmail: 'guest@example.com',
     children: [],
     companions: [],
@@ -872,7 +907,8 @@ test('cancel removes the Prenotazione end-to-end: Persone, selections, check-ins
   await expect(
     t.mutation(api.registrations.register, {
       eventId,
-      userName: 'Altra Persona',
+      userFirstName: 'Altra',
+      userLastName: 'Persona',
       contactEmail: 'other@example.com',
       children: [],
       companions: [],
@@ -919,7 +955,8 @@ test('cancel removes the Prenotazione end-to-end: Persone, selections, check-ins
   await expect(
     t.mutation(api.registrations.register, {
       eventId,
-      userName: 'Altra Persona',
+      userFirstName: 'Altra',
+      userLastName: 'Persona',
       contactEmail: 'other@example.com',
       children: [],
       companions: [],
@@ -953,11 +990,12 @@ test('register persists the allergy declaration of every Persona when the event 
 
   const { registrationId, persons: returned } = await t.mutation(api.registrations.register, {
     eventId,
-    userName: 'Mario Rossi',
+    userFirstName: 'Mario',
+    userLastName: 'Rossi',
     contactEmail: 'guest@example.com',
     userAllergies: 'Lattosio',
-    children: [{ name: 'Marco', age: 5, allergies: 'Arachidi' }],
-    companions: [{ name: 'Zia Pina', allergies: 'Glutine' }],
+    children: [{ firstName: 'Marco', age: 5, allergies: 'Arachidi' }],
+    companions: [{ firstName: 'Zia Pina', allergies: 'Glutine' }],
     selections: [{ activityId, slotId }],
   })
 
@@ -967,7 +1005,7 @@ test('register persists the allergy declaration of every Persona when the event 
       .withIndex('by_registration', (q) => q.eq('registrationId', registrationId))
       .collect(),
   )
-  const allergiesByName = Object.fromEntries(persons.map((p) => [p.name, p.allergies ?? null]))
+  const allergiesByName = Object.fromEntries(persons.map((p) => [fullName(p), p.allergies ?? null]))
   expect(allergiesByName).toEqual({
     'Mario Rossi': 'Lattosio',
     Marco: 'Arachidi',
@@ -976,7 +1014,7 @@ test('register persists the allergy declaration of every Persona when the event 
 
   // The mutation result feeds the confirmation email, so it carries them too.
   expect(
-    Object.fromEntries(returned.map((p) => [p.name, p.allergies])),
+    Object.fromEntries(returned.map((p) => [fullName(p), p.allergies])),
   ).toEqual({ 'Mario Rossi': 'Lattosio', Marco: 'Arachidi', 'Zia Pina': 'Glutine' })
 })
 
@@ -990,10 +1028,11 @@ test('register treats an empty or blank allergy declaration as «nessuna dichiar
 
   const { registrationId, persons: returned } = await t.mutation(api.registrations.register, {
     eventId,
-    userName: 'Mario Rossi',
+    userFirstName: 'Mario',
+    userLastName: 'Rossi',
     contactEmail: 'guest@example.com',
     userAllergies: '   ',
-    children: [{ name: 'Marco', age: 5 }],
+    children: [{ firstName: 'Marco', age: 5 }],
     companions: [],
     selections: [{ activityId, slotId }],
   })
@@ -1020,11 +1059,12 @@ test('register ignores submitted allergies when the event does not ask for them'
 
   const { registrationId } = await t.mutation(api.registrations.register, {
     eventId,
-    userName: 'Mario Rossi',
+    userFirstName: 'Mario',
+    userLastName: 'Rossi',
     contactEmail: 'guest@example.com',
     userAllergies: 'Lattosio',
-    children: [{ name: 'Marco', age: 5, allergies: 'Arachidi' }],
-    companions: [{ name: 'Zia Pina', allergies: 'Glutine' }],
+    children: [{ firstName: 'Marco', age: 5, allergies: 'Arachidi' }],
+    companions: [{ firstName: 'Zia Pina', allergies: 'Glutine' }],
     selections: [{ activityId, slotId }],
   })
 
@@ -1045,7 +1085,8 @@ test('register on a legacy event without the collectAllergies field stores no al
 
   const { registrationId } = await t.mutation(api.registrations.register, {
     eventId,
-    userName: 'Mario Rossi',
+    userFirstName: 'Mario',
+    userLastName: 'Rossi',
     contactEmail: 'guest@example.com',
     userAllergies: 'Lattosio',
     children: [],
@@ -1073,10 +1114,11 @@ test('registrations.listAll exposes per-person allergies for the admin detail an
 
   await t.mutation(api.registrations.register, {
     eventId,
-    userName: 'Mario Rossi',
+    userFirstName: 'Mario',
+    userLastName: 'Rossi',
     contactEmail: 'guest@example.com',
     userAllergies: 'Lattosio',
-    children: [{ name: 'Marco', age: 5 }],
+    children: [{ firstName: 'Marco', age: 5 }],
     companions: [],
     selections: [{ activityId, slotId }],
   })
@@ -1086,7 +1128,7 @@ test('registrations.listAll exposes per-person allergies for the admin detail an
     .query(api.registrations.listAll, { eventId })
 
   expect(
-    Object.fromEntries(registration.persons.map((p) => [p.name, p.allergies])),
+    Object.fromEntries(registration.persons.map((p) => [fullName(p), p.allergies])),
   ).toEqual({ 'Mario Rossi': 'Lattosio', Marco: null })
 })
 
@@ -1101,10 +1143,11 @@ test('checkIn returns the scanned person allergies in the result card payload', 
 
   const { persons } = await t.mutation(api.registrations.register, {
     eventId,
-    userName: 'Mario Rossi',
+    userFirstName: 'Mario',
+    userLastName: 'Rossi',
     contactEmail: 'guest@example.com',
     userAllergies: 'Lattosio',
-    children: [{ name: 'Marco', age: 5 }],
+    children: [{ firstName: 'Marco', age: 5 }],
     companions: [],
     selections: [{ activityId, slotId }],
   })
@@ -1141,7 +1184,8 @@ test('register rejects an allergy declaration longer than the server-side limit'
   await expect(
     t.mutation(api.registrations.register, {
       eventId,
-      userName: 'Mario Rossi',
+      userFirstName: 'Mario',
+      userLastName: 'Rossi',
       contactEmail: 'guest@example.com',
       userAllergies: 'a'.repeat(301),
       children: [],
@@ -1153,9 +1197,10 @@ test('register rejects an allergy declaration longer than the server-side limit'
   await expect(
     t.mutation(api.registrations.register, {
       eventId,
-      userName: 'Mario Rossi',
+      userFirstName: 'Mario',
+      userLastName: 'Rossi',
       contactEmail: 'guest@example.com',
-      children: [{ name: 'Marco', age: 5, allergies: 'a'.repeat(301) }],
+      children: [{ firstName: 'Marco', age: 5, allergies: 'a'.repeat(301) }],
       companions: [],
       selections: [{ activityId, slotId }],
     }),
@@ -1189,7 +1234,8 @@ test('resendTickets rejects staff, member, and anonymous callers', async () => {
 
   const { registrationId } = await t.mutation(api.registrations.register, {
     eventId,
-    userName: 'Mario Rossi',
+    userFirstName: 'Mario',
+    userLastName: 'Rossi',
     contactEmail: 'guest@example.com',
     children: [],
     companions: [],
@@ -1229,7 +1275,8 @@ test('resendTickets throws for a nonexistent registration', async () => {
   const { eventId, activityId, slotId } = await createEventFixture(t)
   const { registrationId } = await t.mutation(api.registrations.register, {
     eventId,
-    userName: 'Mario Rossi',
+    userFirstName: 'Mario',
+    userLastName: 'Rossi',
     contactEmail: 'guest@example.com',
     children: [],
     companions: [],
@@ -1257,7 +1304,8 @@ test('register apre la Consegna e pianifica l’invio nella propria transazione'
 
   const { registrationId } = await t.mutation(api.registrations.register, {
     eventId,
-    userName: 'Mario Rossi',
+    userFirstName: 'Mario',
+    userLastName: 'Rossi',
     contactEmail: 'guest@example.com',
     children: [],
     companions: [],
@@ -1296,7 +1344,8 @@ test('la Consegna porta il destinatario davvero persistito, non quello digitato'
     .withIdentity({ subject: subjectFor(memberId) })
     .mutation(api.registrations.register, {
       eventId,
-      userName: 'Mario Rossi',
+      userFirstName: 'Mario',
+      userLastName: 'Rossi',
       // Per un Membro vince l'email dell'account: la Consegna deve registrare
       // quella, altrimenti lo storico direbbe una cosa che non è avvenuta.
       contactEmail: 'altra@example.com',
@@ -1321,7 +1370,8 @@ test('l’Annullamento della Prenotazione non lascia Consegne orfane', async () 
 
   const { registrationId } = await t.mutation(api.registrations.register, {
     eventId,
-    userName: 'Mario Rossi',
+    userFirstName: 'Mario',
+    userLastName: 'Rossi',
     contactEmail: 'guest@example.com',
     children: [],
     companions: [],
@@ -1349,7 +1399,8 @@ test('chiudere una Consegna ne registra esito e motivo, e l’Esito vede l’ult
 
   const { registrationId } = await t.mutation(api.registrations.register, {
     eventId,
-    userName: 'Mario Rossi',
+    userFirstName: 'Mario',
+    userLastName: 'Rossi',
     contactEmail: 'guest@example.com',
     children: [],
     companions: [],
@@ -1395,7 +1446,8 @@ test('chiudere una Consegna già cancellata non solleva: non c’è più niente 
 
   const { registrationId } = await t.mutation(api.registrations.register, {
     eventId,
-    userName: 'Mario Rossi',
+    userFirstName: 'Mario',
+    userLastName: 'Rossi',
     contactEmail: 'guest@example.com',
     children: [],
     companions: [],
@@ -1423,7 +1475,8 @@ test('senza Consegne registrate l’Esito non dice niente', async () => {
   const { eventId, activityId, slotId } = await createEventFixture(t)
   const { registrationId } = await t.mutation(api.registrations.register, {
     eventId,
-    userName: 'Mario Rossi',
+    userFirstName: 'Mario',
+    userLastName: 'Rossi',
     contactEmail: 'guest@example.com',
     children: [],
     companions: [],
@@ -1446,7 +1499,8 @@ test('listAll porta in admin l’ultima Consegna per Prenotazione', async () => 
 
   const { registrationId } = await t.mutation(api.registrations.register, {
     eventId,
-    userName: 'Mario Rossi',
+    userFirstName: 'Mario',
+    userLastName: 'Rossi',
     contactEmail: 'guest@example.com',
     children: [],
     companions: [],
@@ -1486,11 +1540,12 @@ test('il Reinvio apre una nuova Consegna col destinatario corretto, e i bigliett
 
   const { registrationId, persons: registered } = await t.mutation(api.registrations.register, {
     eventId,
-    userName: 'Mario Rossi',
+    userFirstName: 'Mario',
+    userLastName: 'Rossi',
     contactEmail: 'guest@example.com',
     userAllergies: 'Lattosio',
-    children: [{ name: 'Marco', age: 5 }],
-    companions: [{ name: 'Zia Pina', allergies: 'Glutine' }],
+    children: [{ firstName: 'Marco', age: 5 }],
+    companions: [{ firstName: 'Zia Pina', allergies: 'Glutine' }],
     selections: [{ activityId, slotId }],
   })
 
@@ -1525,15 +1580,24 @@ test('il Reinvio apre una nuova Consegna col destinatario corretto, e i bigliett
   })
   expect(document.pdf.persons).toEqual([
     {
-      name: 'Mario Rossi',
+      firstName: 'Mario',
+      lastName: 'Rossi',
       category: 'user',
       age: null,
       allergies: 'Lattosio',
       ticketCode: expect.any(String),
     },
-    { name: 'Marco', category: 'child', age: 5, allergies: null, ticketCode: expect.any(String) },
     {
-      name: 'Zia Pina',
+      firstName: 'Marco',
+      lastName: null,
+      category: 'child',
+      age: 5,
+      allergies: null,
+      ticketCode: expect.any(String),
+    },
+    {
+      firstName: 'Zia Pina',
+      lastName: null,
       category: 'companion',
       age: null,
       allergies: 'Glutine',
@@ -1555,15 +1619,16 @@ test("l'email del Reinvio porta le Etichette posizionali attuali", async () => {
 
   const { registrationId } = await t.mutation(api.registrations.register, {
     eventId,
-    userName: 'Mario Rossi',
+    userFirstName: 'Mario',
+    userLastName: 'Rossi',
     contactEmail: 'guest@example.com',
-    children: [{ name: 'Marco', age: 5 }],
+    children: [{ firstName: 'Marco', age: 5 }],
     companions: [],
     selections: [{ activityId, slotId }],
   })
 
   const document = await t.query(internal.emailContent.ticketEmailDocument, { registrationId })
-  expect(document.pdf.persons.map((p) => p.name)).toEqual(['Mario Rossi', 'Figlio 1'])
+  expect(document.pdf.persons.map(fullName)).toEqual(['Mario Rossi', 'Figlio 1'])
 })
 
 test('resendTickets persists a corrected recipient on the Prenotazione', async () => {
@@ -1573,7 +1638,8 @@ test('resendTickets persists a corrected recipient on the Prenotazione', async (
 
   const { registrationId } = await t.mutation(api.registrations.register, {
     eventId,
-    userName: 'Mario Rossi',
+    userFirstName: 'Mario',
+    userLastName: 'Rossi',
     contactEmail: 'typo@example.com',
     children: [],
     companions: [],
@@ -1607,7 +1673,8 @@ test('resendTickets falls back to the stored recipient when none is given', asyn
 
   const { registrationId } = await t.mutation(api.registrations.register, {
     eventId,
-    userName: 'Mario Rossi',
+    userFirstName: 'Mario',
+    userLastName: 'Rossi',
     contactEmail: 'guest@example.com',
     children: [],
     companions: [],
@@ -1631,7 +1698,8 @@ test('resendTickets rejects an invalid recipient without touching the stored one
 
   const { registrationId } = await t.mutation(api.registrations.register, {
     eventId,
-    userName: 'Mario Rossi',
+    userFirstName: 'Mario',
+    userLastName: 'Rossi',
     contactEmail: 'guest@example.com',
     children: [],
     companions: [],
@@ -1668,10 +1736,11 @@ test('getActivityAttendance exposes per-person allergies for the admin detail', 
 
   await t.mutation(api.registrations.register, {
     eventId,
-    userName: 'Mario Rossi',
+    userFirstName: 'Mario',
+    userLastName: 'Rossi',
     contactEmail: 'guest@example.com',
     userAllergies: 'Lattosio',
-    children: [{ name: 'Marco', age: 5 }],
+    children: [{ firstName: 'Marco', age: 5 }],
     companions: [],
     selections: [{ activityId, slotId }],
   })
@@ -1682,7 +1751,7 @@ test('getActivityAttendance exposes per-person allergies for the admin detail', 
 
   const persons = activities[0].slots[0].persons
   expect(
-    Object.fromEntries(persons.map((p) => [p.name, p.allergies])),
+    Object.fromEntries(persons.map((p) => [fullName(p), p.allergies])),
   ).toEqual({ 'Mario Rossi': 'Lattosio', Marco: null })
 })
 
@@ -1701,7 +1770,8 @@ test('la data dichiarata dall’Evento finisce nell’header del biglietto, non 
 
   const { registrationId } = await t.mutation(api.registrations.register, {
     eventId,
-    userName: 'Mario Rossi',
+    userFirstName: 'Mario',
+    userLastName: 'Rossi',
     contactEmail: 'guest@example.com',
     children: [],
     companions: [],
@@ -1729,11 +1799,12 @@ test('se register fallisce non resta né Prenotazione né Consegna', async () =>
   await expect(
     t.mutation(api.registrations.register, {
       eventId,
-      userName: 'Mario Rossi',
+      userFirstName: 'Mario',
+      userLastName: 'Rossi',
       contactEmail: 'guest@example.com',
       children: [
-        { name: 'Marco', age: 5 },
-        { name: 'Luca', age: 7 },
+        { firstName: 'Marco', age: 5 },
+        { firstName: 'Luca', age: 7 },
       ],
       companions: [],
       selections: [{ activityId, slotId }],
@@ -1751,7 +1822,8 @@ test('la Consegna congela il destinatario: un Reinvio non lo cambia sotto i pied
 
   const { registrationId } = await t.mutation(api.registrations.register, {
     eventId,
-    userName: 'Mario Rossi',
+    userFirstName: 'Mario',
+    userLastName: 'Rossi',
     contactEmail: 'primo@example.com',
     children: [],
     companions: [],
@@ -1795,9 +1867,10 @@ test("register rejects a Figlio's age outside 0-17", async () => {
     await expect(
       t.mutation(api.registrations.register, {
         eventId,
-        userName: 'Mario Rossi',
+        userFirstName: 'Mario',
+        userLastName: 'Rossi',
         contactEmail: `guest-${String(age)}@example.com`,
-        children: [{ name: 'Anna Rossi', age }],
+        children: [{ firstName: 'Anna Rossi', age }],
         companions: [],
         selections: [{ activityId, slotId }],
       }),
@@ -1808,14 +1881,64 @@ test("register rejects a Figlio's age outside 0-17", async () => {
   await expect(
     t.mutation(api.registrations.register, {
       eventId,
-      userName: 'Mario Rossi',
+      userFirstName: 'Mario',
+      userLastName: 'Rossi',
       contactEmail: 'guest@example.com',
       children: [
-        { name: 'Anna Rossi', age: 0 },
-        { name: 'Luca Rossi', age: 17 },
+        { firstName: 'Anna Rossi', age: 0 },
+        { firstName: 'Luca Rossi', age: 17 },
       ],
       companions: [],
       selections: [{ activityId, slotId }],
     }),
   ).resolves.toMatchObject({ eventTitle: 'Evento test' })
 })
+
+/* ------------------------------------------------------------------ */
+/* Nome e cognome in due colonne (ADR 0017)                            */
+/* ------------------------------------------------------------------ */
+
+test('register persiste nome e cognome in due colonne, e il cognome è solo dell’Iscritto', async () => {
+  const t = convexTest(schema, modules)
+  const { eventId, activityId, slotId } = await createEventFixture(t, {
+    allowChildren: true,
+    allowCompanions: true,
+    maxChildrenPerRegistration: 2,
+    maxCompanionsPerRegistration: 2,
+  })
+
+  const { registrationId } = await t.mutation(api.registrations.register, {
+    eventId,
+    userFirstName: '  Mario  ',
+    userLastName: ' De Luca ',
+    contactEmail: 'guest@example.com',
+    children: [{ firstName: 'Marco', age: 5 }],
+    companions: [{ firstName: 'Zia Pina' }],
+    selections: [{ activityId, slotId }],
+  })
+
+  const persons = await t.run((ctx) =>
+    ctx.db
+      .query('persons')
+      .withIndex('by_registration', (q) => q.eq('registrationId', registrationId))
+      .collect(),
+  )
+  const byCategory = (cat: 'user' | 'child' | 'companion') =>
+    persons.find((p) => p.category === cat)!
+
+  // Il cognome composto resta intero: si spezza sul primo spazio solo il
+  // suggerimento del form, mai il dato inviato.
+  expect(byCategory('user')).toMatchObject({
+    firstName: 'Mario',
+    lastName: 'De Luca',
+    nameProvided: true,
+  })
+  // A Figli e Ospiti il cognome non si chiede: la riga non ne ha uno.
+  expect(byCategory('child').lastName).toBeUndefined()
+  expect(byCategory('companion').lastName).toBeUndefined()
+  expect(byCategory('child')).toMatchObject({ firstName: 'Marco', nameProvided: true })
+
+  // Nome completo per la visualizzazione: «Mario De Luca», mai «De Luca Mario».
+  expect(persons.map(fullName).sort()).toEqual(['Marco', 'Mario De Luca', 'Zia Pina'])
+})
+

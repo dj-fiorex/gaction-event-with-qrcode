@@ -148,7 +148,8 @@ test('togliere l’ultima Attività cancella le selezioni ma non le Prenotazioni
 
   const { registrationId } = await t.mutation(api.registrations.register, {
     eventId,
-    userName: 'Mario Rossi',
+    userFirstName: 'Mario',
+    userLastName: 'Rossi',
     contactEmail: 'mario@example.com',
     children: [],
     companions: [],
@@ -189,7 +190,8 @@ test('la Registrazione senza selezioni riesce su un Evento senza Attività', asy
 
   const result = await t.mutation(api.registrations.register, {
     eventId,
-    userName: 'Mario Rossi',
+    userFirstName: 'Mario',
+    userLastName: 'Rossi',
     contactEmail: 'mario@example.com',
     children: [],
     companions: [],
@@ -211,7 +213,8 @@ test('con Attività presenti la policy free rifiuta ancora zero selezioni', asyn
   await expect(
     t.mutation(api.registrations.register, {
       eventId,
-      userName: 'Mario Rossi',
+      userFirstName: 'Mario',
+      userLastName: 'Rossi',
       contactEmail: 'mario@example.com',
       children: [],
       companions: [],
@@ -235,7 +238,8 @@ test('ingresso, uscita e «Solo verifica» funzionano senza Attività', async ()
   )
   const registration = await t.mutation(api.registrations.register, {
     eventId,
-    userName: 'Mario Rossi',
+    userFirstName: 'Mario',
+    userLastName: 'Rossi',
     contactEmail: 'mario@example.com',
     children: [],
     companions: [],

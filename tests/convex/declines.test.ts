@@ -86,7 +86,8 @@ test('decline rejects when the event does not have confirmParticipation enabled'
   await expect(
     t.mutation(api.declines.decline, {
       eventId,
-      name: 'Mario Rossi',
+      firstName: 'Mario',
+      lastName: 'Rossi',
       email: 'mario@example.com',
     }),
   ).rejects.toThrow('Questo evento non richiede la conferma di partecipazione')
@@ -102,7 +103,8 @@ test('decline stores only name and email, creates no Persone and occupies no cap
 
   await t.mutation(api.declines.decline, {
     eventId,
-    name: 'Mario Rossi',
+    firstName: '  Mario ',
+    lastName: ' Rossi  ',
     email: 'Mario@Example.com ',
   })
 
@@ -113,7 +115,13 @@ test('decline stores only name and email, creates no Persone and occupies no cap
       .collect(),
   )
   expect(declines).toHaveLength(1)
-  expect(declines[0]).toMatchObject({ name: 'Mario Rossi', email: 'mario@example.com' })
+  // Nome e cognome in due colonne (ADR 0017), entrambi obbligatori e ripuliti
+  // degli spazi: chi rinuncia dichiara sempre il proprio nome.
+  expect(declines[0]).toMatchObject({
+    firstName: 'Mario',
+    lastName: 'Rossi',
+    email: 'mario@example.com',
+  })
 
   const persons = await t.run((ctx) => ctx.db.query('persons').collect())
   const registrations = await t.run((ctx) => ctx.db.query('registrations').collect())
@@ -126,7 +134,8 @@ test('decline stores only name and email, creates no Persone and occupies no cap
   await expect(
     t.mutation(api.registrations.register, {
       eventId,
-      userName: 'Altra Persona',
+      userFirstName: 'Altra',
+      userLastName: 'Persona',
       contactEmail: 'other@example.com',
       children: [],
       companions: [],
@@ -145,13 +154,15 @@ test('a second decline from the same normalized email is blocked and keeps the f
 
   await t.mutation(api.declines.decline, {
     eventId,
-    name: 'Mario Rossi',
+    firstName: 'Mario',
+    lastName: 'Rossi',
     email: 'mario@example.com',
   })
   await expect(
     t.mutation(api.declines.decline, {
       eventId,
-      name: 'Mario R.',
+      firstName: 'Mario',
+      lastName: 'R.',
       email: '  MARIO@EXAMPLE.COM',
     }),
   ).rejects.toThrow(EMAIL_ALREADY_DECLINED_ERROR)
@@ -163,7 +174,11 @@ test('a second decline from the same normalized email is blocked and keeps the f
       .collect(),
   )
   expect(declines).toHaveLength(1)
-  expect(declines[0]).toMatchObject({ name: 'Mario Rossi', email: 'mario@example.com' })
+  expect(declines[0]).toMatchObject({
+    firstName: 'Mario',
+    lastName: 'Rossi',
+    email: 'mario@example.com',
+  })
 })
 
 /* ------------------------------------------------------------------ */
@@ -176,14 +191,16 @@ test('registering with an email that has a Rinuncia on that event is blocked and
 
   await t.mutation(api.declines.decline, {
     eventId,
-    name: 'Mario Rossi',
+    firstName: 'Mario',
+    lastName: 'Rossi',
     email: 'mario@example.com',
   })
 
   await expect(
     t.mutation(api.registrations.register, {
       eventId,
-      userName: 'Mario Rossi',
+      userFirstName: 'Mario',
+      userLastName: 'Rossi',
       contactEmail: 'Mario@Example.com',
       children: [],
       companions: [],
@@ -208,13 +225,15 @@ test('registering does not affect a Rinuncia belonging to a different email', as
 
   await t.mutation(api.declines.decline, {
     eventId,
-    name: 'Altra Persona',
+    firstName: 'Altra',
+    lastName: 'Persona',
     email: 'altra@example.com',
   })
 
   await t.mutation(api.registrations.register, {
     eventId,
-    userName: 'Mario Rossi',
+    userFirstName: 'Mario',
+    userLastName: 'Rossi',
     contactEmail: 'mario@example.com',
     children: [],
     companions: [],
@@ -238,13 +257,15 @@ test('a Rinuncia on one event survives a same-email registration on a different 
 
   await t.mutation(api.declines.decline, {
     eventId: eventA,
-    name: 'Mario Rossi',
+    firstName: 'Mario',
+    lastName: 'Rossi',
     email: 'mario@example.com',
   })
 
   await t.mutation(api.registrations.register, {
     eventId: eventB,
-    userName: 'Mario Rossi',
+    userFirstName: 'Mario',
+    userLastName: 'Rossi',
     contactEmail: 'mario@example.com',
     children: [],
     companions: [],
@@ -271,7 +292,8 @@ test('declining with an email that already has a Prenotazione throws the block m
 
   await t.mutation(api.registrations.register, {
     eventId,
-    userName: 'Mario Rossi',
+    userFirstName: 'Mario',
+    userLastName: 'Rossi',
     contactEmail: 'mario@example.com',
     children: [],
     companions: [],
@@ -281,7 +303,8 @@ test('declining with an email that already has a Prenotazione throws the block m
   await expect(
     t.mutation(api.declines.decline, {
       eventId,
-      name: 'Mario Rossi',
+      firstName: 'Mario',
+      lastName: 'Rossi',
       email: 'Mario@Example.com',
     }),
   ).rejects.toThrow(EMAIL_ALREADY_REGISTERED_ERROR)
@@ -306,7 +329,8 @@ test('a logged-in member declines with the account email regardless of the typed
 
   await t.withIdentity({ subject: subjectFor(memberId) }).mutation(api.declines.decline, {
     eventId,
-    name: 'Mario Rossi',
+    firstName: 'Mario',
+    lastName: 'Rossi',
     email: 'typed@example.com',
   })
 
@@ -327,7 +351,8 @@ test('a member with a Prenotazione cannot decline even by typing a different ema
 
   await t.withIdentity({ subject: subjectFor(memberId) }).mutation(api.registrations.register, {
     eventId,
-    userName: 'Mario Rossi',
+    userFirstName: 'Mario',
+    userLastName: 'Rossi',
     contactEmail: 'whatever@example.com',
     children: [],
     companions: [],
@@ -337,7 +362,8 @@ test('a member with a Prenotazione cannot decline even by typing a different ema
   await expect(
     t.withIdentity({ subject: subjectFor(memberId) }).mutation(api.declines.decline, {
       eventId,
-      name: 'Mario Rossi',
+      firstName: 'Mario',
+      lastName: 'Rossi',
       email: 'different@example.com',
     }),
   ).rejects.toThrow(EMAIL_ALREADY_REGISTERED_ERROR)
@@ -362,7 +388,8 @@ test('declines.remove rejects non-admin and anonymous callers', async () => {
 
   const { id: declineId } = await t.mutation(api.declines.decline, {
     eventId,
-    name: 'Mario Rossi',
+    firstName: 'Mario',
+    lastName: 'Rossi',
     email: 'mario@example.com',
   })
 
@@ -379,7 +406,8 @@ test('declines.remove deletes the Rinuncia and frees the email to register again
 
   const { id: declineId } = await t.mutation(api.declines.decline, {
     eventId,
-    name: 'Mario Rossi',
+    firstName: 'Mario',
+    lastName: 'Rossi',
     email: 'mario@example.com',
   })
 
@@ -398,7 +426,8 @@ test('declines.remove deletes the Rinuncia and frees the email to register again
   await expect(
     t.mutation(api.registrations.register, {
       eventId,
-      userName: 'Mario Rossi',
+      userFirstName: 'Mario',
+      userLastName: 'Rossi',
       contactEmail: 'mario@example.com',
       children: [],
       companions: [],
@@ -428,9 +457,12 @@ test('declines.list returns the count and list for an event, scoped correctly', 
   const { eventId: eventA } = await createEventFixture(t)
   const { eventId: eventB } = await createEventFixture(t)
 
-  await t.mutation(api.declines.decline, { eventId: eventA, name: 'A1', email: 'a1@example.com' })
-  await t.mutation(api.declines.decline, { eventId: eventA, name: 'A2', email: 'a2@example.com' })
-  await t.mutation(api.declines.decline, { eventId: eventB, name: 'B1', email: 'b1@example.com' })
+  await t.mutation(api.declines.decline, { eventId: eventA, firstName: 'A1', lastName: 'Test',
+ email: 'a1@example.com' })
+  await t.mutation(api.declines.decline, { eventId: eventA, firstName: 'A2', lastName: 'Test',
+ email: 'a2@example.com' })
+  await t.mutation(api.declines.decline, { eventId: eventB, firstName: 'B1', lastName: 'Test',
+ email: 'b1@example.com' })
 
   const forEventA = await t
     .withIdentity({ subject: subjectFor(adminId) })

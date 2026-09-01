@@ -131,7 +131,9 @@ export const populateDemo = internalMutation({
     const p1 = await ctx.db.insert('persons', {
       registrationId: reg1,
       eventId: familyDayId,
-      name: 'Mario Rossi',
+      firstName: 'Mario',
+      lastName: 'Rossi',
+      nameProvided: true,
       category: 'user',
       age: 38,
       ticketCode: generateTicketCode(),
@@ -142,7 +144,9 @@ export const populateDemo = internalMutation({
     await ctx.db.insert('persons', {
       registrationId: reg1,
       eventId: familyDayId,
-      name: 'Giulia Rossi',
+      // Il cognome non si chiede a Figli e Ospiti (ADR 0017): la riga non ne ha.
+      firstName: 'Giulia',
+      nameProvided: true,
       category: 'child',
       age: 7,
       ticketCode: generateTicketCode(),

@@ -102,7 +102,9 @@ async function createFixture(
     const personId = await ctx.db.insert('persons', {
       registrationId,
       eventId,
-      name: 'Mario Rossi',
+      firstName: 'Mario',
+      lastName: 'Rossi',
+      nameProvided: true,
       category: 'user',
       age: 41,
       allergies: 'Lattosio',
@@ -269,7 +271,8 @@ test('the lookup returns the same consolidated status as a check-in', async () =
   const lookup = await t.query(api.checkins.lookup, { eventId, code, ...UNLOCK })
 
   expect(lookup.status).toBe('lookup')
-  expect(lookup.person?.name).toBe('Mario Rossi')
+  expect(lookup.person?.firstName).toBe('Mario')
+  expect(lookup.person?.lastName).toBe('Rossi')
   expect(lookup.person?.age).toBe(41)
   expect(lookup.person?.allergies).toBe('Lattosio')
   expect(lookup.eventTitle).toBe('Evento aziendale')

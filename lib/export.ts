@@ -14,7 +14,13 @@ interface ExportRow {
    */
   'Inizio evento': string
   'Fine evento': string
-  Persona: string
+  /**
+   * Nome e cognome in due colonne (ADR 0017). Il cognome resta **vuoto** per
+   * Figli, Ospiti ed Etichette posizionali: il form non glielo chiede, e un
+   * trattino direbbe «manca» a un dato che non è mai stato raccolto.
+   */
+  Nome: string
+  Cognome: string
   Categoria: string
   Età: string
   Allergie: string
@@ -61,7 +67,9 @@ function activitiesLabel(
 
 interface DeclineRow {
   Evento: string
+  /** Chi rinuncia dichiara sempre entrambi (ADR 0017): nessuna cella vuota qui. */
   Nome: string
+  Cognome: string
   Email: string
   'Data risposta': string
 }
@@ -90,7 +98,8 @@ export function downloadRegistrationsXlsx(
         Evento: event?.title ?? r.eventId,
         'Inizio evento': event?.startsAt ? formatDateTime(event.startsAt) : '-',
         'Fine evento': event?.endsAt ? formatDateTime(event.endsAt) : '-',
-        Persona: p.name,
+        Nome: p.firstName,
+        Cognome: p.lastName ?? '',
         Categoria: CATEGORY_LABEL[p.category],
         Età: p.age != null ? String(p.age) : '-',
         // Allergie e intolleranze (issue #37): vuoto = nessuna dichiarazione.
@@ -111,7 +120,8 @@ export function downloadRegistrationsXlsx(
 
   const declineRows: DeclineRow[] = scopedDeclines.map((d) => ({
     Evento: eventById.get(d.eventId)?.title ?? d.eventId,
-    Nome: d.name,
+    Nome: d.firstName,
+    Cognome: d.lastName,
     Email: d.email,
     'Data risposta': formatDateTime(d.respondedAt),
   }))
@@ -121,7 +131,8 @@ export function downloadRegistrationsXlsx(
     { wch: 26 }, // Evento
     { wch: 18 }, // Inizio evento
     { wch: 18 }, // Fine evento
-    { wch: 22 }, // Persona
+    { wch: 18 }, // Nome
+    { wch: 18 }, // Cognome
     { wch: 16 }, // Categoria
     { wch: 6 }, // Età
     { wch: 30 }, // Allergie
@@ -136,9 +147,15 @@ export function downloadRegistrationsXlsx(
   ]
 
   const declinesWorksheet = XLSX.utils.json_to_sheet(declineRows, {
-    header: ['Evento', 'Nome', 'Email', 'Data risposta'],
+    header: ['Evento', 'Nome', 'Cognome', 'Email', 'Data risposta'],
   })
-  declinesWorksheet['!cols'] = [{ wch: 26 }, { wch: 22 }, { wch: 26 }, { wch: 18 }]
+  declinesWorksheet['!cols'] = [
+    { wch: 26 }, // Evento
+    { wch: 18 }, // Nome
+    { wch: 18 }, // Cognome
+    { wch: 26 }, // Email
+    { wch: 18 }, // Data risposta
+  ]
 
   const workbook = XLSX.utils.book_new()
   XLSX.utils.book_append_sheet(workbook, worksheet, 'Persone')

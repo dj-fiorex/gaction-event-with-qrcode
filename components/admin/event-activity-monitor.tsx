@@ -20,6 +20,7 @@ import { Badge } from '@/components/ui/badge'
 import { Card, CardContent } from '@/components/ui/card'
 import { formatDateTime, formatTimeRange } from '@/lib/format'
 import { CATEGORY_LABEL } from '@/lib/person-labels'
+import { fullName } from '@/lib/person-name'
 import type { ActivityWithPeople, SlotWithPeople } from '@/lib/types'
 
 interface EventActivityMonitorProps {
@@ -58,7 +59,7 @@ function SlotPeopleList({ slot }: { slot: SlotWithPeople }) {
         >
           <span className="flex flex-col gap-0.5">
             <span className="flex items-center gap-2">
-              <span className="font-medium">{person.name}</span>
+              <span className="font-medium">{fullName(person)}</span>
               <Badge variant="outline">{CATEGORY_LABEL[person.category]}</Badge>
             </span>
             {/* Allergie e intolleranze (issue #37): dettaglio per Persona. */}

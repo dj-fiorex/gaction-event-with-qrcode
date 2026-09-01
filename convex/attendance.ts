@@ -1,6 +1,7 @@
 import { v } from 'convex/values'
 import { query } from './_generated/server'
 import { requireAdmin } from './model'
+import { fullName } from '../lib/person-name'
 
 /**
  * Attività di un Evento con, per ogni Slot, l'elenco delle Persone che lo
@@ -49,7 +50,8 @@ export const getActivityAttendance = query({
               .unique()
             persons.push({
               id: person._id,
-              name: person.name,
+              firstName: person.firstName,
+              lastName: person.lastName ?? null,
               category: person.category,
               allergies: person.allergies ?? null,
               ticketCode: person.ticketCode,
@@ -60,7 +62,10 @@ export const getActivityAttendance = query({
           }
         }
 
-        persons.sort((a, b) => a.name.localeCompare(b.name, 'it'))
+        // Ordinamento invariato (ADR 0017): sulla stringa composta, come
+        // quando il nome era un campo solo. È l'unico sort per nome dell'app,
+        // e ordinare per cognome è una scelta che nessuno ha chiesto.
+        persons.sort((a, b) => fullName(a).localeCompare(fullName(b), 'it'))
         const taken = persons.length
         const checkedInCount = persons.filter((p) => p.checkedIn).length
 

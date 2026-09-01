@@ -15,7 +15,8 @@ import type { RegisteredPerson } from '../types'
 
 /** Persona come la legge il server: il QR si genera qui dal ticketCode. */
 export interface TicketPersonInput {
-  name: string
+  firstName: string
+  lastName: string | null
   category: RegisteredPerson['category']
   age: number | null
   allergies: string | null

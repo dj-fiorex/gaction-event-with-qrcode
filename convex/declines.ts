@@ -18,7 +18,9 @@ const DECLINE_NOT_ENABLED_ERROR = 'Questo evento non richiede la conferma di par
 export const decline = mutation({
   args: {
     eventId: v.id('events'),
-    name: v.string(),
+    /** Nome e cognome, entrambi obbligatori (ADR 0017): chi rinuncia dichiara sempre il proprio. */
+    firstName: v.string(),
+    lastName: v.string(),
     email: v.string(),
     /** Consenso all'informativa (ADR 0012). Anche il «no» raccoglie nome ed email. */
     privacyAccepted: v.optional(v.boolean()),
@@ -39,13 +41,15 @@ export const decline = mutation({
     const email = normalizeEmail(
       caller?.role === 'member' && caller.email ? caller.email : args.email,
     )
-    const name = args.name.trim()
+    const firstName = args.firstName.trim()
+    const lastName = args.lastName.trim()
 
     await requireEmailUnusedForEvent(ctx, args.eventId, email)
 
     const id = await ctx.db.insert('declines', {
       eventId: args.eventId,
-      name,
+      firstName,
+      lastName,
       email,
       respondedAt: new Date().toISOString(),
       ...(privacyNoticeAccepted ? { privacyNoticeAccepted } : {}),
@@ -86,7 +90,8 @@ export const list = query({
       .map((d) => ({
         id: d._id,
         eventId: d.eventId,
-        name: d.name,
+        firstName: d.firstName,
+        lastName: d.lastName,
         email: d.email,
         respondedAt: d.respondedAt,
       }))

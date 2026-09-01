@@ -150,7 +150,14 @@ export interface ActivityCheckIn {
 /** Partecipante fisico. Occupa un posto in ogni Slot selezionato e ha 1 QR. */
 export interface Person {
   id: string
-  name: string
+  /**
+   * Nome e cognome in due campi (ADR 0017). Il DTO porta la **coppia**: chi
+   * mostra un nome composto passa da `fullName` in `lib/person-name.ts`, che è
+   * il solo posto che sa in che ordine si scrive.
+   */
+  firstName: string
+  /** Cognome. null per Figli, Ospiti ed Etichette posizionali: non gli è chiesto. */
+  lastName: string | null
   category: PersonCategory
   /** Valorizzata solo per la categoria "child". */
   age: number | null
@@ -204,7 +211,9 @@ export interface Registration {
 export interface Decline {
   id: string
   eventId: string
-  name: string
+  /** Nome e cognome, entrambi sempre presenti (ADR 0017). */
+  firstName: string
+  lastName: string
   email: string
   /** ISO dell'ultima risposta «no» (aggiornata a ogni upsert). */
   respondedAt: string
@@ -228,7 +237,8 @@ export interface ActivityWithAvailability extends Omit<Activity, 'slots'> {
 /** Persona associata a uno Slot, con stato del check-in all'Attività/Slot. */
 export interface SlotPerson {
   id: string
-  name: string
+  firstName: string
+  lastName: string | null
   category: PersonCategory
   /** Allergie e intolleranze dichiarate. null = nessuna dichiarazione. */
   allergies: string | null
@@ -303,7 +313,8 @@ export type ActionResult<T = undefined> =
 
 /** Persona registrata con il QR (data URL) pronto da mostrare/stampare. */
 export interface RegisteredPerson {
-  name: string
+  firstName: string
+  lastName: string | null
   category: PersonCategory
   age: number | null
   /** Allergie e intolleranze dichiarate. null = nessuna dichiarazione. */
@@ -342,7 +353,8 @@ export type CheckInStatus =
   | 'lookup'
 
 export interface CheckInPersonSummary {
-  name: string
+  firstName: string
+  lastName: string | null
   category: PersonCategory
   age: number | null
   /** Allergie e intolleranze dichiarate, mostrate sulla result card dello scanner. */

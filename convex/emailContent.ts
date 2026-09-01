@@ -42,7 +42,8 @@ export const ticketEmailDocument = internalQuery({
       coverUrl: v.union(v.string(), v.null()),
       persons: v.array(
         v.object({
-          name: v.string(),
+          firstName: v.string(),
+          lastName: v.union(v.string(), v.null()),
           category: personCategory,
           age: v.union(v.number(), v.null()),
           allergies: v.union(v.string(), v.null()),
@@ -73,11 +74,20 @@ export const ticketEmailDocument = internalQuery({
     const dates = resolveEventDates(event, activities)
 
     const pdfPersons = persons.map((person) => ({
-      name: person.name,
+      firstName: person.firstName,
+      lastName: person.lastName ?? null,
       category: person.category,
       age: person.age,
       allergies: person.allergies ?? null,
       ticketCode: person.ticketCode,
+    }))
+
+    // Il Riepilogo ha un campo in più del biglietto: `nameProvided`, che dice
+    // se il nome è dichiarato o generato (ADR 0017). Sul PDF non serve — lì il
+    // nome si stampa e basta — quindi non lo si porta dove nessuno lo legge.
+    const summaryPersons = persons.map((person, index) => ({
+      ...pdfPersons[index],
+      nameProvided: person.nameProvided,
     }))
 
     return {
@@ -85,8 +95,7 @@ export const ticketEmailDocument = internalQuery({
       markdown: buildTicketsEmailMarkdown({
         emailBody: event.emailBody,
         event: { title: event.title, location: event.location },
-        persons: pdfPersons,
-        collectNames: event.collectNames ?? true,
+        persons: summaryPersons,
         // L'allegato non è più best-effort: o il PDF si renderizza e l'email
         // parte con lui, o la Consegna si chiude «non riuscita» (ADR 0015).
         // Il corpo di ripiego può quindi annunciarlo senza riserve.

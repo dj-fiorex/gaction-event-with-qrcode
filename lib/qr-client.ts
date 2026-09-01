@@ -12,7 +12,8 @@ export async function generateQrDataUrl(code: string): Promise<string> {
 }
 
 interface PersonLike {
-  name: string
+  firstName: string
+  lastName: string | null
   category: RegisteredPerson['category']
   age: number | null
   /** Allergie e intolleranze dichiarate. null = nessuna dichiarazione. */
@@ -24,7 +25,8 @@ interface PersonLike {
 export function toRegisteredPersons(persons: PersonLike[]): Promise<RegisteredPerson[]> {
   return Promise.all(
     persons.map(async (p) => ({
-      name: p.name,
+      firstName: p.firstName,
+      lastName: p.lastName,
       category: p.category,
       age: p.age,
       allergies: p.allergies,

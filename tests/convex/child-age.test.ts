@@ -11,7 +11,7 @@ import { childInputSchema, makeRegistrationSchema } from '../../lib/schemas'
  * rete sotto quella regressione silenziosa.
  */
 function ageIssue(age: unknown): string | null {
-  const result = childInputSchema.safeParse({ name: 'Anna Rossi', age })
+  const result = childInputSchema.safeParse({ firstName: 'Anna Rossi', age })
   return result.success ? null : result.error.issues[0].message
 }
 
@@ -36,9 +36,10 @@ test('un Figlio è minorenne: fuori da 0-17 la validazione respinge', () => {
 test('la Raccolta nomi disattiva allenta il nome, mai l’età', () => {
   const result = makeRegistrationSchema(false).safeParse({
     eventId: 'evento',
-    userName: 'Mario Rossi',
+    userFirstName: 'Mario',
+    userLastName: 'Rossi',
     contactEmail: 'mario@example.com',
-    children: [{ name: '', age: Number.NaN }],
+    children: [{ firstName: '', age: Number.NaN }],
   })
   expect(result.success).toBe(false)
 })

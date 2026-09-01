@@ -15,6 +15,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Separator } from '@/components/ui/separator'
 import { messageFromError } from '@/lib/errors'
+import { fullName } from '@/lib/person-name'
 
 function FullPageLoader({ label }: { label: string }) {
   return (
@@ -76,14 +77,14 @@ function RegistrationHistoryCard({ registration }: { registration: MyRegistratio
       <div className="flex flex-col gap-2">
         {mainPerson && (
           <div className="flex items-center justify-between gap-2">
-            <span className="text-sm">{mainPerson.name}</span>
+            <span className="text-sm">{fullName(mainPerson)}</span>
             <CheckInStatusBadge checkedIn={mainPerson.eventCheckInAt !== null} />
           </div>
         )}
         {otherPersons.map((person) => (
           <div key={person.id} className="flex items-center justify-between gap-2">
             <span className="text-sm text-muted-foreground">
-              {person.name}
+              {fullName(person)}
               <span className="ml-1 text-xs">
                 ({person.category === 'child' ? 'figlio' : 'ospite'})
               </span>

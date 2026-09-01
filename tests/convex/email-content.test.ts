@@ -55,7 +55,11 @@ async function createEventFixture(
 }
 
 interface PersonFixture {
-  name: string
+  firstName: string
+  /** Omesso = nessun cognome, come per Figli, Ospiti ed Etichette posizionali. */
+  lastName?: string
+  /** Omesso = nome dichiarato da chi prenota (ADR 0017). */
+  nameProvided?: boolean
   category: 'user' | 'child' | 'companion'
   age?: number | null
   allergies?: string
@@ -76,7 +80,9 @@ async function createBookingFixture(
       await ctx.db.insert('persons', {
         registrationId,
         eventId,
-        name: person.name,
+        firstName: person.firstName,
+        ...(person.lastName === undefined ? {} : { lastName: person.lastName }),
+        nameProvided: person.nameProvided ?? true,
         category: person.category,
         age: person.age ?? null,
         ...(person.allergies === undefined ? {} : { allergies: person.allergies }),
@@ -132,16 +138,34 @@ test('ticketEmailDocument uses the event subject, and falls back when it is empt
 
 test('ticketEmailDocument appends the booking summary built from the booking’s current people', async () => {
   const t = convexTest(schema, modules)
-  // «Raccolta nomi» disattiva: Figli e Ospiti portano l'Etichetta posizionale.
+  // Prenotazione fatta con «Raccolta nomi» disattiva: Figli e Ospiti portano
+  // l'Etichetta posizionale, e la riga se lo ricorda con `nameProvided: false`.
   const eventId = await createEventFixture(t, {
     collectNames: false,
     emailBody: 'Grazie per la tua prenotazione!\n\nA prestissimo!',
   })
   const registrationId = await createBookingFixture(t, eventId, {
     persons: [
-      { name: 'Mario Rossi', category: 'user', allergies: 'Glutine', ticketCode: 'ABC-123' },
-      { name: 'Figlio 1', category: 'child', age: 8, ticketCode: 'DEF-456' },
-      { name: 'Ospite 1', category: 'companion', ticketCode: 'GHI-789' },
+      {
+        firstName: 'Mario',
+        lastName: 'Rossi',
+        category: 'user',
+        allergies: 'Glutine',
+        ticketCode: 'ABC-123',
+      },
+      {
+        firstName: 'Figlio 1',
+        nameProvided: false,
+        category: 'child',
+        age: 8,
+        ticketCode: 'DEF-456',
+      },
+      {
+        firstName: 'Ospite 1',
+        nameProvided: false,
+        category: 'companion',
+        ticketCode: 'GHI-789',
+      },
     ],
   })
 
@@ -176,9 +200,9 @@ test('ticketEmailDocument names the category of every person when the event coll
   const eventId = await createEventFixture(t, { collectNames: true, emailBody: 'Ciao!' })
   const registrationId = await createBookingFixture(t, eventId, {
     persons: [
-      { name: 'Mario Rossi', category: 'user', ticketCode: 'ABC-123' },
-      { name: 'Luca Rossi', category: 'child', age: 8, ticketCode: 'DEF-456' },
-      { name: 'Anna Bianchi', category: 'companion', ticketCode: 'GHI-789' },
+      { firstName: 'Mario', lastName: 'Rossi', category: 'user', ticketCode: 'ABC-123' },
+      { firstName: 'Luca Rossi', category: 'child', age: 8, ticketCode: 'DEF-456' },
+      { firstName: 'Anna Bianchi', category: 'companion', ticketCode: 'GHI-789' },
     ],
   })
 
@@ -195,7 +219,9 @@ test('ticketEmailDocument falls back to today’s wording when the event has no 
   const t = convexTest(schema, modules)
   const eventId = await createEventFixture(t, { title: 'Evento test', location: 'Roma' })
   const registrationId = await createBookingFixture(t, eventId, {
-    persons: [{ name: 'Mario Rossi', category: 'user', ticketCode: 'ABC-123' }],
+    persons: [
+      { firstName: 'Mario', lastName: 'Rossi', category: 'user', ticketCode: 'ABC-123' },
+    ],
   })
 
   const document = await t.query(internal.emailContent.ticketEmailDocument, {
@@ -232,9 +258,16 @@ test('il corpo di ripiego smette di promettere il QR quando non c’è allegato'
     emailBody: undefined,
     event: { title: 'Maestri d’Acciaio', location: 'Brescia' },
     persons: [
-      { name: 'Mario Rossi', category: 'user', age: null, allergies: null, ticketCode: 'ABC-123' },
+      {
+        firstName: 'Mario',
+        lastName: 'Rossi',
+        nameProvided: true,
+        category: 'user',
+        age: null,
+        allergies: null,
+        ticketCode: 'ABC-123',
+      },
     ],
-    collectNames: true,
     hasPdf: false,
   })
 
@@ -253,7 +286,8 @@ test('ticketEmailDocument neutralises markdown and HTML written by the user', as
   const registrationId = await createBookingFixture(t, eventId, {
     persons: [
       {
-        name: 'Mario <b>Rossi</b>',
+        firstName: 'Mario',
+        lastName: '<b>Rossi</b>',
         category: 'user',
         allergies: 'niente *glutine*\ne niente [lattosio](http://x)',
         ticketCode: 'ABC-123',
@@ -270,4 +304,60 @@ test('ticketEmailDocument neutralises markdown and HTML written by the user', as
   expect(document.markdown).toContain(
     '  - Allergie e intolleranze: niente \\*glutine\\* e niente \\[lattosio\\](http://x)',
   )
+})
+
+/* ------------------------------------------------------------------ */
+/* ADR 0017: il Riepilogo legge la riga, non l'impostazione dell'Evento */
+/* ------------------------------------------------------------------ */
+
+test('spegnere la Raccolta nomi dopo una Prenotazione non trasforma i nomi in etichette', async () => {
+  const t = convexTest(schema, modules)
+  // Prenotazione fatta con la Raccolta nomi attiva: i nomi sono dichiarati.
+  const eventId = await createEventFixture(t, { collectNames: true, emailBody: 'Ciao!' })
+  const registrationId = await createBookingFixture(t, eventId, {
+    persons: [
+      { firstName: 'Mario', lastName: 'Rossi', category: 'user', ticketCode: 'ABC-123' },
+      { firstName: 'Luca Rossi', category: 'child', age: 8, ticketCode: 'DEF-456' },
+    ],
+  })
+
+  // L'admin la spegne dopo. Prima di ADR 0017 il Riepilogo rileggeva
+  // `collectNames` e stampava «**Luca Rossi**» come se fosse un'Etichetta
+  // posizionale: un nome vero presentato come un numero d'ordine.
+  await t.run((ctx) => ctx.db.patch(eventId, { collectNames: false }))
+
+  const document = await t.query(internal.emailContent.ticketEmailDocument, {
+    registrationId,
+  })
+
+  expect(document.markdown).toContain('- **Mario Rossi** — Iscritto')
+  expect(document.markdown).toContain('- **Luca Rossi** — Figlio · 8 anni')
+})
+
+test('accendere la Raccolta nomi dopo una Prenotazione non promuove le etichette a nomi', async () => {
+  const t = convexTest(schema, modules)
+  // Il verso opposto: iscrizioni anonime, poi l'impostazione si accende.
+  const eventId = await createEventFixture(t, { collectNames: false, emailBody: 'Ciao!' })
+  const registrationId = await createBookingFixture(t, eventId, {
+    persons: [
+      { firstName: 'Mario', lastName: 'Rossi', category: 'user', ticketCode: 'ABC-123' },
+      {
+        firstName: 'Ospite 1',
+        nameProvided: false,
+        category: 'companion',
+        ticketCode: 'GHI-789',
+      },
+    ],
+  })
+
+  await t.run((ctx) => ctx.db.patch(eventId, { collectNames: true }))
+
+  const document = await t.query(internal.emailContent.ticketEmailDocument, {
+    registrationId,
+  })
+
+  // «**Ospite 1** — Ospite» direbbe due volte la stessa cosa: l'Etichetta
+  // resta sola perché la riga si ricorda di essere stata generata.
+  expect(document.markdown).toContain('- **Ospite 1**\n')
+  expect(document.markdown).not.toContain('**Ospite 1** — Ospite')
 })

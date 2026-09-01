@@ -22,6 +22,7 @@ import {
 import { MomentValue } from '@/components/admin/check-in-moment'
 import { formatDateTime, formatTimeRange } from '@/lib/format'
 import { CATEGORY_LABEL } from '@/lib/person-labels'
+import { fullName } from '@/lib/person-name'
 import type { PersonStatus } from '@/lib/person-status'
 import type { CheckInResult, EventWithStats, ScannerMode } from '@/lib/types'
 
@@ -354,7 +355,7 @@ function ResultCard({ result, onReset }: { result: CheckInResult; onReset: () =>
           <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-sm">
             <dt className="text-muted-foreground">Persona</dt>
             <dd className="font-medium">
-              {result.person.name}
+              {fullName(result.person)}
               {result.person.age != null ? ` (${result.person.age} anni)` : ''}
             </dd>
             <dt className="text-muted-foreground">Tipo</dt>

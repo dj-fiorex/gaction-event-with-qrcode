@@ -19,12 +19,13 @@ import { getAuthUserId } from '@convex-dev/auth/server'
 
 // Allergie e intolleranze (issue #37): dichiarazione facoltativa per Persona.
 // Opzionale nei validator così i client che non la raccolgono restano validi.
+// Il cognome non compare: il form non lo chiede a Figli e Ospiti (ADR 0017).
 const childInput = v.object({
-  name: v.string(),
+  firstName: v.string(),
   age: v.number(),
   allergies: v.optional(v.string()),
 })
-const companionInput = v.object({ name: v.string(), allergies: v.optional(v.string()) })
+const companionInput = v.object({ firstName: v.string(), allergies: v.optional(v.string()) })
 const selectionInput = v.object({
   activityId: v.id('activities'),
   slotId: v.id('slots'),
@@ -76,7 +77,9 @@ export function acceptedPrivacyNotice(
 export const register = mutation({
   args: {
     eventId: v.id('events'),
-    userName: v.string(),
+    /** Nome e cognome dell'Iscritto in due campi (ADR 0017): il cognome è suo e solo suo. */
+    userFirstName: v.string(),
+    userLastName: v.string(),
     contactEmail: v.string(),
     /** Allergie e intolleranze dell'Iscritto (issue #37). */
     userAllergies: v.optional(v.string()),
@@ -278,26 +281,45 @@ export const register = mutation({
       return trimmed
     }
 
+    // Il cognome è **solo dell'Iscritto** (ADR 0017): a Figli e Ospiti il form
+    // non lo chiede, quindi la loro riga non ne ha uno da conservare. Vuoto
+    // (o di soli spazi) = assente, così `lastName` presente significa sempre
+    // qualcosa e nessuna superficie deve difendersi da uno spazio appeso.
+    const userLastName = args.userLastName.trim()
+
     const personsInput: Array<{
-      name: string
+      firstName: string
+      lastName: string | null
+      /**
+       * Il nome l'ha dichiarato chi prenota, o l'ha generato il server? Deciso
+       * qui, una volta, e scritto sulla riga: rileggere `collectNames` in
+       * futuro reinterpreterebbe il passato (ADR 0017).
+       */
+      nameProvided: boolean
       category: 'user' | 'child' | 'companion'
       age: number | null
       allergies: string | null
     }> = [
       {
-        name: args.userName,
+        firstName: args.userFirstName.trim(),
+        lastName: userLastName.length > 0 ? userLastName : null,
+        nameProvided: true,
         category: 'user',
         age: null,
         allergies: normalizeAllergies(args.userAllergies),
       },
       ...children.map((c, i) => ({
-        name: collectNames ? c.name : `Figlio ${i + 1}`,
+        firstName: collectNames ? c.firstName.trim() : `Figlio ${i + 1}`,
+        lastName: null,
+        nameProvided: collectNames,
         category: 'child' as const,
         age: c.age,
         allergies: normalizeAllergies(c.allergies),
       })),
       ...companions.map((c, i) => ({
-        name: collectNames ? c.name : `Ospite ${i + 1}`,
+        firstName: collectNames ? c.firstName.trim() : `Ospite ${i + 1}`,
+        lastName: null,
+        nameProvided: collectNames,
         category: 'companion' as const,
         age: null,
         allergies: normalizeAllergies(c.allergies),
@@ -305,18 +327,21 @@ export const register = mutation({
     ]
 
     const createdPersons: Array<{
-    name: string
-    category: 'user' | 'child' | 'companion'
-    age: number | null
-    allergies: string | null
-    ticketCode: string
-  }> = []
+      firstName: string
+      lastName: string | null
+      category: 'user' | 'child' | 'companion'
+      age: number | null
+      allergies: string | null
+      ticketCode: string
+    }> = []
     for (const p of personsInput) {
       const ticketCode = generateTicketCode()
       await ctx.db.insert('persons', {
         registrationId,
         eventId: event._id,
-        name: p.name,
+        firstName: p.firstName,
+        ...(p.lastName ? { lastName: p.lastName } : {}),
+        nameProvided: p.nameProvided,
         category: p.category,
         age: p.age,
         ...(p.allergies ? { allergies: p.allergies } : {}),
@@ -326,7 +351,8 @@ export const register = mutation({
         eventCheckInLastAt: null,
       })
       createdPersons.push({
-        name: p.name,
+        firstName: p.firstName,
+        lastName: p.lastName,
         category: p.category,
         age: p.age,
         allergies: p.allergies,
@@ -385,7 +411,11 @@ async function buildRegistrationDTO(
       .collect()
     personDTOs.push({
       id: person._id,
-      name: person.name,
+      // La coppia viaggia intera fino alla superficie (ADR 0017): comporre qui
+      // rimetterebbe in giro una stringa da cui il cognome non si estrae più,
+      // e l'export ha due colonne da riempire.
+      firstName: person.firstName,
+      lastName: person.lastName ?? null,
       category: person.category,
       age: person.age,
       allergies: person.allergies ?? null,
@@ -484,7 +514,8 @@ export const myRegistrations = query({
           .collect()
         personDTOs.push({
           id: person._id,
-          name: person.name,
+          firstName: person.firstName,
+          lastName: person.lastName ?? null,
           category: person.category,
           age: person.age,
           allergies: person.allergies ?? null,

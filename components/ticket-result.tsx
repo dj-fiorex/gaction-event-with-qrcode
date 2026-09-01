@@ -11,6 +11,7 @@ import { Button } from '@/components/ui/button'
 import { CATEGORY_LABEL } from '@/lib/person-labels'
 import { linkify, resultBody, resultClosing, resultTitle, toParagraphs } from '@/lib/result-content'
 import type { RegisteredPerson } from '@/lib/types'
+import { fullName } from '@/lib/person-name'
 import type { TicketPdfEvent } from '@/lib/pdf/ticket-document'
 import { downloadAllTickets, downloadPersonTicket } from '@/lib/pdf/download-tickets'
 import type { DeliveryOutcome } from '@/lib/email-delivery'
@@ -135,12 +136,12 @@ export function TicketResult({
                 className="flex flex-col items-center gap-3 rounded-lg border border-border p-4 text-center"
               >
                 <div>
-                  <p className="font-medium">{person.name}</p>
+                  <p className="font-medium">{fullName(person)}</p>
                   <p className="text-xs text-muted-foreground">{CATEGORY_LABEL[person.category]}</p>
                 </div>
                 <Image
                   src={person.qrDataUrl || '/placeholder.svg'}
-                  alt={`QR code di ${person.name}`}
+                  alt={`QR code di ${fullName(person)}`}
                   width={180}
                   height={180}
                   className="h-[180px] w-[180px]"

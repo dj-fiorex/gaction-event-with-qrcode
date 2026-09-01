@@ -9,7 +9,8 @@ import { expect, test } from 'vitest'
 import { buildTicketsEmailMarkdown } from '../../lib/email-content'
 
 const markdownFor = (person: {
-  name: string
+  firstName: string
+  lastName: string
   allergies: string | null
 }) =>
   buildTicketsEmailMarkdown({
@@ -17,20 +18,21 @@ const markdownFor = (person: {
     event: { title: 'Evento test', location: 'Roma' },
     persons: [
       {
-        name: person.name,
+        firstName: person.firstName,
+        lastName: person.lastName,
+        nameProvided: true,
         category: 'user',
         age: null,
         allergies: person.allergies,
         ticketCode: 'ABC-123',
       },
     ],
-    collectNames: true,
     hasPdf: true,
   })
 
 test('the rendered email carries an HTML part and a plain text alternative', async () => {
   const { html, text } = await render(
-    markdownFor({ name: 'Mario Rossi', allergies: 'Glutine' }),
+    markdownFor({ firstName: 'Mario', lastName: 'Rossi', allergies: 'Glutine' }),
   )
 
   expect(html).toContain('<!doctype html>')
@@ -46,7 +48,7 @@ test('the rendered email carries an HTML part and a plain text alternative', asy
 
 test('what the user wrote reaches the rendered email as text, never as markup', async () => {
   const { html, text } = await render(
-    markdownFor({ name: 'Mario <b>Rossi</b>', allergies: 'niente *glutine*' }),
+    markdownFor({ firstName: 'Mario', lastName: '<b>Rossi</b>', allergies: 'niente *glutine*' }),
   )
 
   // Il tag arriva a schermo come tag, non come grassetto.

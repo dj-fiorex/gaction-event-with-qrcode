@@ -29,6 +29,7 @@ import {
 } from '@/lib/schemas'
 import { typedZodResolver, typedZodResolverFor } from '@/lib/zod-resolver'
 import { formatTime, formatTimeRange, formatDateRange, EVENT_TIME_ZONE } from '@/lib/format'
+import { splitFullName } from '@/lib/person-name'
 import { generateQrDataUrl } from '@/lib/qr-client'
 import { intervalsOverlap } from '@/lib/slots'
 import type { EventWithStats, RegisteredPerson, SlotWithAvailability } from '@/lib/types'
@@ -141,7 +142,8 @@ export function RegistrationForm({
     resolver: registrationResolver,
     defaultValues: {
       eventId: event.id,
-      userName: '',
+      userFirstName: '',
+      userLastName: '',
       contactEmail: '',
       userAllergies: '',
       children: [],
@@ -177,7 +179,8 @@ export function RegistrationForm({
   const contactEmailLocked = lockedContactEmail.length > 0
   const eventUrl = `/eventi/${event.id}`
   const redirectPath = pathname || eventUrl
-  const userName = watch('userName')
+  const userFirstName = watch('userFirstName')
+  const userLastName = watch('userLastName')
 
   const personsNeeded = 1 + childrenArray.fields.length + companionsArray.fields.length
 
@@ -196,9 +199,16 @@ export function RegistrationForm({
     if (lockedContactEmail) {
       setValue('contactEmail', lockedContactEmail, { shouldValidate: true })
     }
-    if (!user.name || userName.trim() !== '') return
-    setValue('userName', user.name)
-  }, [isMember, lockedContactEmail, setValue, user?.name, userName])
+    // Precompilamento dalle due caselle (ADR 0017): il profilo del Membro
+    // tiene il nome in un campo solo, quindi lo si spezza sul primo spazio e lo
+    // si offre come **suggerimento**. L'euristica è legittima qui e solo qui —
+    // c'è un umano che rilegge le due caselle prima di inviare — e non tocca
+    // nulla se anche una sola delle due è già stata compilata a mano.
+    if (!user.name || userFirstName.trim() !== '' || userLastName.trim() !== '') return
+    const suggested = splitFullName(user.name)
+    setValue('userFirstName', suggested.firstName)
+    setValue('userLastName', suggested.lastName)
+  }, [isMember, lockedContactEmail, setValue, user?.name, userFirstName, userLastName])
 
   const slotById = useMemo(() => {
     const map = new Map<string, SlotWithAvailability>()
@@ -268,7 +278,8 @@ export function RegistrationForm({
     try {
       const result = await registerMutation({
         eventId: event.id as Id<'events'>,
-        userName: values.userName,
+        userFirstName: values.userFirstName,
+        userLastName: values.userLastName,
         contactEmail: values.contactEmail,
         userAllergies: values.userAllergies,
         children: values.children ?? [],
@@ -283,7 +294,8 @@ export function RegistrationForm({
 
       const registeredPersons: RegisteredPerson[] = await Promise.all(
         result.persons.map(async (p): Promise<RegisteredPerson> => ({
-          name: p.name,
+          firstName: p.firstName,
+          lastName: p.lastName,
           category: p.category,
           age: p.age,
           allergies: p.allergies,
@@ -318,28 +330,40 @@ export function RegistrationForm({
     formState: { errors: declineErrors },
   } = useForm<DeclineInput>({
     resolver: typedZodResolver(makeDeclineSchema(requiresPrivacy)),
-    defaultValues: { name: '', email: '', privacyAccepted: false },
+    defaultValues: { firstName: '', lastName: '', email: '', privacyAccepted: false },
   })
 
   // Come per la registrazione: per un Membro loggato la risposta vale per
   // l'email dell'account (il server la impone comunque), così «sì» e «no»
   // parlano sempre della stessa email.
-  const declineName = watchDecline('name')
+  const declineFirstName = watchDecline('firstName')
+  const declineLastName = watchDecline('lastName')
   useEffect(() => {
     if (!isMember) return
     if (lockedContactEmail) {
       setDeclineValue('email', lockedContactEmail, { shouldValidate: true })
     }
-    if (!user.name || declineName.trim() !== '') return
-    setDeclineValue('name', user.name)
-  }, [isMember, lockedContactEmail, setDeclineValue, user?.name, declineName])
+    // Stesso suggerimento della Prenotazione (ADR 0017), stessa euristica.
+    if (!user.name || declineFirstName.trim() !== '' || declineLastName.trim() !== '') return
+    const suggested = splitFullName(user.name)
+    setDeclineValue('firstName', suggested.firstName)
+    setDeclineValue('lastName', suggested.lastName)
+  }, [
+    isMember,
+    lockedContactEmail,
+    setDeclineValue,
+    user?.name,
+    declineFirstName,
+    declineLastName,
+  ])
 
   const onDeclineSubmit = handleDeclineSubmit(async (values) => {
     setDecliningSubmitting(true)
     try {
       await declineMutation({
         eventId: event.id as Id<'events'>,
-        name: values.name,
+        firstName: values.firstName,
+        lastName: values.lastName,
         email: values.email,
         privacyAccepted: values.privacyAccepted,
       })
@@ -429,16 +453,31 @@ export function RegistrationForm({
       <section className="flex flex-col gap-6">
         <h2 className="text-xl font-semibold tracking-tight">Non parteciperò</h2>
         <form onSubmit={onDeclineSubmit} className="flex flex-col gap-4" noValidate>
-          <div className="grid gap-2">
-            <Label htmlFor="declineName">Il tuo nome e cognome</Label>
-            <Input
-              id="declineName"
-              {...registerDecline('name')}
-              aria-invalid={!!declineErrors.name}
-            />
-            {declineErrors.name && (
-              <p className="text-sm text-destructive">{declineErrors.name.message}</p>
-            )}
+          {/* Due campi affiancati da `sm` in su, impilati sotto: è l'idioma
+              già dominante nel repo, e vale sia qui che nella Prenotazione. */}
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div className="grid gap-2">
+              <Label htmlFor="declineFirstName">Nome</Label>
+              <Input
+                id="declineFirstName"
+                {...registerDecline('firstName')}
+                aria-invalid={!!declineErrors.firstName}
+              />
+              {declineErrors.firstName && (
+                <p className="text-sm text-destructive">{declineErrors.firstName.message}</p>
+              )}
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="declineLastName">Cognome</Label>
+              <Input
+                id="declineLastName"
+                {...registerDecline('lastName')}
+                aria-invalid={!!declineErrors.lastName}
+              />
+              {declineErrors.lastName && (
+                <p className="text-sm text-destructive">{declineErrors.lastName.message}</p>
+              )}
+            </div>
           </div>
           <div className="grid gap-2">
             <Label htmlFor="declineEmail">Email</Label>
@@ -591,10 +630,32 @@ export function RegistrationForm({
         <input type="hidden" {...register('eventId')} />
 
         <div className="flex flex-col gap-4">
-          <div className="grid gap-2">
-            <Label htmlFor="userName">Il tuo nome e cognome</Label>
-            <Input id="userName" {...register('userName')} aria-invalid={!!errors.userName} />
-            {errors.userName && <p className="text-sm text-destructive">{errors.userName.message}</p>}
+          {/* Nome e cognome in due caselle (ADR 0017): affiancate da `sm` in
+              su, impilate sotto. Un campo solo non diceva quale delle due
+              metà fosse il cognome, e chi legge l'elenco doveva indovinarlo. */}
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div className="grid gap-2">
+              <Label htmlFor="userFirstName">Il tuo nome</Label>
+              <Input
+                id="userFirstName"
+                {...register('userFirstName')}
+                aria-invalid={!!errors.userFirstName}
+              />
+              {errors.userFirstName && (
+                <p className="text-sm text-destructive">{errors.userFirstName.message}</p>
+              )}
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="userLastName">Il tuo cognome</Label>
+              <Input
+                id="userLastName"
+                {...register('userLastName')}
+                aria-invalid={!!errors.userLastName}
+              />
+              {errors.userLastName && (
+                <p className="text-sm text-destructive">{errors.userLastName.message}</p>
+              )}
+            </div>
           </div>
 
           <div className="grid gap-2">
@@ -680,12 +741,12 @@ export function RegistrationForm({
             canAdd={childrenArray.fields.length < event.maxChildrenPerRegistration}
             /* L'età nasce vuota, non a 0: uno 0 precompilato è già valido e
                chi non tocca il campo prenoterebbe un neonato senza saperlo. */
-            onAdd={() => childrenArray.append({ name: '', age: undefined, allergies: '' })}
+            onAdd={() => childrenArray.append({ firstName: '', age: undefined, allergies: '' })}
             onRemove={childrenArray.remove}
             collectNames={collectNames}
             idPrefix="figlio"
             labelSingular="Figlio"
-            register={(index) => register(`children.${index}.name` as const)}
+            register={(index) => register(`children.${index}.firstName` as const)}
             /* `valueAsNumber`: senza, una casella svuotata arriverebbe allo
                schema come stringa vuota e `z.coerce.number()` la renderebbe 0. */
             registerAge={(index) =>
@@ -710,7 +771,7 @@ export function RegistrationForm({
             }
             fields={companionsArray.fields}
             canAdd={companionsArray.fields.length < companionsMax}
-            onAdd={() => companionsArray.append({ name: '', allergies: '' })}
+            onAdd={() => companionsArray.append({ firstName: '', allergies: '' })}
             onRemove={companionsArray.remove}
             collectNames={collectNames}
             idPrefix="ospite"
@@ -720,7 +781,7 @@ export function RegistrationForm({
                categoria resta quella del dominio — sui biglietti, nell'export
                e allo scanner si legge «Ospite 1». */
             labelSingular="Ospite"
-            register={(index) => register(`companions.${index}.name` as const)}
+            register={(index) => register(`companions.${index}.firstName` as const)}
             registerAllergies={
               collectAllergies
                 ? (index) => register(`companions.${index}.allergies` as const)
@@ -903,7 +964,7 @@ function RegistrationNotice({
  * un elemento di `children` / `companions`.
  */
 interface PersonFieldErrors {
-  name?: { message?: string }
+  firstName?: { message?: string }
   age?: { message?: string }
   allergies?: { message?: string }
 }
@@ -1021,14 +1082,16 @@ function PersonRepeater({
                 {collectNames && (
                   <div className="grid gap-2 @2xl:flex-1">
                     <Label htmlFor={`${idPrefix}-name-${index}`}>Nome</Label>
+                    {/* Solo il nome: a Figli e Ospiti il cognome non si chiede
+                        (ADR 0017), quindi nemmeno il placeholder lo promette. */}
                     <Input
                       id={`${idPrefix}-name-${index}`}
-                      placeholder="Nome e cognome"
-                      aria-invalid={!!fieldErrors?.name}
+                      placeholder="Nome"
+                      aria-invalid={!!fieldErrors?.firstName}
                       {...register(index)}
                     />
-                    {fieldErrors?.name && (
-                      <p className="text-sm text-destructive">{fieldErrors.name.message}</p>
+                    {fieldErrors?.firstName && (
+                      <p className="text-sm text-destructive">{fieldErrors.firstName.message}</p>
                     )}
                   </div>
                 )}

@@ -1,5 +1,6 @@
 import { Document, Page, View, Text, Image, StyleSheet } from '@react-pdf/renderer'
 import { CATEGORY_LABEL } from '../person-labels'
+import { fullName } from '../person-name'
 import type { RegisteredPerson } from '../types'
 
 /** Dati dell'Evento mostrati nell'header di ogni pagina biglietto. */
@@ -130,7 +131,7 @@ function TicketPage({ person, event }: { person: RegisteredPerson; event: Ticket
       <View style={styles.body}>
         {/* qrDataUrl è un PNG data URL generato lato server. */}
         <Image style={styles.qr} src={person.qrDataUrl} />
-        <Text style={styles.personName}>{person.name}</Text>
+        <Text style={styles.personName}>{fullName(person)}</Text>
         <Text style={styles.category}>{personSubtitle(person)}</Text>
         <View style={styles.codeBox}>
           <Text style={styles.codeLabel}>Codice biglietto</Text>

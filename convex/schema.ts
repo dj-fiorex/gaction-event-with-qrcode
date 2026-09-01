@@ -281,7 +281,27 @@ export default defineSchema({
   persons: defineTable({
     registrationId: v.id('registrations'),
     eventId: v.id('events'),
-    name: v.string(),
+    /**
+     * Nome e cognome in due campi (ADR 0017). Il nome c'è sempre: per l'Utente
+     * è quello dichiarato, per Figli e Ospiti è o il nome dichiarato o
+     * l'Etichetta posizionale generata dal server («Figlio 1», «Ospite 1»).
+     *
+     * Il cognome è **solo dell'Utente**: il form non lo chiede a Figli e
+     * Ospiti, quindi assente non vuol dire «non ancora compilato», vuol dire
+     * che non gli è mai stato chiesto.
+     */
+    firstName: v.string(),
+    lastName: v.optional(v.string()),
+    /**
+     * Il nome è stato dichiarato da chi prenota, oppure generato dal server?
+     * Sta sulla riga e non si rilegge da `event.collectNames`, che è
+     * patchabile su Eventi con Prenotazioni già esistenti: leggerlo *oggi* per
+     * interpretare un nome scritto *tre settimane fa* reinterpreterebbe il
+     * passato — «Luca Rossi» stampato come se fosse un'etichetta, o «Ospite 1»
+     * presentato come un nome. Con il flag sulla riga il caso non è più
+     * esprimibile. È il cuore dell'ADR 0017.
+     */
+    nameProvided: v.boolean(),
     category: personCategory,
     age: v.union(v.number(), v.null()),
     /**
@@ -369,7 +389,14 @@ export default defineSchema({
   // Non è una Prenotazione: nessuna Persona, nessun posto, nessun QR.
   declines: defineTable({
     eventId: v.id('events'),
-    name: v.string(),
+    /**
+     * Nome e cognome (ADR 0017), **entrambi obbligatori**: chi rinuncia
+     * dichiara sempre il proprio nome, quindi qui non esiste né il caso del
+     * nome generato né quello del cognome non chiesto — e infatti manca
+     * `nameProvided`, che non avrebbe nulla da distinguere.
+     */
+    firstName: v.string(),
+    lastName: v.string(),
     /** Normalizzata (trim + lowercase): solo dedup dentro l'Evento, mai identity linking. */
     email: v.string(),
     /** ISO dell'ultima risposta «no» (si aggiorna a ogni upsert). */

@@ -2,6 +2,7 @@
 
 import { pdf } from '@react-pdf/renderer'
 import { TicketsDocument, type TicketPdfEvent } from './ticket-document'
+import { fullName } from '@/lib/person-name'
 import type { RegisteredPerson } from '@/lib/types'
 import { slugify, ticketsPdfFilename } from './filename'
 
@@ -98,6 +99,6 @@ export function downloadPersonTicket(
   return triggerPdfDownload(
     [person],
     event,
-    `${slugify(event.title)}-${slugify(person.name)}.pdf`,
+    `${slugify(event.title)}-${slugify(fullName(person))}.pdf`,
   )
 }

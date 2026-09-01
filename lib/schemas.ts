@@ -176,7 +176,8 @@ export type EventInput = z.infer<typeof eventSchema>
 export const allergiesInputSchema = z.string().trim().max(300, 'Massimo 300 caratteri').optional()
 
 export const childInputSchema = z.object({
-  name: z.string().trim().min(2, 'Inserisci il nome del bambino'),
+  /** Solo il nome: il cognome non si chiede a Figli e Ospiti (ADR 0017). */
+  firstName: z.string().trim().min(2, 'Inserisci il nome del bambino'),
   allergies: allergiesInputSchema,
   /**
    * Età del Figlio. Nel form nasce **vuota**: non esiste un valore
@@ -199,7 +200,7 @@ export const childInputSchema = z.object({
 })
 
 export const companionInputSchema = z.object({
-  name: z.string().trim().min(2, 'Inserisci il nome dell\u2019ospite'),
+  firstName: z.string().trim().min(2, 'Inserisci il nome dell\u2019ospite'),
   allergies: allergiesInputSchema,
 })
 
@@ -210,7 +211,13 @@ export const slotSelectionSchema = z.object({
 
 export const registrationSchema = z.object({
   eventId: z.string().min(1),
-  userName: z.string().trim().min(2, 'Inserisci nome e cognome'),
+  /**
+   * Nome e cognome in due campi (ADR 0017), con un messaggio per campo: un solo
+   * «Inserisci nome e cognome» sotto due caselle non direbbe quale delle due
+   * manca.
+   */
+  userFirstName: z.string().trim().min(2, 'Inserisci il tuo nome'),
+  userLastName: z.string().trim().min(2, 'Inserisci il tuo cognome'),
   contactEmail: z.string().trim().email('Inserisci un\u2019email valida'),
   userAllergies: allergiesInputSchema,
   children: z.array(childInputSchema).default([]),
@@ -264,8 +271,8 @@ export function makeRegistrationSchema(collectNames = true, requirePrivacy = fal
       // così i due schemi non possono divergere quando cambia la forma di una
       // Persona.
       registrationSchema.extend({
-        children: z.array(childInputSchema.extend({ name: looseName })).default([]),
-        companions: z.array(companionInputSchema.extend({ name: looseName })).default([]),
+        children: z.array(childInputSchema.extend({ firstName: looseName })).default([]),
+        companions: z.array(companionInputSchema.extend({ firstName: looseName })).default([]),
       })
   if (!requirePrivacy) return base
   return base.extend({ privacyAccepted: privacyAcceptedSchema })
@@ -273,7 +280,9 @@ export function makeRegistrationSchema(collectNames = true, requirePrivacy = fal
 
 /** Rinuncia (ADR 0004): risposta «no» a Conferma di partecipazione — solo nome ed email. */
 export const declineSchema = z.object({
-  name: z.string().trim().min(2, 'Inserisci nome e cognome'),
+  /** Nome e cognome, entrambi obbligatori (ADR 0017): chi rinuncia dichiara sempre il proprio. */
+  firstName: z.string().trim().min(2, 'Inserisci il tuo nome'),
+  lastName: z.string().trim().min(2, 'Inserisci il tuo cognome'),
   email: z.string().trim().email('Inserisci un’email valida'),
   /** Consenso all'informativa (ADR 0012): anche il «no» raccoglie dati personali. */
   privacyAccepted: z.boolean().default(false),

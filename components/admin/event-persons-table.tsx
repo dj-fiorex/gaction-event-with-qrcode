@@ -10,6 +10,7 @@ import {
 } from '@/components/ui/table'
 import { MomentValue } from '@/components/admin/check-in-moment'
 import { CATEGORY_LABEL } from '@/lib/person-labels'
+import { fullName } from '@/lib/person-name'
 import { statusOfPerson } from '@/lib/person-status'
 import type { Registration } from '@/lib/types'
 
@@ -56,8 +57,9 @@ export function EventPersonsTable({ registrations }: EventPersonsTableProps) {
           {rows.map(({ person, status }) => (
             <TableRow key={person.id}>
               {/* Nome o Etichetta posizionale (issue #36): la Persona è già
-                  identificata dal campo `name`, qualunque dei due contenga. */}
-              <TableCell className="font-medium">{person.name}</TableCell>
+                  identificata dal proprio nome, qualunque dei due contenga. Il
+                  cognome c'è solo per l'Iscritto (ADR 0017). */}
+              <TableCell className="font-medium">{fullName(person)}</TableCell>
               <TableCell className="text-muted-foreground">
                 {CATEGORY_LABEL[person.category]}
               </TableCell>
