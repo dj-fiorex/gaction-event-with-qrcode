@@ -132,6 +132,16 @@ export const register = mutation({
       throw new ConvexError(`Puoi aggiungere al massimo ${event.maxChildrenPerRegistration} figli`)
     }
 
+    // Un Figlio è per definizione minorenne (CONTEXT.md): l'intervallo lo
+    // impone il server, non il form. Il validator `v.number()` da solo
+    // accetterebbe 42, -5 o NaN — e quel valore finirebbe sui biglietti,
+    // nell'email di conferma e allo scanner.
+    for (const child of children) {
+      if (!Number.isInteger(child.age) || child.age < 0 || child.age > 17) {
+        throw new ConvexError('L\u2019età di un figlio deve essere un numero intero tra 0 e 17')
+      }
+    }
+
     // Regola del nucleo familiare (issue #35): con almeno un Figlio effettivamente
     // inviato, il cap Ospiti si riduce. Basato sui Figli persistiti, mai su un
     // ramo dichiarato dal client.

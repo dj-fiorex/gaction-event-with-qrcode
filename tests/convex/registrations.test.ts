@@ -1778,3 +1778,44 @@ test('la Consegna congela il destinatario: un Reinvio non lo cambia sotto i pied
   )
   expect(deliveries.map((d) => d.recipient)).toEqual(['primo@example.com', 'secondo@example.com'])
 })
+
+/* ------------------------------------------------------------------ */
+
+test("register rejects a Figlio's age outside 0-17", async () => {
+  const t = convexTest(schema, modules)
+  const { eventId, activityId, slotId } = await createEventFixture(t, {
+    allowChildren: true,
+    maxChildrenPerRegistration: 2,
+  })
+
+  // Il validator Convex accetta qualunque `v.number()`: senza il controllo
+  // nella mutation, un client che non passa dal form scriverebbe «Figlio 1 ·
+  // 42 anni» su biglietti, email di conferma e scanner.
+  for (const age of [42, -1, 3.5, Number.NaN]) {
+    await expect(
+      t.mutation(api.registrations.register, {
+        eventId,
+        userName: 'Mario Rossi',
+        contactEmail: `guest-${String(age)}@example.com`,
+        children: [{ name: 'Anna Rossi', age }],
+        companions: [],
+        selections: [{ activityId, slotId }],
+      }),
+    ).rejects.toThrow('L’età di un figlio deve essere un numero intero tra 0 e 17')
+  }
+
+  // Gli estremi ammessi restano ammessi: 0 è un'età vera, se qualcuno la scrive.
+  await expect(
+    t.mutation(api.registrations.register, {
+      eventId,
+      userName: 'Mario Rossi',
+      contactEmail: 'guest@example.com',
+      children: [
+        { name: 'Anna Rossi', age: 0 },
+        { name: 'Luca Rossi', age: 17 },
+      ],
+      companions: [],
+      selections: [{ activityId, slotId }],
+    }),
+  ).resolves.toMatchObject({ eventTitle: 'Evento test' })
+})
