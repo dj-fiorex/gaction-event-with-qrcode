@@ -72,6 +72,7 @@ const defaultValues: EventInput = {
   emailSubject: '',
   emailBody: '',
   emailShowSummary: true,
+  ticketHeader: 'title',
   resultTitle: '',
   resultBody: '',
   resultClosing: '',
@@ -154,6 +155,8 @@ export function EventForm({
   const allowChildren = watch('allowChildren')
   const allowCompanions = watch('allowCompanions')
   const checkInAccess = watch('checkInAccess')
+  const ticketHeader = watch('ticketHeader')
+  const imageStorageId = watch('imageStorageId')
   const maxCompanionsWithChildren = watch('maxCompanionsWithChildren')
   const familyRuleActive = maxCompanionsWithChildren !== undefined
 
@@ -934,6 +937,43 @@ export function EventForm({
               allegato e le allergie si leggono solo nel pannello.
             </p>
           </div>
+        </div>
+      </fieldset>
+
+      {/* Intestazione del Biglietto */}
+      <fieldset className="flex flex-col gap-4 rounded-lg border border-border p-4">
+        <div>
+          <legend className="font-medium">Biglietto</legend>
+          <p className="text-sm text-muted-foreground">
+            Cosa sta in cima a ogni pagina del PDF dei biglietti — quello che si scarica e quello
+            allegato all&rsquo;email. Data e luogo dell&rsquo;evento ci sono in entrambi i casi.
+          </p>
+        </div>
+
+        <div className="grid gap-2">
+          <Label htmlFor="ticketHeader">Intestazione</Label>
+          <Controller
+            control={control}
+            name="ticketHeader"
+            render={({ field }) => (
+              <Select value={field.value} onValueChange={field.onChange}>
+                <SelectTrigger id="ticketHeader" className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="title">Immagine grande e titolo dell&rsquo;evento</SelectItem>
+                  <SelectItem value="image">Solo l&rsquo;immagine, in piccolo a sinistra</SelectItem>
+                </SelectContent>
+              </Select>
+            )}
+          />
+          <p className="text-sm text-muted-foreground">
+            {ticketHeader === 'image'
+              ? imageStorageId
+                ? 'L’immagine dell’evento prende il posto del titolo: niente copertina grande, niente titolo scritto sotto. Per gli eventi il cui marchio è l’immagine stessa. Il titolo resta nel nome del file e nelle proprietà del PDF.'
+                : 'Questo evento non ha ancora un’immagine: finché manca, il biglietto stampa il titolo. Caricala qui sopra e l’intestazione cambia da sola.'
+              : 'L’immagine dell’evento in grande, centrata, e sotto il titolo. È il biglietto di sempre.'}
+          </p>
         </div>
       </fieldset>
 

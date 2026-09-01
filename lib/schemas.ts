@@ -89,6 +89,13 @@ export const eventSchema = z
     /** Riepilogo della Prenotazione in coda all'email: attivo di default (comportamento odierno). */
     emailShowSummary: z.boolean().default(true),
     /**
+     * Intestazione del Biglietto: titolo di default (comportamento odierno).
+     * Scegliere `image` senza aver caricato un'Immagine non è un errore da
+     * bloccare qui — il biglietto ripiega sul titolo, e l'immagine può
+     * arrivare dopo, in un secondo salvataggio.
+     */
+    ticketHeader: z.enum(['title', 'image']).default('title'),
+    /**
      * Esito della Prenotazione (ADR 0014): testo semplice a paragrafi. Vuoti =
      * ripiego sul testo odierno, campo per campo. Il titolo ha un tetto più
      * basso dell'oggetto dell'email perché è un `h2` dentro un iframe stretto:

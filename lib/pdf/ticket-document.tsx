@@ -1,5 +1,6 @@
 import { Document, Page, View, Text, Image, StyleSheet } from '@react-pdf/renderer'
 import { CATEGORY_LABEL } from '../person-labels'
+import { resolveTicketHeader, type TicketHeader } from './ticket-header'
 import { fullName } from '../person-name'
 import type { RegisteredPerson } from '../types'
 
@@ -16,6 +17,14 @@ export interface TicketPdfEvent {
    * richiede header CORS, quindi la copertina va incorporata come data URL, non come URL remoto.
    */
   coverDataUrl?: string
+  /**
+   * Intestazione del Biglietto scelta sull'Evento. Non è opzionale di
+   * proposito: i punti che costruiscono questo oggetto sono cinque, fra
+   * browser e server, e uno che se ne dimenticasse in silenzio farebbe
+   * divergere il biglietto scaricato da quello spedito — proprio ciò che
+   * l'ADR 0015 tiene insieme.
+   */
+  ticketHeader: TicketHeader
 }
 
 const palette = {
@@ -41,6 +50,19 @@ const styles = StyleSheet.create({
     borderRadius: 6,
     marginBottom: 20,
     alignSelf: 'center',
+  },
+  /**
+   * L'Immagine dell'Evento nello slot del titolo: 16:9 a 128×72 pt (≈4,5 cm),
+   * lo stesso ingombro verticale di due righe di titolo, allineata a sinistra
+   * come il titolo che sostituisce. `contain` e non `cover` perché un'immagine
+   * che il ritaglio non ha portato esattamente a 16:9 va rimpicciolita, non
+   * tagliata: qui è un marchio, non una copertina.
+   */
+  headerImage: {
+    width: 128,
+    height: 72,
+    objectFit: 'contain',
+    alignSelf: 'flex-start',
   },
   header: {
     marginBottom: 28,
@@ -116,11 +138,22 @@ function personSubtitle(person: RegisteredPerson): string {
 }
 
 function TicketPage({ person, event }: { person: RegisteredPerson; event: TicketPdfEvent }) {
+  // Il ripiego si decide qui, dove si sa se l'immagine è davvero incorporabile
+  // in *questo* render: la copertina che il browser ricodifica via canvas può
+  // mancare al server, e viceversa.
+  const cover = event.coverDataUrl
+  const header = resolveTicketHeader(event.ticketHeader, Boolean(cover))
   return (
     <Page size="A4" wrap={false} style={styles.page}>
-      {event.coverDataUrl ? <Image style={styles.cover} src={event.coverDataUrl} /> : null}
+      {/* Con l'immagine in intestazione la copertina grande sparisce: sarebbe
+          la stessa immagine due volte sullo stesso foglio. */}
+      {header === 'title' && cover ? <Image style={styles.cover} src={cover} /> : null}
       <View style={styles.header}>
-        <Text style={styles.eventTitle}>{event.title}</Text>
+        {header === 'image' && cover ? (
+          <Image style={styles.headerImage} src={cover} />
+        ) : (
+          <Text style={styles.eventTitle}>{event.title}</Text>
+        )}
         <View style={styles.rule} />
         <View style={styles.metaRow}>
           <Text style={styles.meta}>{event.dateRange}</Text>

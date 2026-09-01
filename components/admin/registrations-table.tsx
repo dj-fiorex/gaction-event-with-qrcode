@@ -198,6 +198,7 @@ export function RegistrationsTable({ registrations, events }: RegistrationsTable
                           timeZone: EVENT_TIME_ZONE,
                         }),
                         imageUrl: event.imageUrl,
+                        ticketHeader: event.ticketHeader,
                       })
                     }}
                     label={`Scarica biglietti di ${r.contactEmail}`}

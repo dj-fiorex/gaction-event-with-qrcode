@@ -389,6 +389,7 @@ export function RegistrationForm({
             timeZone: EVENT_TIME_ZONE,
           }),
           imageUrl: event.imageUrl,
+          ticketHeader: event.ticketHeader,
         }}
         // Consegna dell'email di conferma (ADR 0016): l'Esito si iscrive
         // all'esito e lo vede arrivare dal vivo. L'indirizzo da confermare non

@@ -14,7 +14,7 @@ export interface PixelCropArea {
 export interface CroppedImageOptions {
   /** Larghezza massima dell'output; l'immagine viene ridotta se più grande. */
   maxWidth?: number
-  /** MIME preferito; fallback automatico a JPEG se non supportato. */
+  /** MIME preferito (default JPEG); fallback automatico a JPEG se non supportato. */
   mimeType?: string
   /** Qualità di codifica (0-1) per formati lossy. */
   quality?: number
@@ -40,14 +40,20 @@ function canvasToBlob(
 
 /**
  * Ritaglia `imageSrc` sull'area indicata, ridimensiona a `maxWidth` mantenendo
- * il rapporto, e codifica in WebP (con fallback JPEG). Ritorna il blob.
+ * il rapporto, e codifica in JPEG. Ritorna il blob.
+ *
+ * JPEG e non WebP: il PDF dei biglietti si renderizza anche server-side, dove
+ * `@react-pdf/image` decodifica solo JPEG e PNG e non esiste il canvas che nel
+ * browser ricodifica al volo. Una copertina WebP sparirebbe dall'allegato
+ * dell'email, cioè dalla superficie da cui i biglietti arrivano davvero
+ * (ADR 0018).
  */
 export async function createCroppedImageBlob(
   imageSrc: string,
   crop: PixelCropArea,
   options: CroppedImageOptions = {},
 ): Promise<Blob> {
-  const { maxWidth = 1600, mimeType = 'image/webp', quality = 0.85 } = options
+  const { maxWidth = 1600, mimeType = 'image/jpeg', quality = 0.9 } = options
 
   if (crop.width <= 0 || crop.height <= 0) {
     throw new Error('Area di ritaglio non valida')

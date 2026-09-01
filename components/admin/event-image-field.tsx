@@ -12,7 +12,13 @@ import { createCroppedImageBlob } from '@/lib/image-crop'
 import { messageFromError } from '@/lib/errors'
 
 const ASPECT = 16 / 9
-const OUTPUT_MIME = 'image/webp'
+/**
+ * JPEG e non WebP: il PDF dei biglietti si renderizza anche sul server, che
+ * decodifica solo JPEG e PNG. Il file scelto dall'admin resta qualunque —
+ * passa comunque dal canvas del ritaglio — è l'uscita a essere fissata
+ * (ADR 0018).
+ */
+const OUTPUT_MIME = 'image/jpeg'
 
 interface EventImageFieldProps {
   /** storageId corrente selezionato nel form (undefined = nessuna immagine). */
@@ -83,7 +89,7 @@ export function EventImageField({
       const blob = await createCroppedImageBlob(rawSrc, areaPixels, {
         maxWidth: 1600,
         mimeType: OUTPUT_MIME,
-        quality: 0.85,
+        quality: 0.9,
       })
 
       const uploadUrl = await generateUploadUrl()

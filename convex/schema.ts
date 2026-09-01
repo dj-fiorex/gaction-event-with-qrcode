@@ -14,6 +14,13 @@ export const activityPolicy = v.union(
 
 export const checkInAccess = v.union(v.literal('private'), v.literal('password'))
 
+/**
+ * Intestazione del Biglietto: cosa sta in cima a ogni pagina del PDF dei
+ * biglietti. I valori sono quelli di `TicketHeader` in
+ * `lib/pdf/ticket-header.ts`, che ne tiene la regola di ripiego.
+ */
+export const ticketHeader = v.union(v.literal('title'), v.literal('image'))
+
 export const personCategory = v.union(
   v.literal('user'),
   v.literal('child'),
@@ -151,6 +158,18 @@ export default defineSchema({
      * dell'Evento, non del prodotto.
      */
     emailShowSummary: v.optional(v.boolean()),
+    /**
+     * Intestazione del Biglietto: `title` (o assente) = il titolo dell'Evento
+     * sotto la copertina, comportamento odierno, quindi nessun backfill.
+     * `image` = la sola Immagine dell'Evento, in piccolo e a sinistra, al
+     * posto del titolo — per gli Eventi il cui marchio *è* l'immagine.
+     *
+     * Il ripiego è inderogabile e lo applica il renderer, non la scrittura:
+     * senza Immagine, o con un'Immagine che quel renderer non sa portare,
+     * l'intestazione torna al titolo. Vale **solo** per il PDF: pagina
+     * pubblica, `EventCard` ed email non la leggono.
+     */
+    ticketHeader: v.optional(ticketHeader),
     /**
      * Esito della Prenotazione (ADR 0014): titolo, corpo e chiusura della
      * schermata mostrata dopo una Prenotazione riuscita. Testo semplice a

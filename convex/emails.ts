@@ -87,6 +87,7 @@ async function attemptSend(
       title: document.pdf.eventTitle,
       location: document.pdf.eventLocation,
       dateRange: document.pdf.eventDateRange,
+      ticketHeader: document.pdf.ticketHeader,
       coverBytes: await fetchCoverBytes(document.pdf.coverUrl),
     })
 

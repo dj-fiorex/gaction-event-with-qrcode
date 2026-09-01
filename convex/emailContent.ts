@@ -1,10 +1,11 @@
 import { ConvexError, v } from 'convex/values'
 import { internalQuery } from './_generated/server'
-import { personCategory } from './schema'
+import { personCategory, ticketHeader } from './schema'
 import { resolveEventDates } from './model'
 import { buildTicketsEmailMarkdown, ticketsEmailSubject } from '../lib/email-content'
 import { EVENT_TIME_ZONE, formatDateRange } from '../lib/format'
 import { ticketsPdfFilename } from '../lib/pdf/filename'
+import { TICKET_HEADER_DEFAULT } from '../lib/pdf/ticket-header'
 
 /**
  * Tutto ciò che serve a spedire l'email di conferma (issue #42, ADR 0015),
@@ -41,6 +42,12 @@ export const ticketEmailDocument = internalQuery({
       eventDateRange: v.string(),
       /** URL della copertina sullo storage. null = nessuna copertina. */
       coverUrl: v.union(v.string(), v.null()),
+      /**
+       * Intestazione del Biglietto. Viaggia fin qui perché l'allegato è la
+       * superficie da cui i biglietti arrivano davvero: una scelta che valesse
+       * solo per i PDF scaricati a mano non sarebbe la scelta dell'Evento.
+       */
+      ticketHeader,
       persons: v.array(
         v.object({
           firstName: v.string(),
@@ -117,6 +124,9 @@ export const ticketEmailDocument = internalQuery({
           timeZone: EVENT_TIME_ZONE,
         }),
         coverUrl: event.imageStorageId ? await ctx.storage.getUrl(event.imageStorageId) : null,
+        // Assente = titolo, come nel DTO: nessun backfill per gli Eventi
+        // esistenti.
+        ticketHeader: event.ticketHeader ?? TICKET_HEADER_DEFAULT,
         persons: pdfPersons,
       },
     }

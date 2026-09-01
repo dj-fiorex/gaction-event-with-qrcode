@@ -7,6 +7,8 @@ import type { DeliverySnapshot } from './email-delivery'
 
 import type { PersonStatus } from './person-status'
 
+import type { TicketHeader } from './pdf/ticket-header'
+
 /** Policy con cui una Prenotazione viene associata alle Attività dell'Evento. */
 export type ActivityPolicy = 'all' | 'min' | 'free'
 
@@ -109,6 +111,15 @@ export interface Event {
    * false = l'email è il solo Testo. Solo per operatori: true lato pubblico.
    */
   emailShowSummary: boolean
+  /**
+   * Intestazione del Biglietto: cosa sta in cima a ogni pagina del PDF.
+   * 'title' (default) = il titolo dell'Evento sotto la copertina; 'image' =
+   * la sola Immagine dell'Evento, in piccolo e a sinistra, al posto del
+   * titolo. Pubblica: il PDF lo genera anche il browser di chi prenota. Il
+   * ripiego a titolo quando l'immagine manca è del renderer
+   * (`resolveTicketHeader`), non di questo campo.
+   */
+  ticketHeader: TicketHeader
   /**
    * Esito della Prenotazione (ADR 0014): titolo, corpo e chiusura della
    * schermata che segue una Prenotazione riuscita. Testo semplice a paragrafi.

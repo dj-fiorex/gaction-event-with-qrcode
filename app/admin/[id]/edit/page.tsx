@@ -40,6 +40,7 @@ function toEventInput(event: EventWithStats): EventInput {
     emailSubject: event.emailSubject,
     emailBody: event.emailBody,
     emailShowSummary: event.emailShowSummary,
+    ticketHeader: event.ticketHeader,
     resultTitle: event.resultTitle,
     resultBody: event.resultBody,
     resultClosing: event.resultClosing,

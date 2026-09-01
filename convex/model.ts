@@ -3,6 +3,7 @@ import { getAuthUserId } from '@convex-dev/auth/server'
 import type { Doc, Id } from './_generated/dataModel'
 import type { MutationCtx, QueryCtx } from './_generated/server'
 import type { EmbedTheme } from '../lib/embed'
+import { TICKET_HEADER_DEFAULT, type TicketHeader } from '../lib/pdf/ticket-header'
 
 /* ------------------------------------------------------------------ */
 /* Hashing password di check-in (Web Crypto, runtime Convex)           */
@@ -220,6 +221,13 @@ export interface EventWithStatsDTO {
   /** Riepilogo in coda all'email. true (default) = si vede. Solo operatori. */
   emailShowSummary: boolean
   /**
+   * Intestazione del Biglietto: 'title' (default) = titolo dell'Evento;
+   * 'image' = la sola Immagine dell'Evento al posto del titolo. **Pubblica**,
+   * a differenza del Testo dell'email: il PDF lo genera anche la pagina
+   * pubblica, dal browser di chi ha appena prenotato.
+   */
+  ticketHeader: TicketHeader
+  /**
    * Esito della Prenotazione (ADR 0014). Vuoti = ripiego sul testo odierno.
    * **Pubblici**, a differenza di `emailSubject`/`emailBody`: è la schermata
    * di conferma del form a doverli leggere, e la legge chiunque prenoti.
@@ -429,6 +437,9 @@ export async function loadEventWithStats(
     // Al pubblico vale il default: non c'è niente da leggere, e niente da
     // rivelare.
     emailShowSummary: opts.includeScanToken ? (event.emailShowSummary ?? true) : true,
+    // Assente = titolo: gli Eventi nati prima di questa scelta stampano il
+    // biglietto identico a prima.
+    ticketHeader: event.ticketHeader ?? TICKET_HEADER_DEFAULT,
     // L'Esito della Prenotazione invece è pubblico: lo rende il form a
     // chiunque prenoti, embed compreso. Il ripiego non è qui ma in
     // `lib/result-content.ts`, perché dipende dal numero di Persone e dallo

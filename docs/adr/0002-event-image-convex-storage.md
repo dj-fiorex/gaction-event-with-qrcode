@@ -12,7 +12,7 @@ Decidiamo di:
 
 - Sostituire `imageUrl` nello schema con **`imageStorageId: v.optional(v.id("_storage"))`**. L'immagine è **opzionale**: un Evento può non averla.
 - Usare **Convex file storage** per i byte (nessuna nuova integrazione, nessuna env var, cascade con l'Evento).
-- Far **caricare all'admin** l'immagine ritagliata client-side con **react-easy-crop** bloccato a **16:9**, output ridimensionato a max ~1600px di larghezza e ricodificato (WebP/JPEG ~0.85) prima dell'upload, così i blob restano piccoli.
+- Far **caricare all'admin** l'immagine ritagliata client-side con **react-easy-crop** bloccato a **16:9**, output ridimensionato a max ~1600px di larghezza e ricodificato (WebP/JPEG ~0.85) prima dell'upload, così i blob restano piccoli. *Sul formato questo punto è superato dall'[ADR `0018`](./0018-copertina-jpeg-per-il-pdf-del-server.md): l'uscita è JPEG, perché il PDF dei biglietti lo rende anche il server.*
 - Il DTO risolve `imageStorageId` via `ctx.storage.getUrl()` e continua a esporre il campo come **`imageUrl` (string | null)**: i due render site restano invariati e usano il fallback statico quando è `null`.
 
 ## Considered Options

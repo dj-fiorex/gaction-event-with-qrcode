@@ -2,7 +2,7 @@ import { ConvexError, v, type Infer } from 'convex/values'
 import { internalQuery, mutation, query } from './_generated/server'
 import type { MutationCtx, QueryCtx } from './_generated/server'
 import type { Id } from './_generated/dataModel'
-import { activityPolicy, checkInAccess, embedFontStack } from './schema'
+import { activityPolicy, checkInAccess, embedFontStack, ticketHeader } from './schema'
 import {
   canOperateEvent,
   getCurrentUser,
@@ -63,6 +63,11 @@ const eventInput = {
   emailBody: v.optional(v.string()),
   /** Riepilogo in coda all'email. Assente = si vede, come sullo schema. */
   emailShowSummary: v.optional(v.boolean()),
+  /**
+   * Intestazione del Biglietto. Assente = `title`, come sullo schema: il
+   * ripiego a titolo lo decide il renderer, non questa scrittura.
+   */
+  ticketHeader: v.optional(ticketHeader),
   /**
    * Esito della Prenotazione (ADR 0014). Vuoti = ripiego sul testo odierno,
    * campo per campo. Testo semplice a paragrafi, non markdown.
@@ -573,6 +578,7 @@ export const create = mutation({
       emailSubject: normalizeEmailCopy(args.emailSubject),
       emailBody: normalizeEmailCopy(args.emailBody),
       emailShowSummary: args.emailShowSummary,
+      ticketHeader: args.ticketHeader,
       resultTitle: normalizeEmailCopy(args.resultTitle),
       resultBody: normalizeEmailCopy(args.resultBody),
       resultClosing: normalizeEmailCopy(args.resultClosing),
@@ -650,6 +656,7 @@ export const update = mutation({
       emailSubject: normalizeEmailCopy(args.emailSubject),
       emailBody: normalizeEmailCopy(args.emailBody),
       emailShowSummary: args.emailShowSummary,
+      ticketHeader: args.ticketHeader,
       resultTitle: normalizeEmailCopy(args.resultTitle),
       resultBody: normalizeEmailCopy(args.resultBody),
       resultClosing: normalizeEmailCopy(args.resultClosing),
