@@ -15,3 +15,15 @@ export function typedZodResolver<TSchema extends z.ZodType>(
 ): Resolver<z.infer<TSchema> & FieldValues> {
   return zodResolver(schema as never) as Resolver<z.infer<TSchema> & FieldValues>
 }
+
+/**
+ * Variante per i form i cui valori digitati non hanno ancora il tipo validato:
+ * un campo numerico che nasce vuoto vale `undefined` finché l'utente non
+ * scrive, e il tipo del form deve poterlo dire. `TValues` descrive ciò che vive
+ * nel form, `TOutput` ciò che `handleSubmit` riceve dopo la validazione.
+ */
+export function typedZodResolverFor<TValues extends FieldValues, TOutput extends FieldValues>(
+  schema: z.ZodType,
+): Resolver<TValues, unknown, TOutput> {
+  return zodResolver(schema as never) as unknown as Resolver<TValues, unknown, TOutput>
+}

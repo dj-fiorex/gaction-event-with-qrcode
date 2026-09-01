@@ -178,11 +178,24 @@ export const allergiesInputSchema = z.string().trim().max(300, 'Massimo 300 cara
 export const childInputSchema = z.object({
   name: z.string().trim().min(2, 'Inserisci il nome del bambino'),
   allergies: allergiesInputSchema,
-  age: z.coerce
-    .number({ message: 'Inserisci un\u2019età valida' })
-    .int('L\u2019età deve essere un numero intero')
-    .min(0, 'Età non valida')
-    .max(17, 'L\u2019età deve essere inferiore a 18'),
+  /**
+   * Età del Figlio. Nel form nasce **vuota**: non esiste un valore
+   * precompilato che passi la validazione senza che nessuno l'abbia scelto.
+   *
+   * Il vuoto va respinto in tutte e due le forme in cui può arrivare: `NaN`
+   * se il campo è registrato con `valueAsNumber` (come fa il form), stringa
+   * vuota altrimenti. Senza il preprocess, `z.coerce.number()` convertirebbe
+   * la stringa vuota in 0 — un'età valida, accettata in silenzio, che è
+   * esattamente il difetto che questo campo ha smesso di avere.
+   */
+  age: z.preprocess(
+    (value) => (value === '' ? Number.NaN : value),
+    z.coerce
+      .number({ message: 'Inserisci l\u2019età del figlio' })
+      .int('L\u2019età deve essere un numero intero')
+      .min(0, 'Età non valida')
+      .max(17, 'L\u2019età deve essere inferiore a 18'),
+  ),
 })
 
 export const companionInputSchema = z.object({
@@ -215,6 +228,15 @@ export const registrationSchema = z.object({
 export type ChildInput = z.infer<typeof childInputSchema>
 export type CompanionInput = z.infer<typeof companionInputSchema>
 export type RegistrationInput = z.infer<typeof registrationSchema>
+
+/**
+ * I valori come vivono **dentro** il form, prima della validazione: l'età di un
+ * Figlio può non esserci ancora, perché la casella nasce vuota. `RegistrationInput`
+ * resta il tipo dell'output validato, quello che riceve `handleSubmit`.
+ */
+export type RegistrationFormValues = Omit<RegistrationInput, 'children'> & {
+  children: (Omit<ChildInput, 'age'> & { age: number | undefined })[]
+}
 
 /**
  * Schema di registrazione parametrico sulla «Raccolta nomi» (issue #36).

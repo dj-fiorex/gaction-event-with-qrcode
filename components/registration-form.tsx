@@ -24,9 +24,10 @@ import {
   makeDeclineSchema,
   makeRegistrationSchema,
   type DeclineInput,
+  type RegistrationFormValues,
   type RegistrationInput,
 } from '@/lib/schemas'
-import { typedZodResolver } from '@/lib/zod-resolver'
+import { typedZodResolver, typedZodResolverFor } from '@/lib/zod-resolver'
 import { formatTime, formatTimeRange, formatDateRange } from '@/lib/format'
 import { buildTicketsEmailPdf } from '@/lib/pdf/email-attachment'
 import { generateQrDataUrl } from '@/lib/qr-client'
@@ -112,8 +113,14 @@ export function RegistrationForm({
   // quello della mutation — qui si evita solo un viaggio inutile al server.
   const privacyNotice = event.privacyNotice.trim()
   const requiresPrivacy = privacyNotice.length > 0
+  // Due tipi, non uno: `RegistrationFormValues` è ciò che vive nel form —
+  // dove l'età di un Figlio può ancora non esserci — mentre `handleSubmit`
+  // riceve `RegistrationInput`, cioè l'output già validato.
   const registrationResolver = useMemo(
-    () => typedZodResolver(makeRegistrationSchema(collectNames, requiresPrivacy)),
+    () =>
+      typedZodResolverFor<RegistrationFormValues, RegistrationInput>(
+        makeRegistrationSchema(collectNames, requiresPrivacy),
+      ),
     [collectNames, requiresPrivacy],
   )
 
@@ -125,7 +132,7 @@ export function RegistrationForm({
     setValue,
     watch,
     formState: { errors },
-  } = useForm<RegistrationInput>({
+  } = useForm<RegistrationFormValues, unknown, RegistrationInput>({
     resolver: registrationResolver,
     defaultValues: {
       eventId: event.id,
@@ -158,11 +165,6 @@ export function RegistrationForm({
     : event.maxCompanionsPerRegistration
   const showChildren = event.allowChildren && (!familyRuleActive || familyBranch === 'children')
   const showCompanions = event.allowCompanions && (!familyRuleActive || familyBranch !== null)
-  // «Ospite» ha sostituito «Accompagnatore» ovunque nella UI (issue #36). Il
-  // committente scrive «accompagnatore» nei suoi testi ma anche «i tuoi
-  // ospiti»: il titolo della sezione è suo, la categoria resta quella del
-  // dominio — sui biglietti, nell'export e allo scanner si legge «Ospite 1».
-  const companionsNamePlaceholder = "Nome dell'ospite"
   const familyBranchMissing = familyRuleActive && familyBranch === null
 
   const isMember = user?.role === 'member'
@@ -670,33 +672,25 @@ export function RegistrationForm({
             }
             fields={childrenArray.fields}
             canAdd={childrenArray.fields.length < event.maxChildrenPerRegistration}
-            onAdd={() => childrenArray.append({ name: '', age: 0, allergies: '' })}
+            /* L'età nasce vuota, non a 0: uno 0 precompilato è già valido e
+               chi non tocca il campo prenoterebbe un neonato senza saperlo. */
+            onAdd={() => childrenArray.append({ name: '', age: undefined, allergies: '' })}
             onRemove={childrenArray.remove}
             collectNames={collectNames}
             idPrefix="figlio"
             labelSingular="Figlio"
-            renderExtra={(index) => (
-              <div className="grid w-24 gap-2">
-                <Label htmlFor={`child-age-${index}`} className="sr-only">
-                  Età
-                </Label>
-                <Input
-                  id={`child-age-${index}`}
-                  type="number"
-                  min={0}
-                  max={17}
-                  placeholder="Età"
-                  {...register(`children.${index}.age` as const, { valueAsNumber: true })}
-                />
-              </div>
-            )}
             register={(index) => register(`children.${index}.name` as const)}
+            /* `valueAsNumber`: senza, una casella svuotata arriverebbe allo
+               schema come stringa vuota e `z.coerce.number()` la renderebbe 0. */
+            registerAge={(index) =>
+              register(`children.${index}.age` as const, { valueAsNumber: true })
+            }
             registerAllergies={
               collectAllergies
                 ? (index) => register(`children.${index}.allergies` as const)
                 : undefined
             }
-            namePlaceholder="Nome del figlio"
+            errors={errors.children}
           />
         )}
 
@@ -714,6 +708,11 @@ export function RegistrationForm({
             onRemove={companionsArray.remove}
             collectNames={collectNames}
             idPrefix="ospite"
+            /* «Ospite» ha sostituito «Accompagnatore» ovunque nella UI (issue
+               #36). Il committente scrive «accompagnatore» nei suoi testi ma
+               anche «i tuoi ospiti»: il titolo della sezione è suo, la
+               categoria resta quella del dominio — sui biglietti, nell'export
+               e allo scanner si legge «Ospite 1». */
             labelSingular="Ospite"
             register={(index) => register(`companions.${index}.name` as const)}
             registerAllergies={
@@ -721,7 +720,7 @@ export function RegistrationForm({
                 ? (index) => register(`companions.${index}.allergies` as const)
                 : undefined
             }
-            namePlaceholder={companionsNamePlaceholder}
+            errors={errors.companions}
           />
         )}
 
@@ -893,6 +892,20 @@ function RegistrationNotice({
   )
 }
 
+/**
+ * Errori di una singola Persona, nella forma che react-hook-form produce per
+ * un elemento di `children` / `companions`.
+ */
+interface PersonFieldErrors {
+  name?: { message?: string }
+  age?: { message?: string }
+  allergies?: { message?: string }
+}
+
+type RegisterField = (
+  index: number,
+) => ReturnType<ReturnType<typeof useForm<RegistrationFormValues>>['register']>
+
 interface PersonRepeaterProps {
   title: string
   hint: string
@@ -900,15 +913,25 @@ interface PersonRepeaterProps {
   canAdd: boolean
   onAdd: () => void
   onRemove: (index: number) => void
-  register: (index: number) => ReturnType<ReturnType<typeof useForm<RegistrationInput>>['register']>
+  register: RegisterField
+  /**
+   * Età: la chiede solo il blocco Figli, perché solo il Figlio ha un'età nel
+   * dominio. Arriva come prop dedicata e non come slot generico: è la riga a
+   * dover conoscere tutte le sue colonne, altrimenti non sa come comprimerle
+   * quando lo spazio non basta.
+   */
+  registerAge?: RegisterField
   /**
    * Allergie e intolleranze (issue #37): presente solo quando l'Evento le
    * chiede; assente = nessun campo allergie in questo blocco Persona.
    */
-  registerAllergies?: (
-    index: number,
-  ) => ReturnType<ReturnType<typeof useForm<RegistrationInput>>['register']>
-  namePlaceholder: string
+  registerAllergies?: RegisterField
+  /**
+   * Errori per Persona, indicizzati come `fields`. Non è un array: quello che
+   * react-hook-form produce per un campo-lista è un array «fuso» con l'errore
+   * della lista intera, quindi ne accettiamo il solo accesso per indice.
+   */
+  errors?: { [index: number]: PersonFieldErrors | undefined }
   /**
    * Prefisso degli id dei campi. Separato dal titolo perché il titolo è copy
    * («Chi porti con te») e un id con gli spazi dentro non è un selettore.
@@ -918,7 +941,6 @@ interface PersonRepeaterProps {
   collectNames: boolean
   /** Prefisso dell'Etichetta posizionale («Figlio», «Ospite») usato quando i nomi non sono raccolti. */
   labelSingular: string
-  renderExtra?: (index: number) => React.ReactNode
 }
 
 function PersonRepeater({
@@ -929,15 +951,21 @@ function PersonRepeater({
   onAdd,
   onRemove,
   register,
+  registerAge,
   registerAllergies,
-  namePlaceholder,
+  errors,
   idPrefix,
   collectNames,
   labelSingular,
-  renderExtra,
 }: PersonRepeaterProps) {
   return (
-    <section>
+    // `@container` e non un breakpoint sul viewport: nella pagina pubblica il
+    // form vive nella colonna destra di una griglia che si attiva a `lg`,
+    // quindi sopra i 1024px è largo ~400px, mentre a 900px di viewport ne
+    // occupa ~860. Lo schermo dice l'opposto dello spazio reale, e
+    // nell'incorporamento la larghezza la decide il sito ospitante. Chi
+    // «semplifica» in `sm:flex-row` rompe proprio il desktop.
+    <section className="@container">
       <div className="flex items-start justify-between gap-3">
         <div>
           <h3 className="text-base font-semibold">{title}</h3>
@@ -961,54 +989,79 @@ function PersonRepeater({
           l'Etichetta posizionale che le fa da intestazione e il doppio dello
           spazio rispetto a quello tra i campi della stessa Persona. */}
       <div className="mt-4 flex flex-col gap-6">
-        {fields.map((field, index) => (
-          <div key={field.id} className="flex flex-col gap-2">
-            <div className="flex items-center justify-between gap-3">
-              <p className="text-sm font-medium">
-                {labelSingular} {index + 1}
-              </p>
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                onClick={() => onRemove(index)}
-                aria-label={`Rimuovi ${labelSingular} ${index + 1}`}
-              >
-                <Trash2 className="h-4 w-4" aria-hidden="true" />
-              </Button>
-            </div>
-            {(collectNames || renderExtra) && (
-              <div className="flex items-start gap-3">
+        {fields.map((field, index) => {
+          const fieldErrors = errors?.[index]
+          return (
+            <div key={field.id} className="flex flex-col gap-2">
+              <div className="flex items-center justify-between gap-3">
+                <p className="text-sm font-medium">
+                  {labelSingular} {index + 1}
+                </p>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => onRemove(index)}
+                  aria-label={`Rimuovi ${labelSingular} ${index + 1}`}
+                >
+                  <Trash2 className="h-4 w-4" aria-hidden="true" />
+                </Button>
+              </div>
+              {/* Una riga sola quando il form ha spazio, campi impilati quando
+                  non ne ha. Ogni campo porta la propria label visibile: il
+                  placeholder da solo sparisce appena si digita, e una casella
+                  con dentro «7» non dice più di cosa sia. */}
+              <div className="flex flex-col gap-3 @2xl:flex-row @2xl:items-start">
                 {collectNames && (
-                  <div className="grid flex-1 gap-2">
-                    <Label htmlFor={`${idPrefix}-name-${index}`} className="sr-only">
-                      {namePlaceholder}
-                    </Label>
+                  <div className="grid gap-2 @2xl:flex-1">
+                    <Label htmlFor={`${idPrefix}-name-${index}`}>Nome</Label>
                     <Input
                       id={`${idPrefix}-name-${index}`}
-                      placeholder={namePlaceholder}
+                      placeholder="Nome e cognome"
+                      aria-invalid={!!fieldErrors?.name}
                       {...register(index)}
                     />
+                    {fieldErrors?.name && (
+                      <p className="text-sm text-destructive">{fieldErrors.name.message}</p>
+                    )}
                   </div>
                 )}
-                {renderExtra?.(index)}
+                {registerAge && (
+                  <div className="grid w-24 gap-2">
+                    <Label htmlFor={`${idPrefix}-age-${index}`}>Età</Label>
+                    <Input
+                      id={`${idPrefix}-age-${index}`}
+                      type="number"
+                      min={0}
+                      max={17}
+                      placeholder="0-17"
+                      aria-invalid={!!fieldErrors?.age}
+                      {...registerAge(index)}
+                    />
+                    {fieldErrors?.age && (
+                      <p className="text-sm text-destructive">{fieldErrors.age.message}</p>
+                    )}
+                  </div>
+                )}
+                {/* Allergie e intolleranze (issue #37): facoltative, vuoto = nessuna dichiarazione. */}
+                {registerAllergies && (
+                  <div className="grid gap-2 @2xl:flex-1">
+                    <Label htmlFor={`${idPrefix}-allergies-${index}`}>Allergie (facoltativo)</Label>
+                    <Input
+                      id={`${idPrefix}-allergies-${index}`}
+                      placeholder="Es. lattosio, glutine…"
+                      aria-invalid={!!fieldErrors?.allergies}
+                      {...registerAllergies(index)}
+                    />
+                    {fieldErrors?.allergies && (
+                      <p className="text-sm text-destructive">{fieldErrors.allergies.message}</p>
+                    )}
+                  </div>
+                )}
               </div>
-            )}
-            {/* Allergie e intolleranze (issue #37): facoltative, vuoto = nessuna dichiarazione. */}
-            {registerAllergies && (
-              <div className="grid gap-2">
-                <Label htmlFor={`${idPrefix}-allergies-${index}`} className="sr-only">
-                  Allergie o intolleranze di {labelSingular} {index + 1}
-                </Label>
-                <Input
-                  id={`${idPrefix}-allergies-${index}`}
-                  placeholder="Allergie o intolleranze (facoltativo)"
-                  {...registerAllergies(index)}
-                />
-              </div>
-            )}
-          </div>
-        ))}
+            </div>
+          )
+        })}
       </div>
     </section>
   )
