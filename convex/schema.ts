@@ -142,6 +142,16 @@ export default defineSchema({
     emailSubject: v.optional(v.string()),
     emailBody: v.optional(v.string()),
     /**
+     * Riepilogo della Prenotazione in coda all'email: assente o true = si
+     * vede (comportamento odierno), quindi nessun backfill. false = l'email è
+     * il solo Testo, i ticketCode viaggiano soltanto nel PDF allegato e le
+     * allergie di quell'Evento restano leggibili solo in admin. È un
+     * interruttore e non una rimozione perché il Riepilogo è l'unica
+     * superficie che l'Utente riceve con le allergie: spegnerlo è una scelta
+     * dell'Evento, non del prodotto.
+     */
+    emailShowSummary: v.optional(v.boolean()),
+    /**
      * Esito della Prenotazione (ADR 0014): titolo, corpo e chiusura della
      * schermata mostrata dopo una Prenotazione riuscita. Testo semplice a
      * paragrafi, non markdown. Ripiego **indipendente per campo**: assenti o

@@ -15,8 +15,9 @@ import { ticketsPdfFilename } from '../lib/pdf/filename'
  * Persone, invece di riceverli dal browser.
  *
  * Restituisce già il documento markdown completo — corpo dell'Evento (o
- * ripiego) più Riepilogo della Prenotazione — e il payload del PDF allegato,
- * così alla action restano solo `renderToBuffer()`, `render()` e la consegna.
+ * ripiego), con i Segnaposto sostituiti, più Riepilogo della Prenotazione se
+ * l'Evento lo vuole — e il payload del PDF allegato, così alla action restano
+ * solo `renderToBuffer()`, `render()` e la consegna.
  */
 export const ticketEmailDocument = internalQuery({
   args: { registrationId: v.id('registrations') },
@@ -100,6 +101,9 @@ export const ticketEmailDocument = internalQuery({
         // parte con lui, o la Consegna si chiude «non riuscita» (ADR 0015).
         // Il corpo di ripiego può quindi annunciarlo senza riserve.
         hasPdf: true,
+        // Assente = si vede: gli Eventi nati prima dell'interruttore mandano
+        // la stessa email di prima, senza backfill.
+        showSummary: event.emailShowSummary ?? true,
       }),
       personsCount: persons.length,
       pdf: {

@@ -86,6 +86,8 @@ export const eventSchema = z
      */
     emailSubject: z.string().trim().max(200, 'Oggetto troppo lungo').optional(),
     emailBody: z.string().optional(),
+    /** Riepilogo della Prenotazione in coda all'email: attivo di default (comportamento odierno). */
+    emailShowSummary: z.boolean().default(true),
     /**
      * Esito della Prenotazione (ADR 0014): testo semplice a paragrafi. Vuoti =
      * ripiego sul testo odierno, campo per campo. Il titolo ha un tetto più

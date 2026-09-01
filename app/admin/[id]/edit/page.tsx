@@ -39,6 +39,7 @@ function toEventInput(event: EventWithStats): EventInput {
     recordExit: event.recordExit,
     emailSubject: event.emailSubject,
     emailBody: event.emailBody,
+    emailShowSummary: event.emailShowSummary,
     resultTitle: event.resultTitle,
     resultBody: event.resultBody,
     resultClosing: event.resultClosing,

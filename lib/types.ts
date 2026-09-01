@@ -105,6 +105,11 @@ export interface Event {
   emailSubject: string
   emailBody: string
   /**
+   * Riepilogo della Prenotazione in coda all'email. true (default) = si vede;
+   * false = l'email è il solo Testo. Solo per operatori: true lato pubblico.
+   */
+  emailShowSummary: boolean
+  /**
    * Esito della Prenotazione (ADR 0014): titolo, corpo e chiusura della
    * schermata che segue una Prenotazione riuscita. Testo semplice a paragrafi.
    * Stringa vuota = ripiego, campo per campo (la chiusura vuota non rende

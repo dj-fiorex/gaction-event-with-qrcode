@@ -6,7 +6,7 @@ import { internal } from '../../convex/_generated/api'
 import type { Id } from '../../convex/_generated/dataModel'
 import schema from '../../convex/schema'
 
-import { buildTicketsEmailMarkdown } from '../../lib/email-content'
+import { applyPlaceholders, buildTicketsEmailMarkdown } from '../../lib/email-content'
 
 const modules = import.meta.glob('../../convex/**/*.ts')
 
@@ -18,6 +18,7 @@ async function createEventFixture(
     collectNames,
     emailSubject,
     emailBody,
+    emailShowSummary,
   }: {
     title?: string
     location?: string
@@ -27,6 +28,8 @@ async function createEventFixture(
     emailSubject?: string
     /** Omesso = campo assente (l'app ripiega sul corpo odierno). */
     emailBody?: string
+    /** Omesso = campo assente (il Riepilogo si vede, come prima dell'interruttore). */
+    emailShowSummary?: boolean
   } = {},
 ) {
   return t.run((ctx) =>
@@ -50,6 +53,7 @@ async function createEventFixture(
       ...(collectNames === undefined ? {} : { collectNames }),
       ...(emailSubject === undefined ? {} : { emailSubject }),
       ...(emailBody === undefined ? {} : { emailBody }),
+      ...(emailShowSummary === undefined ? {} : { emailShowSummary }),
     }),
   )
 }
@@ -269,6 +273,7 @@ test('il corpo di ripiego smette di promettere il QR quando non c’è allegato'
       },
     ],
     hasPdf: false,
+    showSummary: true,
   })
 
   // Senza allegato il QR non è da nessuna parte nell'email: prometterlo
@@ -304,6 +309,138 @@ test('ticketEmailDocument neutralises markdown and HTML written by the user', as
   expect(document.markdown).toContain(
     '  - Allergie e intolleranze: niente \\*glutine\\* e niente \\[lattosio\\](http://x)',
   )
+})
+
+/* ------------------------------------------------------------------ */
+/* Riepilogo spegnibile per Evento                                      */
+/* ------------------------------------------------------------------ */
+
+test('a Riepilogo spento l’email è il solo Testo, e i codici restano nel PDF', async () => {
+  const t = convexTest(schema, modules)
+  const eventId = await createEventFixture(t, {
+    emailBody: 'Grazie per la tua prenotazione!\n\nA prestissimo!',
+    emailShowSummary: false,
+  })
+  const registrationId = await createBookingFixture(t, eventId, {
+    persons: [
+      {
+        firstName: 'Mario',
+        lastName: 'Rossi',
+        category: 'user',
+        allergies: 'Glutine',
+        ticketCode: 'ABC-123',
+      },
+      { firstName: 'Figlio 1', nameProvided: false, category: 'child', age: 8, ticketCode: 'DEF-456' },
+    ],
+  })
+
+  const document = await t.query(internal.emailContent.ticketEmailDocument, { registrationId })
+
+  expect(document.markdown).toBe('Grazie per la tua prenotazione!\n\nA prestissimo!\n')
+  expect(document.markdown).not.toContain('Riepilogo')
+  expect(document.markdown).not.toContain('ABC-123')
+  // Le allergie di quell'Evento restano leggibili solo in admin.
+  expect(document.markdown).not.toContain('Glutine')
+  // Il PDF le Persone le porta tutte, come prima: è lì che vivono i QR.
+  expect(document.pdf.persons.map((p) => p.ticketCode)).toEqual(['ABC-123', 'DEF-456'])
+  expect(document.personsCount).toBe(2)
+})
+
+test('il Riepilogo si vede quando l’interruttore è acceso e quando l’Evento non ce l’ha', async () => {
+  const t = convexTest(schema, modules)
+  const explicit = await createEventFixture(t, { emailBody: 'Ciao!', emailShowSummary: true })
+  const legacy = await createEventFixture(t, { emailBody: 'Ciao!' })
+
+  const documents = await Promise.all(
+    [explicit, legacy].map(async (eventId) =>
+      t.query(internal.emailContent.ticketEmailDocument, {
+        registrationId: await createBookingFixture(t, eventId, {
+          persons: [{ firstName: 'Mario', lastName: 'Rossi', category: 'user', ticketCode: 'ABC-123' }],
+        }),
+      }),
+    ),
+  )
+
+  for (const document of documents) {
+    expect(document.markdown).toContain('## Riepilogo della prenotazione')
+    expect(document.markdown).toContain('`ABC-123`')
+  }
+})
+
+/* ------------------------------------------------------------------ */
+/* Segnaposto: {{nome}} e {{cognome}} dell'Utente                       */
+/* ------------------------------------------------------------------ */
+
+test('ticketEmailDocument sostituisce i Segnaposto con nome e cognome dell’Utente, neutralizzati', async () => {
+  const t = convexTest(schema, modules)
+  const eventId = await createEventFixture(t, {
+    emailBody: 'Gentile {{nome}} {{ Cognome }},\n\ngrazie per la tua registrazione.',
+    emailShowSummary: false,
+  })
+  // Il Figlio viene prima dell'Utente in tabella: il Segnaposto deve cercare
+  // la categoria, non prendere la prima riga.
+  const registrationId = await createBookingFixture(t, eventId, {
+    persons: [
+      { firstName: 'Luca', category: 'child', age: 8, ticketCode: 'DEF-456' },
+      { firstName: 'Mario', lastName: '<b>Rossi</b>', category: 'user', ticketCode: 'ABC-123' },
+    ],
+  })
+
+  const document = await t.query(internal.emailContent.ticketEmailDocument, { registrationId })
+
+  expect(document.markdown).toBe(
+    'Gentile Mario \\<b\\>Rossi\\</b\\>,\n\ngrazie per la tua registrazione.\n',
+  )
+  expect(document.markdown).not.toContain('Luca')
+  expect(document.markdown).not.toContain('{{')
+})
+
+test('applyPlaceholders lascia intatto ciò che non è un Segnaposto, e senza Utente li toglie', () => {
+  const utente = { firstName: 'Mario', lastName: 'Rossi' }
+
+  // Solo le due parole, in qualunque maiuscola e con spazi dentro le graffe.
+  expect(applyPlaceholders('{{nome}} {{NOME}} {{ cognome }} {{Cognome}}', utente)).toBe(
+    'Mario Mario Rossi Rossi',
+  )
+  // Un token sconosciuto passa intatto: è il contratto di emailmd, e chi lo
+  // legge nell'email lo vede — meglio di una sostituzione inventata.
+  expect(applyPlaceholders('Ciao {{evento}} e {{ nome cognome }}', utente)).toBe(
+    'Ciao {{evento}} e {{ nome cognome }}',
+  )
+  // Il valore non è mai interpretato come pattern di `replace` («$&» sarebbe
+  // il testo trovato) né come markdown: la `&` esce neutralizzata come nel
+  // Riepilogo, e il rendering la restituisce com'era.
+  expect(applyPlaceholders('{{nome}}', { firstName: '$& *Mario*', lastName: null })).toBe(
+    '$\\& \\*Mario\\*',
+  )
+  // Senza Utente i Segnaposto spariscono invece di arrivare in chiaro.
+  expect(applyPlaceholders('Gentile {{nome}} {{cognome}},', undefined)).toBe('Gentile  ,')
+})
+
+test('il corpo di ripiego non conosce Segnaposto e il Riepilogo non li sostituisce', () => {
+  const persons = [
+    {
+      firstName: 'Mario',
+      lastName: 'Rossi',
+      nameProvided: true,
+      category: 'user' as const,
+      age: null,
+      allergies: 'scrivere {{nome}} qui non fa niente',
+      ticketCode: 'ABC-123',
+    },
+  ]
+  const markdown = buildTicketsEmailMarkdown({
+    emailBody: undefined,
+    event: { title: 'Evento {{nome}}', location: 'Roma' },
+    persons,
+    hasPdf: true,
+    showSummary: true,
+  })
+
+  // Il titolo dell'Evento e le allergie sono testo, non template: un `{{nome}}`
+  // scritto lì resta com'è (e neutralizzato dove serve).
+  expect(markdown).toContain('## Evento {{nome}}')
+  expect(markdown).toContain('Allergie e intolleranze: scrivere {{nome}} qui non fa niente')
 })
 
 /* ------------------------------------------------------------------ */

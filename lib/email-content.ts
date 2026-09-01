@@ -6,10 +6,11 @@ import type { PersonCategory } from './types'
  * Composizione del documento markdown dell'email di conferma (issue #42).
  *
  * L'email è: il **Testo dell'email di conferma** dell'Evento — markdown scritto
- * dall'admin — seguito dal **Riepilogo della Prenotazione** generato. I due
- * pezzi vengono concatenati *come markdown* e resi con una sola `render()`:
- * niente splicing di HTML, così l'anteprima nel form admin mostra il corpo
- * passato per lo stesso motore che rende l'email in partenza.
+ * dall'admin, con i **Segnaposto** del nome sostituiti — seguito dal
+ * **Riepilogo della Prenotazione** generato, se l'Evento lo vuole. I due pezzi
+ * vengono concatenati *come markdown* e resi con una sola `render()`: niente
+ * splicing di HTML, così l'anteprima nel form admin mostra il corpo passato
+ * per lo stesso motore che rende l'email in partenza.
  *
  * I QR code non compaiono più nel corpo: viaggiano solo nel PDF allegato
  * (ADR 0007).
@@ -126,6 +127,42 @@ function defaultEmailBody(event: { title: string; location: string; hasPdf: bool
   ].join('\n')
 }
 
+/**
+ * Segnaposto: le due parole che l'admin può scrivere nel Testo e che qui
+ * diventano il nome e il cognome dell'Utente. L'insieme è chiuso e minimo —
+ * ogni Segnaposto in più è una promessa da mantenere per sempre — e le
+ * maiuscole e gli spazi dentro le graffe non contano, perché l'anteprima nel
+ * form li mostra com'è scritti e non saprebbe dire a chi li scrive che
+ * `{{ Nome }}` è sbagliato. Tutto il resto fra doppie graffe passa intatto:
+ * è il contratto di `emailmd`, e chi lo legge nell'email lo vede.
+ */
+const PLACEHOLDER = /\{\{\s*(nome|cognome)\s*\}\}/gi
+
+/** L'Utente come serve ai Segnaposto: i due campi del nome. */
+export interface PlaceholderPerson {
+  firstName: string
+  lastName: string | null
+}
+
+/**
+ * Sostituisce i Segnaposto nel Testo dell'Evento. I valori entrano
+ * **neutralizzati** come il testo dell'Utente nel Riepilogo: un nome con un
+ * asterisco resta un nome con un asterisco, e un `<b>` resta un `<b>` — il
+ * Testo è markdown pieno, e un nome che potesse chiudere un tag lo sarebbe
+ * anche lui. Senza Utente — non dovrebbe accadere, una Prenotazione ne ha
+ * sempre uno — i Segnaposto spariscono invece di restare in chiaro a un
+ * lettore vero.
+ */
+export function applyPlaceholders(body: string, utente: PlaceholderPerson | undefined): string {
+  const values = {
+    nome: escapeInlineUserText(utente?.firstName ?? ''),
+    cognome: escapeInlineUserText(utente?.lastName ?? ''),
+  }
+  return body.replace(PLACEHOLDER, (_match, key: string) => {
+    return values[key.toLowerCase() as keyof typeof values]
+  })
+}
+
 /** Oggetto dell'email. Vuoto sull'Evento = ripiego sulla formulazione odierna. */
 export function ticketsEmailSubject(emailSubject: string | undefined, title: string): string {
   return normalizeEmailCopy(emailSubject)?.trim() ?? `Ticket per ${title}`
@@ -133,24 +170,35 @@ export function ticketsEmailSubject(emailSubject: string | undefined, title: str
 
 /**
  * Documento completo da passare a `render()`: corpo dell'Evento (o ripiego),
- * separatore, Riepilogo.
+ * poi — se l'Evento vuole il Riepilogo — separatore e Riepilogo.
  *
  * Il corpo viene sempre per primo, e non è mai vuoto: un documento che
  * cominciasse con `---` verrebbe letto come frontmatter invece che come riga
  * orizzontale.
+ *
+ * I Segnaposto si sostituiscono solo nel Testo scritto dall'admin: il corpo di
+ * ripiego è nostro e non ne contiene. L'Utente si cerca fra le Persone della
+ * Prenotazione, che arrivano comunque — anche a Riepilogo spento servono per
+ * il nome.
  */
 export function buildTicketsEmailMarkdown(args: {
   emailBody: string | undefined
   event: { title: string; location: string }
   persons: EmailSummaryPerson[]
   hasPdf: boolean
+  /** Riepilogo in coda? Sull'Evento assente vale true: si vede. */
+  showSummary: boolean
 }): string {
+  const authored = normalizeEmailCopy(args.emailBody)?.trim()
+  const utente = args.persons.find((person) => person.category === 'user')
   const body =
-    normalizeEmailCopy(args.emailBody)?.trim() ??
-    defaultEmailBody({
-      title: args.event.title,
-      location: args.event.location,
-      hasPdf: args.hasPdf,
-    })
+    authored !== undefined
+      ? applyPlaceholders(authored, utente)
+      : defaultEmailBody({
+          title: args.event.title,
+          location: args.event.location,
+          hasPdf: args.hasPdf,
+        })
+  if (!args.showSummary) return `${body}\n`
   return `${body}\n\n---\n\n${buildBookingSummary(args.persons)}\n`
 }

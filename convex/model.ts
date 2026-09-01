@@ -217,6 +217,8 @@ export interface EventWithStatsDTO {
    */
   emailSubject: string
   emailBody: string
+  /** Riepilogo in coda all'email. true (default) = si vede. Solo operatori. */
+  emailShowSummary: boolean
   /**
    * Esito della Prenotazione (ADR 0014). Vuoti = ripiego sul testo odierno.
    * **Pubblici**, a differenza di `emailSubject`/`emailBody`: è la schermata
@@ -424,6 +426,9 @@ export async function loadEventWithStats(
     // admin, non esposta al pubblico — come scanToken e allowedOrigins.
     emailSubject: opts.includeScanToken ? (event.emailSubject ?? '') : '',
     emailBody: opts.includeScanToken ? (event.emailBody ?? '') : '',
+    // Al pubblico vale il default: non c'è niente da leggere, e niente da
+    // rivelare.
+    emailShowSummary: opts.includeScanToken ? (event.emailShowSummary ?? true) : true,
     // L'Esito della Prenotazione invece è pubblico: lo rende il form a
     // chiunque prenoti, embed compreso. Il ripiego non è qui ma in
     // `lib/result-content.ts`, perché dipende dal numero di Persone e dallo

@@ -61,6 +61,8 @@ const eventInput = {
   recordExit: v.boolean(),
   emailSubject: v.optional(v.string()),
   emailBody: v.optional(v.string()),
+  /** Riepilogo in coda all'email. Assente = si vede, come sullo schema. */
+  emailShowSummary: v.optional(v.boolean()),
   /**
    * Esito della Prenotazione (ADR 0014). Vuoti = ripiego sul testo odierno,
    * campo per campo. Testo semplice a paragrafi, non markdown.
@@ -570,6 +572,7 @@ export const create = mutation({
       recordExit: args.recordExit,
       emailSubject: normalizeEmailCopy(args.emailSubject),
       emailBody: normalizeEmailCopy(args.emailBody),
+      emailShowSummary: args.emailShowSummary,
       resultTitle: normalizeEmailCopy(args.resultTitle),
       resultBody: normalizeEmailCopy(args.resultBody),
       resultClosing: normalizeEmailCopy(args.resultClosing),
@@ -646,6 +649,7 @@ export const update = mutation({
       recordExit: args.recordExit,
       emailSubject: normalizeEmailCopy(args.emailSubject),
       emailBody: normalizeEmailCopy(args.emailBody),
+      emailShowSummary: args.emailShowSummary,
       resultTitle: normalizeEmailCopy(args.resultTitle),
       resultBody: normalizeEmailCopy(args.resultBody),
       resultClosing: normalizeEmailCopy(args.resultClosing),

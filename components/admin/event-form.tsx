@@ -71,6 +71,7 @@ const defaultValues: EventInput = {
   recordExit: false,
   emailSubject: '',
   emailBody: '',
+  emailShowSummary: true,
   resultTitle: '',
   resultBody: '',
   resultClosing: '',
@@ -879,9 +880,11 @@ export function EventForm({
           <legend className="font-medium">Email di conferma</legend>
           <p className="text-sm text-muted-foreground">
             Oggetto e corpo dell&rsquo;email inviata dopo una prenotazione. Il corpo si scrive in
-            markdown e l&rsquo;anteprima a fianco è quella che arriva davvero. Sotto al testo viene
-            aggiunto il riepilogo della prenotazione, con i codici biglietto; i QR code viaggiano
-            nel PDF allegato. Lasciando i campi vuoti si usa il testo predefinito.
+            markdown e l&rsquo;anteprima a fianco è quella che arriva davvero; i QR code viaggiano
+            nel PDF allegato. Nel corpo puoi scrivere <code>{'{{nome}}'}</code> e{' '}
+            <code>{'{{cognome}}'}</code>: all&rsquo;invio diventano nome e cognome
+            dell&rsquo;iscritto (l&rsquo;anteprima li mostra così come sono). Lasciando i campi
+            vuoti si usa il testo predefinito.
           </p>
         </div>
 
@@ -906,6 +909,31 @@ export function EventForm({
             )}
           />
           <FieldError message={errors.emailBody?.message} />
+        </div>
+
+        <div className="flex items-start gap-2">
+          <Controller
+            control={control}
+            name="emailShowSummary"
+            render={({ field }) => (
+              <Checkbox
+                id="emailShowSummary"
+                className="mt-0.5"
+                checked={field.value}
+                onCheckedChange={(checked) => field.onChange(checked === true)}
+              />
+            )}
+          />
+          <div className="grid gap-1">
+            <Label htmlFor="emailShowSummary" className="font-normal">
+              Aggiungi il riepilogo della prenotazione in coda all&rsquo;email
+            </Label>
+            <p className="text-sm text-muted-foreground">
+              Un elenco con, per ogni persona, nome o etichetta, età, codice biglietto e allergie
+              dichiarate. Spento, l&rsquo;email è il solo testo qui sopra: i codici restano nel PDF
+              allegato e le allergie si leggono solo nel pannello.
+            </p>
+          </div>
         </div>
       </fieldset>
 

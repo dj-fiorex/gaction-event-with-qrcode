@@ -6,28 +6,32 @@
 
 import { render } from 'emailmd'
 import { expect, test } from 'vitest'
-import { buildTicketsEmailMarkdown } from '../../lib/email-content'
+import { buildTicketsEmailMarkdown, type EmailSummaryPerson } from '../../lib/email-content'
 
-const markdownFor = (person: {
+const personFor = (person: {
   firstName: string
   lastName: string
   allergies: string | null
-}) =>
+}): EmailSummaryPerson => ({
+  firstName: person.firstName,
+  lastName: person.lastName,
+  nameProvided: true,
+  category: 'user',
+  age: null,
+  allergies: person.allergies,
+  ticketCode: 'ABC-123',
+})
+
+const markdownFor = (
+  person: { firstName: string; lastName: string; allergies: string | null },
+  options: { emailBody?: string; showSummary?: boolean } = {},
+) =>
   buildTicketsEmailMarkdown({
-    emailBody: 'Grazie per la tua prenotazione!\n\nA prestissimo!',
+    emailBody: options.emailBody ?? 'Grazie per la tua prenotazione!\n\nA prestissimo!',
     event: { title: 'Evento test', location: 'Roma' },
-    persons: [
-      {
-        firstName: person.firstName,
-        lastName: person.lastName,
-        nameProvided: true,
-        category: 'user',
-        age: null,
-        allergies: person.allergies,
-        ticketCode: 'ABC-123',
-      },
-    ],
+    persons: [personFor(person)],
     hasPdf: true,
+    showSummary: options.showSummary ?? true,
   })
 
 test('the rendered email carries an HTML part and a plain text alternative', async () => {
@@ -60,4 +64,31 @@ test('what the user wrote reaches the rendered email as text, never as markup', 
   // E nella parte testuale il lettore rivede esattamente ciò che ha dichiarato.
   expect(text).toContain('Mario <b>Rossi</b>')
   expect(text).toContain('niente *glutine*')
+})
+
+test('the name substituted for a Segnaposto reaches the rendered email as text, never as markup', async () => {
+  const { html, text } = await render(
+    markdownFor(
+      { firstName: 'M*a*rio', lastName: '<b>Rossi</b>', allergies: null },
+      { emailBody: 'Gentile {{nome}} {{cognome}},\n\ngrazie per la tua registrazione.' },
+    ),
+  )
+
+  expect(html).toContain('Gentile M*a*rio &lt;b&gt;Rossi&lt;/b&gt;,')
+  expect(html).not.toContain('<em>')
+  expect(html).not.toContain('<b>Rossi</b>')
+  expect(html).not.toContain('{{')
+  expect(text).toContain('Gentile M*a*rio <b>Rossi</b>,')
+})
+
+test('with the summary switched off the rendered email is the body alone', async () => {
+  const { html, text } = await render(
+    markdownFor({ firstName: 'Mario', lastName: 'Rossi', allergies: 'Glutine' }, { showSummary: false }),
+  )
+
+  expect(html).toContain('Grazie per la tua prenotazione!')
+  expect(html).not.toContain('Riepilogo della prenotazione')
+  expect(html).not.toContain('ABC-123')
+  expect(text).not.toContain('RIEPILOGO')
+  expect(text).not.toContain('Glutine')
 })
