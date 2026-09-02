@@ -86,6 +86,34 @@ export async function requireEmailUnusedForEvent(
   if (decline) throw new ConvexError(EMAIL_ALREADY_DECLINED_ERROR)
 }
 
+/**
+ * Tutte le email (normalizzate) che hanno già una risposta per l'Evento, con
+ * il tipo di risposta. Serve all'Import delle risposte (ADR 0020), che deve
+ * fare lo stesso controllo di `requireEmailUnusedForEvent` per centinaia di
+ * righe in una transazione: rileggere le Prenotazioni a ogni riga farebbe
+ * n² letture per un dato che non cambia se non per mano dell'import stesso —
+ * che infatti aggiorna la mappa a ogni scrittura.
+ */
+export type ResponseKind = 'registration' | 'decline'
+
+export async function usedEmailsForEvent(
+  ctx: QueryCtx | MutationCtx,
+  eventId: Id<'events'>,
+): Promise<Map<string, ResponseKind>> {
+  const used = new Map<string, ResponseKind>()
+  const registrations = await ctx.db
+    .query('registrations')
+    .withIndex('by_event', (q) => q.eq('eventId', eventId))
+    .collect()
+  for (const r of registrations) used.set(normalizeEmail(r.contactEmail), 'registration')
+  const declines = await ctx.db
+    .query('declines')
+    .withIndex('by_event_email', (q) => q.eq('eventId', eventId))
+    .collect()
+  for (const d of declines) used.set(d.email, 'decline')
+  return used
+}
+
 /* ------------------------------------------------------------------ */
 /* Autenticazione / autorizzazione                                     */
 /* ------------------------------------------------------------------ */

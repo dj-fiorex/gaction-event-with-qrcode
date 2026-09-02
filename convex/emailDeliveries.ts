@@ -30,7 +30,16 @@ import type { DeliverySnapshot } from '../lib/email-delivery'
  */
 export async function enqueueConfirmationEmail(
   ctx: MutationCtx,
-  args: { registrationId: Id<'registrations'>; recipient: string },
+  args: {
+    registrationId: Id<'registrations'>
+    recipient: string
+    /**
+     * Ritardo della pianificazione. L'Invio massivo (ADR 0020) scala decine di
+     * invii nel tempo per non urtare il limite di richieste del provider;
+     * assente = subito, come per una Prenotazione dal form.
+     */
+    delayMs?: number
+  },
 ): Promise<Id<'emailDeliveries'>> {
   const deliveryId = await ctx.db.insert('emailDeliveries', {
     registrationId: args.registrationId,
@@ -40,7 +49,7 @@ export async function enqueueConfirmationEmail(
   // Il destinatario viaggia con la pianificazione: l'action non lo rilegge
   // dalla Prenotazione, altrimenti un Reinvio che corregge `contactEmail`
   // mentre l'invio è in volo lo manderebbe altrove e la riga direbbe il falso.
-  await ctx.scheduler.runAfter(0, internal.emails.sendTickets, {
+  await ctx.scheduler.runAfter(args.delayMs ?? 0, internal.emails.sendTickets, {
     registrationId: args.registrationId,
     deliveryId,
     recipient: args.recipient,

@@ -1,5 +1,5 @@
 import { ConvexError, v } from 'convex/values'
-import { mutation, query } from './_generated/server'
+import { mutation, query, type MutationCtx } from './_generated/server'
 import type { Doc, Id } from './_generated/dataModel'
 import {
   deleteDeliveriesOfRegistration,
@@ -13,6 +13,9 @@ import {
   getCurrentUser,
   normalizeEmail,
   requireEmailUnusedForEvent,
+  usedEmailsForEvent,
+  EMAIL_ALREADY_DECLINED_ERROR,
+  EMAIL_ALREADY_REGISTERED_ERROR,
 } from './model'
 import { intervalsOverlap } from '../lib/slots'
 import { getAuthUserId } from '@convex-dev/auth/server'
@@ -104,6 +107,114 @@ export function acceptedNotes(
 }
 
 /* ------------------------------------------------------------------ */
+/* Regole del nucleo: Figli e Ospiti                                   */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Figli e Ospiti ammessi, i loro tetti, l'età dei Figli e la Regola del nucleo
+ * familiare (issue #35). Una funzione sola per il form pubblico e per
+ * l'Import delle risposte (ADR 0020): l'import rispetta i tetti dell'Evento
+ * **riga per riga**, e deve rifiutare esattamente ciò che rifiuterebbe il
+ * form, non una copia che nel tempo divergerebbe.
+ *
+ * Riceve Figli e Ospiti **già filtrati** da `allowChildren` e
+ * `allowCompanions`, come fa `register`: per il form quel filtro è un
+ * silenzio (il client non li ha mostrati), per l'import è un rifiuto.
+ */
+export function assertHousehold(
+  event: Doc<'events'>,
+  childrenAges: number[],
+  companionsCount: number,
+): void {
+  if (childrenAges.length > event.maxChildrenPerRegistration) {
+    throw new ConvexError(`Puoi aggiungere al massimo ${event.maxChildrenPerRegistration} figli`)
+  }
+
+  // Un Figlio è per definizione minorenne (CONTEXT.md): l'intervallo lo
+  // impone il server, non il form. Il validator `v.number()` da solo
+  // accetterebbe 42, -5 o NaN — e quel valore finirebbe sui biglietti,
+  // nell'email di conferma e allo scanner.
+  for (const age of childrenAges) {
+    if (!Number.isInteger(age) || age < 0 || age > 17) {
+      throw new ConvexError('L’età di un figlio deve essere un numero intero tra 0 e 17')
+    }
+  }
+
+  // Regola del nucleo familiare (issue #35): con almeno un Figlio effettivamente
+  // inviato, il cap Ospiti si riduce. Basato sui Figli persistiti, mai su un
+  // ramo dichiarato dal client.
+  const familyRuleConfigured = event.maxCompanionsWithChildren !== undefined
+  const companionsCap =
+    familyRuleConfigured && childrenAges.length > 0
+      ? event.maxCompanionsWithChildren!
+      : event.maxCompanionsPerRegistration
+  if (companionsCount > companionsCap) {
+    // «Ospite» ha sostituito «Accompagnatore» in tutta la UI e nei documenti
+    // (CONTEXT.md / issue #36), a prescindere dalla regola del nucleo familiare.
+    throw new ConvexError(`Puoi aggiungere al massimo ${companionsCap} ospiti`)
+  }
+}
+
+interface PersonInput {
+  firstName: string
+  lastName: string | null
+  /**
+   * Il nome l'ha dichiarato chi prenota, o l'ha generato il server? Deciso
+   * una volta e scritto sulla riga: rileggere `collectNames` in futuro
+   * reinterpreterebbe il passato (ADR 0017).
+   */
+  nameProvided: boolean
+  category: 'user' | 'child' | 'companion'
+  age: number | null
+  allergies: string | null
+}
+
+interface CreatedPerson {
+  firstName: string
+  lastName: string | null
+  category: 'user' | 'child' | 'companion'
+  age: number | null
+  allergies: string | null
+  ticketCode: string
+}
+
+/** Scrive le Persone di una Prenotazione, un ticketCode nuovo ciascuna. */
+async function insertPersons(
+  ctx: MutationCtx,
+  registrationId: Id<'registrations'>,
+  eventId: Id<'events'>,
+  persons: PersonInput[],
+): Promise<CreatedPerson[]> {
+  const created: CreatedPerson[] = []
+  for (const p of persons) {
+    const ticketCode = generateTicketCode()
+    await ctx.db.insert('persons', {
+      registrationId,
+      eventId,
+      firstName: p.firstName,
+      ...(p.lastName ? { lastName: p.lastName } : {}),
+      nameProvided: p.nameProvided,
+      category: p.category,
+      age: p.age,
+      ...(p.allergies ? { allergies: p.allergies } : {}),
+      ticketCode,
+      eventCheckInAt: null,
+      eventCheckInCount: 0,
+      eventCheckInLastAt: null,
+    })
+    created.push({
+      firstName: p.firstName,
+      lastName: p.lastName,
+      category: p.category,
+      age: p.age,
+      allergies: p.allergies,
+      ticketCode,
+    })
+  }
+  return created
+}
+
+/* ------------------------------------------------------------------ */
 /* Registrazione pubblica                                              */
 /* ------------------------------------------------------------------ */
 
@@ -169,34 +280,11 @@ export const register = mutation({
 
     const children = event.allowChildren ? args.children : []
     const companions = event.allowCompanions ? args.companions : []
-
-    if (children.length > event.maxChildrenPerRegistration) {
-      throw new ConvexError(`Puoi aggiungere al massimo ${event.maxChildrenPerRegistration} figli`)
-    }
-
-    // Un Figlio è per definizione minorenne (CONTEXT.md): l'intervallo lo
-    // impone il server, non il form. Il validator `v.number()` da solo
-    // accetterebbe 42, -5 o NaN — e quel valore finirebbe sui biglietti,
-    // nell'email di conferma e allo scanner.
-    for (const child of children) {
-      if (!Number.isInteger(child.age) || child.age < 0 || child.age > 17) {
-        throw new ConvexError('L\u2019età di un figlio deve essere un numero intero tra 0 e 17')
-      }
-    }
-
-    // Regola del nucleo familiare (issue #35): con almeno un Figlio effettivamente
-    // inviato, il cap Ospiti si riduce. Basato sui Figli persistiti, mai su un
-    // ramo dichiarato dal client.
-    const familyRuleConfigured = event.maxCompanionsWithChildren !== undefined
-    const companionsCap =
-      familyRuleConfigured && children.length > 0
-        ? event.maxCompanionsWithChildren!
-        : event.maxCompanionsPerRegistration
-    if (companions.length > companionsCap) {
-      // «Ospite» ha sostituito «Accompagnatore» in tutta la UI e nei documenti
-      // (CONTEXT.md / issue #36), a prescindere dalla regola del nucleo familiare.
-      throw new ConvexError(`Puoi aggiungere al massimo ${companionsCap} ospiti`)
-    }
+    assertHousehold(
+      event,
+      children.map((c) => c.age),
+      companions.length,
+    )
 
     // Carica gli slot selezionati e verifica che appartengano all'Evento.
     const selectedSlots = new Map<Id<'slots'>, Doc<'slots'>>()
@@ -328,19 +416,7 @@ export const register = mutation({
     // qualcosa e nessuna superficie deve difendersi da uno spazio appeso.
     const userLastName = args.userLastName.trim()
 
-    const personsInput: Array<{
-      firstName: string
-      lastName: string | null
-      /**
-       * Il nome l'ha dichiarato chi prenota, o l'ha generato il server? Deciso
-       * qui, una volta, e scritto sulla riga: rileggere `collectNames` in
-       * futuro reinterpreterebbe il passato (ADR 0017).
-       */
-      nameProvided: boolean
-      category: 'user' | 'child' | 'companion'
-      age: number | null
-      allergies: string | null
-    }> = [
+    const personsInput: PersonInput[] = [
       {
         firstName: args.userFirstName.trim(),
         lastName: userLastName.length > 0 ? userLastName : null,
@@ -367,39 +443,7 @@ export const register = mutation({
       })),
     ]
 
-    const createdPersons: Array<{
-      firstName: string
-      lastName: string | null
-      category: 'user' | 'child' | 'companion'
-      age: number | null
-      allergies: string | null
-      ticketCode: string
-    }> = []
-    for (const p of personsInput) {
-      const ticketCode = generateTicketCode()
-      await ctx.db.insert('persons', {
-        registrationId,
-        eventId: event._id,
-        firstName: p.firstName,
-        ...(p.lastName ? { lastName: p.lastName } : {}),
-        nameProvided: p.nameProvided,
-        category: p.category,
-        age: p.age,
-        ...(p.allergies ? { allergies: p.allergies } : {}),
-        ticketCode,
-        eventCheckInAt: null,
-        eventCheckInCount: 0,
-        eventCheckInLastAt: null,
-      })
-      createdPersons.push({
-        firstName: p.firstName,
-        lastName: p.lastName,
-        category: p.category,
-        age: p.age,
-        allergies: p.allergies,
-        ticketCode,
-      })
-    }
+    const createdPersons = await insertPersons(ctx, registrationId, event._id, personsInput)
 
     for (const sel of args.selections) {
       await ctx.db.insert('slotSelections', {
@@ -598,6 +642,10 @@ export const myRegistrations = query({
 /** Controllo minimo di forma: la consegna vera resta responsabilità del provider. */
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
+function assertValidEmail(email: string): void {
+  if (!EMAIL_PATTERN.test(email)) throw new ConvexError('Indirizzo email non valido')
+}
+
 /**
  * Reinvio dell'email di conferma di una Prenotazione: apre una nuova Consegna,
  * persiste l'eventuale correzione del destinatario e pianifica l'invio.
@@ -630,7 +678,7 @@ export const resendTickets = mutation({
     let contactEmail = registration.contactEmail
     if (args.contactEmail !== undefined) {
       contactEmail = args.contactEmail.trim()
-      if (!EMAIL_PATTERN.test(contactEmail)) throw new ConvexError('Indirizzo email non valido')
+      assertValidEmail(contactEmail)
       if (contactEmail !== registration.contactEmail) {
         await ctx.db.patch(registration._id, { contactEmail })
       }
@@ -694,5 +742,239 @@ export const cancel = mutation({
 
     await ctx.db.delete(registrationId)
     return { success: true }
+  },
+})
+
+/* ------------------------------------------------------------------ */
+/* Import delle risposte (admin, ADR 0020)                             */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Il consenso di una riga importata. Non è l'informativa dell'Evento: chi ha
+ * risposto al modulo esterno ha accettato i termini di *quel* modulo, e la
+ * riga non deve fingere un consenso a parole mai lette. È anche l'unica
+ * traccia dell'origine: non esiste un campo «importata» (ADR 0020).
+ */
+export const IMPORTED_CONSENT_NOTICE = 'Consenso raccolto tramite modulo esterno'
+
+const importedResponseInput = v.object({
+  /** Numero di riga nel foglio, per il rapporto. */
+  row: v.number(),
+  firstName: v.string(),
+  lastName: v.string(),
+  email: v.string(),
+  /** true = Prenotazione, false = Rinuncia. */
+  participates: v.boolean(),
+  /** Un Figlio per ogni età; il nome è l'Etichetta posizionale. */
+  childrenAges: v.array(v.number()),
+  companionsCount: v.number(),
+  notes: v.union(v.string(), v.null()),
+})
+
+const skippedRow = v.object({ row: v.number(), name: v.string(), reason: v.string() })
+
+/**
+ * Trasforma le righe di un File di risposte in Prenotazioni e Rinunce.
+ *
+ * **Riga per riga, mai tutto o niente, mai sovrascrivere.** Ogni riga passa
+ * dalle stesse regole del form pubblico — Una sola risposta per email (ADR
+ * 0005), Figli e Ospiti ammessi e i loro tetti, età dei Figli, Regola del
+ * nucleo familiare — e la riga che le viola si **salta e si riporta**, le
+ * altre entrano. Le verifiche precedono ogni scrittura della riga, così una
+ * riga saltata non lascia mezza Prenotazione. L'import è quindi ripetibile:
+ * lo stesso file caricato due volte aggiunge solo ciò che manca.
+ *
+ * **Non manda email.** La Prenotazione importata nasce senza Consegna, e
+ * proprio quell'assenza è ciò che `sendPendingConfirmations` cerca.
+ *
+ * Le Attività ad accesso libero entrano tutte, quelle a Slot nessuna: una
+ * fascia non si sceglie per conto d'altri, una visita libera sì.
+ */
+export const importResponses = mutation({
+  args: {
+    eventId: v.id('events'),
+    responses: v.array(importedResponseInput),
+  },
+  returns: v.object({
+    imported: v.number(),
+    declined: v.number(),
+    skipped: v.array(skippedRow),
+  }),
+  handler: async (ctx, args) => {
+    await requireAdmin(ctx)
+    const event = await ctx.db.get(args.eventId)
+    if (!event) throw new ConvexError('Evento non trovato')
+
+    // Una lettura sola per l'intera transazione, aggiornata a ogni scrittura:
+    // le righe del file si vedono fra loro come vedono ciò che c'era prima.
+    const used = await usedEmailsForEvent(ctx, event._id)
+
+    const activities = await ctx.db
+      .query('activities')
+      .withIndex('by_event', (q) => q.eq('eventId', event._id))
+      .collect()
+    const freeAccessSelections: Array<{ activityId: Id<'activities'>; slotId: Id<'slots'> }> = []
+    for (const activity of activities) {
+      if (!activity.freeAccess) continue
+      // Un'Attività ad accesso libero ha un solo Slot, largo quanto sé stessa
+      // (ADR 0011).
+      const slot = await ctx.db
+        .query('slots')
+        .withIndex('by_activity', (q) => q.eq('activityId', activity._id))
+        .first()
+      if (slot) freeAccessSelections.push({ activityId: activity._id, slotId: slot._id })
+    }
+
+    let imported = 0
+    let declined = 0
+    const skipped: Array<{ row: number; name: string; reason: string }> = []
+
+    for (const response of args.responses) {
+      const firstName = response.firstName.trim()
+      const lastName = response.lastName.trim()
+      const name = `${firstName} ${lastName}`.trim()
+      try {
+        // --- Verifiche: nessuna scrittura prima di qui. ---
+        if (firstName === '' || lastName === '') throw new ConvexError('Nome o cognome mancante')
+        const contactEmail = response.email.trim()
+        assertValidEmail(contactEmail)
+        const normalizedEmail = normalizeEmail(contactEmail)
+        const already = used.get(normalizedEmail)
+        if (already === 'registration') throw new ConvexError(EMAIL_ALREADY_REGISTERED_ERROR)
+        if (already === 'decline') throw new ConvexError(EMAIL_ALREADY_DECLINED_ERROR)
+
+        // La Nota entra anche con `collectNotes` spento: l'interruttore governa
+        // il form, non un dato che esiste già. Il tetto invece vale.
+        const notes = response.notes?.trim() ?? ''
+        if (notes.length > MAX_NOTES_LENGTH) throw new ConvexError(NOTES_TOO_LONG_ERROR)
+
+        if (!response.participates) {
+          // --- Rinuncia ---
+          await ctx.db.insert('declines', {
+            eventId: event._id,
+            firstName,
+            lastName,
+            email: normalizedEmail,
+            respondedAt: new Date().toISOString(),
+            privacyNoticeAccepted: IMPORTED_CONSENT_NOTICE,
+            ...(notes ? { notes } : {}),
+          })
+          used.set(normalizedEmail, 'decline')
+          declined++
+          continue
+        }
+
+        // Per il form «non ammessi» è un silenzio (i campi non ci sono); per
+        // l'import è un rifiuto, perché la riga li porta comunque.
+        if (!event.allowChildren && response.childrenAges.length > 0) {
+          throw new ConvexError('L’evento non ammette figli')
+        }
+        if (!event.allowCompanions && response.companionsCount > 0) {
+          throw new ConvexError('L’evento non ammette ospiti')
+        }
+        if (!Number.isInteger(response.companionsCount) || response.companionsCount < 0) {
+          throw new ConvexError('Numero di ospiti non valido')
+        }
+        assertHousehold(event, response.childrenAges, response.companionsCount)
+
+        // --- Prenotazione ---
+        const registrationId = await ctx.db.insert('registrations', {
+          eventId: event._id,
+          contactEmail,
+          privacyNoticeAccepted: IMPORTED_CONSENT_NOTICE,
+          ...(notes ? { notes } : {}),
+        })
+        await insertPersons(ctx, registrationId, event._id, [
+          {
+            firstName,
+            lastName,
+            nameProvided: true,
+            category: 'user',
+            age: null,
+            allergies: null,
+          },
+          ...response.childrenAges.map((age, i) => ({
+            firstName: `Figlio ${i + 1}`,
+            lastName: null,
+            nameProvided: false,
+            category: 'child' as const,
+            age,
+            allergies: null,
+          })),
+          ...Array.from({ length: response.companionsCount }, (_, i) => ({
+            firstName: `Ospite ${i + 1}`,
+            lastName: null,
+            nameProvided: false,
+            category: 'companion' as const,
+            age: null,
+            allergies: null,
+          })),
+        ])
+        for (const sel of freeAccessSelections) {
+          await ctx.db.insert('slotSelections', {
+            registrationId,
+            eventId: event._id,
+            activityId: sel.activityId,
+            slotId: sel.slotId,
+          })
+        }
+        used.set(normalizedEmail, 'registration')
+        imported++
+      } catch (error) {
+        // Solo i rifiuti *nostri* diventano righe saltate: un errore
+        // inatteso deve far fallire l'intera transazione, non sparire in un
+        // rapporto.
+        if (!(error instanceof ConvexError)) throw error
+        skipped.push({ row: response.row, name, reason: String(error.data) })
+      }
+    }
+
+    return { imported, declined, skipped }
+  },
+})
+
+/* ------------------------------------------------------------------ */
+/* Invio massivo dell'email di conferma (admin, ADR 0020)              */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Distanza fra un invio e il successivo. Resend accetta poche richieste al
+ * secondo: cento action pianificate nello stesso istante finirebbero in gran
+ * parte rifiutate per limite di frequenza, e un rifiuto qui si rimedia solo
+ * a mano, riga per riga (ADR 0015).
+ */
+export const SEND_STAGGER_MS = 600
+
+/**
+ * Manda l'email di conferma a tutte le Prenotazioni dell'Evento **senza
+ * alcuna Consegna**: per costruzione (ADR 0015) sono quelle importate e mai
+ * spedite. Un secondo clic non trova nessuno — chi ha una Consegna, riuscita
+ * o fallita, esce dal giro, e il rimedio per i fallimenti resta il Reinvio.
+ * Non esiste un «rimanda a tutti», e non per dimenticanza.
+ */
+export const sendPendingConfirmations = mutation({
+  args: { eventId: v.id('events') },
+  returns: v.object({ sent: v.number() }),
+  handler: async (ctx, args) => {
+    await requireAdmin(ctx)
+    const event = await ctx.db.get(args.eventId)
+    if (!event) throw new ConvexError('Evento non trovato')
+
+    const registrations = await ctx.db
+      .query('registrations')
+      .withIndex('by_event', (q) => q.eq('eventId', event._id))
+      .collect()
+
+    let sent = 0
+    for (const registration of registrations) {
+      if (await latestDelivery(ctx, registration._id)) continue
+      await enqueueConfirmationEmail(ctx, {
+        registrationId: registration._id,
+        recipient: registration.contactEmail,
+        delayMs: sent * SEND_STAGGER_MS,
+      })
+      sent++
+    }
+    return { sent }
   },
 })

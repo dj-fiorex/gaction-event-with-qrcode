@@ -24,6 +24,7 @@ import { EmbedCard } from '@/components/admin/embed-card'
 import { EventActivityMonitor } from '@/components/admin/event-activity-monitor'
 import { EventPersonsTable } from '@/components/admin/event-persons-table'
 import { ExportButton } from '@/components/admin/export-button'
+import { ImportResponsesCard } from '@/components/admin/import-responses-card'
 import { PdfDownloadButton } from '@/components/admin/pdf-download-button'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -323,6 +324,8 @@ function EventDetailContent() {
           embedShowNewRegistration={event.embedShowNewRegistration}
           embedTheme={event.embedTheme}
         />
+
+        <ImportResponsesCard eventId={event.id} registrations={registrations ?? []} />
 
         <DeclinesCard declines={declines ?? []} />
 
