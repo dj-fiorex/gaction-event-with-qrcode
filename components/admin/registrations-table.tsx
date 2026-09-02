@@ -18,6 +18,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { PdfDownloadButton } from '@/components/admin/pdf-download-button'
 import { ResendTicketsDialog } from '@/components/admin/resend-tickets-dialog'
+import { NoteDialog } from '@/components/admin/note-dialog'
 import { downloadAllTickets } from '@/lib/pdf/download-tickets'
 import { formatDateRange, formatDateTime, EVENT_TIME_ZONE } from '@/lib/format'
 import { toRegisteredPersons } from '@/lib/qr-client'
@@ -112,6 +113,8 @@ export function RegistrationsTable({ registrations, events }: RegistrationsTable
             <TableHead>Attività</TableHead>
             <TableHead className="text-center">Ingressi</TableHead>
             <TableHead>Registrato il</TableHead>
+            {/* Nota (ADR 0019): colonna stretta, vuota quando non c'è nulla da leggere. */}
+            <TableHead className="w-12 text-center">Nota</TableHead>
             <TableHead className="text-right">Biglietti</TableHead>
             <TableHead className="text-right">Azioni</TableHead>
           </TableRow>
@@ -185,6 +188,9 @@ export function RegistrationsTable({ registrations, events }: RegistrationsTable
                 </TableCell>
                 <TableCell className="text-muted-foreground">
                   {formatDateTime(r.createdAt)}
+                </TableCell>
+                <TableCell className="text-center">
+                  <NoteDialog notes={r.notes} author={r.contactEmail} />
                 </TableCell>
                 <TableCell className="text-right">
                   <PdfDownloadButton

@@ -75,6 +75,7 @@ function buildEventInput(activities: ActivityInput[]) {
     confirmParticipation: false,
     collectNames: true,
     collectAllergies: false,
+    collectNotes: false,
     recordExit: false,
     allowChildren: true,
     maxChildrenPerRegistration: 2,

@@ -292,6 +292,10 @@ function EventDetailContent() {
                 label="Allergie e intolleranze"
                 value={event.collectAllergies ? 'Richieste a ogni persona' : 'Non richieste'}
               />
+              <InfoRow
+                label="Nota"
+                value={event.collectNotes ? 'Richiesta a fine form' : 'Non richiesta'}
+              />
               {hasCappedSeats && (
                 <InfoRow
                   label="Posti occupati"

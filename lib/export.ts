@@ -33,6 +33,13 @@ interface ExportRow {
   Uscita: string
   'Attività completate': number
   'Registrato il': string
+  /**
+   * Nota (ADR 0019). Sta sulla Prenotazione, non sulla Persona, quindi qui si
+   * **ripete** su ogni riga della stessa famiglia — come già `Email` e
+   * `Registrato il`. È il prezzo di un foglio denormalizzato per Persona, che
+   * resta la forma giusta per questo foglio.
+   */
+  Note: string
 }
 
 /**
@@ -72,6 +79,8 @@ interface DeclineRow {
   Cognome: string
   Email: string
   'Data risposta': string
+  /** Nota (ADR 0019): il *perché* del «no». Trattino quando non c'è. */
+  Note: string
 }
 
 /**
@@ -114,6 +123,9 @@ export function downloadRegistrationsXlsx(
         Uscita: momentCell(status.exit),
         'Attività completate': p.activityCheckIns.length,
         'Registrato il': formatDateTime(r.createdAt),
+        // Nota (ADR 0019): trattino quando assente, come Allergie. La Nota è
+        // della Prenotazione: la stessa cella su tutte le sue Persone.
+        Note: r.notes ?? '-',
       })
     }
   }
@@ -124,6 +136,7 @@ export function downloadRegistrationsXlsx(
     Cognome: d.lastName,
     Email: d.email,
     'Data risposta': formatDateTime(d.respondedAt),
+    Note: d.notes ?? '-',
   }))
 
   const worksheet = XLSX.utils.json_to_sheet(rows)
@@ -144,10 +157,11 @@ export function downloadRegistrationsXlsx(
     { wch: 22 }, // Uscita
     { wch: 10 }, // Attività completate
     { wch: 18 }, // Registrato il
+    { wch: 40 }, // Note
   ]
 
   const declinesWorksheet = XLSX.utils.json_to_sheet(declineRows, {
-    header: ['Evento', 'Nome', 'Cognome', 'Email', 'Data risposta'],
+    header: ['Evento', 'Nome', 'Cognome', 'Email', 'Data risposta', 'Note'],
   })
   declinesWorksheet['!cols'] = [
     { wch: 26 }, // Evento
@@ -155,6 +169,7 @@ export function downloadRegistrationsXlsx(
     { wch: 18 }, // Cognome
     { wch: 26 }, // Email
     { wch: 18 }, // Data risposta
+    { wch: 40 }, // Note
   ]
 
   const workbook = XLSX.utils.book_new()

@@ -1,7 +1,7 @@
 import { ConvexError, v } from 'convex/values'
 import { mutation, query } from './_generated/server'
 import { getCurrentUser, normalizeEmail, requireAdmin, requireEmailUnusedForEvent } from './model'
-import { acceptedPrivacyNotice } from './registrations'
+import { acceptedNotes, acceptedPrivacyNotice } from './registrations'
 
 /**
  * Rinuncia (ADR 0004): risposta «no» a Conferma di partecipazione. Vive in
@@ -24,6 +24,11 @@ export const decline = mutation({
     email: v.string(),
     /** Consenso all'informativa (ADR 0012). Anche il «no» raccoglie nome ed email. */
     privacyAccepted: v.optional(v.boolean()),
+    /**
+     * Nota (ADR 0019): il *perché* del «no». Stesso interruttore d'Evento della
+     * Prenotazione — `collectNotes` accende la textarea su tutti e due i rami.
+     */
+    notes: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const event = await ctx.db.get(args.eventId)
@@ -33,6 +38,9 @@ export const decline = mutation({
     // Stesso rifiuto della Prenotazione (ADR 0012): non esiste una porta di
     // servizio dove nome ed email entrano senza consenso.
     const privacyNoticeAccepted = acceptedPrivacyNotice(event, args.privacyAccepted)
+
+    // Nota (ADR 0019): stesse regole della Prenotazione, stessa funzione.
+    const notes = acceptedNotes(event, args.notes)
 
     // Come in register: per un Membro loggato vale l'email dell'account, non
     // quella digitata — altrimenti la stessa persona può rispondere due volte
@@ -53,6 +61,7 @@ export const decline = mutation({
       email,
       respondedAt: new Date().toISOString(),
       ...(privacyNoticeAccepted ? { privacyNoticeAccepted } : {}),
+      ...(notes ? { notes } : {}),
     })
     return { id }
   },
@@ -94,6 +103,9 @@ export const list = query({
         lastName: d.lastName,
         email: d.email,
         respondedAt: d.respondedAt,
+        // Nota (ADR 0019): `list` è già dietro requireAdmin, e la Nota non
+        // esce da qui — nessuna superficie pubblica o da Assistente la legge.
+        notes: d.notes ?? null,
       }))
       .sort((a, b) => new Date(b.respondedAt).getTime() - new Date(a.respondedAt).getTime())
   },

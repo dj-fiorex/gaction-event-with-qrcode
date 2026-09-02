@@ -133,6 +133,17 @@ export default defineSchema({
      */
     collectAllergies: v.optional(v.boolean()),
     /**
+     * Nota (ADR 0019): se true, il form pubblico chiede in coda una
+     * dichiarazione libera e facoltativa, **una per risposta**. Assente o
+     * false = nessun campo e nessuna Nota persistita, quindi nessun backfill.
+     *
+     * Un solo interruttore per **due tabelle**: accende la textarea sia sulla
+     * Prenotazione sia sulla Rinuncia. La nota di chi dice «no» è spesso ciò
+     * che serve di più a chi organizza, e due interruttori separati avrebbero
+     * moltiplicato gli stati per una distinzione che nessuno ha chiesto.
+     */
+    collectNotes: v.optional(v.boolean()),
+    /**
      * Registrazione dell'uscita (issue #38): se true, lo scanner offre la
      * modalità «Uscita» come terzo momento di Check-in. Assente o false =
      * nessuna modalità Uscita (comportamento odierno).
@@ -293,6 +304,16 @@ export default defineSchema({
      * informativa al momento della Prenotazione.
      */
     privacyNoticeAccepted: v.optional(v.string()),
+    /**
+     * Nota lasciata all'organizzatore (ADR 0019). Assente = nessuna Nota:
+     * optional in stile widen, le righe esistenti non richiedono backfill.
+     *
+     * Sta qui e non su `persons` perché parla dell'invio, non di un corpo. È
+     * un canale **a senso unico**: la leggono solo pannello admin ed export,
+     * e non torna mai all'Utente — né in email, né sul biglietto, né allo
+     * scanner. Qui si separa dalle allergie, che invece li attraversano.
+     */
+    notes: v.optional(v.string()),
   })
     .index('by_event', ['eventId'])
     .index('by_user', ['userId']),
@@ -432,6 +453,12 @@ export default defineSchema({
     respondedAt: v.string(),
     /** Copia dell'informativa accettata (ADR 0012). Anche la Rinuncia raccoglie dati personali. */
     privacyNoticeAccepted: v.optional(v.string()),
+    /**
+     * Nota di chi rinuncia (ADR 0019): il *perché* del «no», che senza questo
+     * campo non avrebbe nessun posto dove finire. Stesso interruttore
+     * d'Evento della Prenotazione, stesso tetto, stessa assenza di backfill.
+     */
+    notes: v.optional(v.string()),
   })
     // Compound index: a query for "just eventId" is a valid prefix match,
     // so a separate by_event index would be redundant.

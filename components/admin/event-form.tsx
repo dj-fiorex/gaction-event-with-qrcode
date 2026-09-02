@@ -68,6 +68,7 @@ const defaultValues: EventInput = {
   confirmParticipation: false,
   collectNames: true,
   collectAllergies: false,
+  collectNotes: false,
   recordExit: false,
   emailSubject: '',
   emailBody: '',
@@ -817,6 +818,33 @@ export function EventForm({
             Se attiva, il form chiede a ogni persona (iscritto, figli, ospiti) una dichiarazione
             facoltativa di allergie e intolleranze. È un dato sanitario: viene mostrato nel pannello
             admin, nell&apos;export, nell&apos;email di conferma e sullo scanner.
+          </p>
+        </div>
+      </div>
+
+      {/* Nota (ADR 0019): un solo interruttore per i due rami del form pubblico. */}
+      <div className="flex items-start gap-2 rounded-lg border border-border p-4">
+        <Controller
+          control={control}
+          name="collectNotes"
+          render={({ field }) => (
+            <Checkbox
+              id="collectNotes"
+              className="mt-0.5"
+              checked={field.value}
+              onCheckedChange={(checked) => field.onChange(checked === true)}
+            />
+          )}
+        />
+        <div className="grid gap-1">
+          <Label htmlFor="collectNotes" className="font-normal">
+            Chiedi una nota
+          </Label>
+          <p className="text-sm text-muted-foreground">
+            Se attiva, il form chiede in fondo una nota libera e facoltativa, <strong>una per
+            risposta</strong> (non per persona) — sia a chi si iscrive sia a chi rinuncia. La leggi
+            qui nel pannello e nell&apos;export: non viene rimandata nell&apos;email di conferma, non
+            compare sui biglietti e non arriva allo scanner.
           </p>
         </div>
       </div>

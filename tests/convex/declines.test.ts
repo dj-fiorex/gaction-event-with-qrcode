@@ -8,6 +8,7 @@ import {
   EMAIL_ALREADY_DECLINED_ERROR,
   EMAIL_ALREADY_REGISTERED_ERROR,
 } from '../../convex/model'
+import { MAX_NOTES_LENGTH, NOTES_TOO_LONG_ERROR } from '../../convex/registrations'
 import schema from '../../convex/schema'
 
 const modules = import.meta.glob('../../convex/**/*.ts')
@@ -32,7 +33,14 @@ async function createUser(
 
 async function createEventFixture(
   t: ReturnType<typeof convexTest>,
-  { confirmParticipation = true }: { confirmParticipation?: boolean } = {},
+  {
+    confirmParticipation = true,
+    collectNotes,
+  }: {
+    confirmParticipation?: boolean
+    /** Nota (ADR 0019). Omesso = campo assente (l'app lo tratta come Nota non richiesta). */
+    collectNotes?: boolean
+  } = {},
 ) {
   return t.run(async (ctx) => {
     const eventId = await ctx.db.insert('events', {
@@ -53,6 +61,7 @@ async function createEventFixture(
       checkInPasswordHash: null,
       scanUnlockToken: null,
       confirmParticipation,
+      ...(collectNotes === undefined ? {} : { collectNotes }),
     })
     const activityId = await ctx.db.insert('activities', {
       eventId,
@@ -472,4 +481,96 @@ test('declines.list returns the count and list for an event, scoped correctly', 
 
   const all = await t.withIdentity({ subject: subjectFor(adminId) }).query(api.declines.list, {})
   expect(all).toHaveLength(3)
+})
+
+/* ------------------------------------------------------------------ */
+/* Nota (ADR 0019)                                                     */
+/* ------------------------------------------------------------------ */
+
+test('decline persists the note when the event asks for one', async () => {
+  const t = convexTest(schema, modules)
+  const { eventId } = await createEventFixture(t, { collectNotes: true })
+
+  await t.mutation(api.declines.decline, {
+    eventId,
+    firstName: 'Mario',
+    lastName: 'Rossi',
+    email: 'mario@example.com',
+    notes: '  Sono fuori città quel weekend.\nL\u2019anno prossimo ci sono.  ',
+  })
+
+  const decline = await t.run((ctx) => ctx.db.query('declines').first())
+  // Trim ai bordi, a-capo interni conservati: è una textarea, e un elenco
+  // scritto a mano è esattamente ciò che ci finisce.
+  expect(decline?.notes).toBe('Sono fuori città quel weekend.\nL\u2019anno prossimo ci sono.')
+})
+
+test('decline ignores a submitted note when the event does not ask for one', async () => {
+  const t = convexTest(schema, modules)
+  const { eventId } = await createEventFixture(t)
+
+  await t.mutation(api.declines.decline, {
+    eventId,
+    firstName: 'Mario',
+    lastName: 'Rossi',
+    email: 'mario@example.com',
+    notes: 'Una nota che nessuno ha chiesto',
+  })
+
+  const decline = await t.run((ctx) => ctx.db.query('declines').first())
+  expect(decline?.notes).toBeUndefined()
+})
+
+test('decline leaves the note absent when it is empty or only spaces', async () => {
+  const t = convexTest(schema, modules)
+  const { eventId } = await createEventFixture(t, { collectNotes: true })
+
+  await t.mutation(api.declines.decline, {
+    eventId,
+    firstName: 'Mario',
+    lastName: 'Rossi',
+    email: 'mario@example.com',
+    notes: '   ',
+  })
+
+  const decline = await t.run((ctx) => ctx.db.query('declines').first())
+  expect(decline?.notes).toBeUndefined()
+})
+
+test('decline rejects a note longer than the cap, without writing the row', async () => {
+  const t = convexTest(schema, modules)
+  const { eventId } = await createEventFixture(t, { collectNotes: true })
+
+  await expect(
+    t.mutation(api.declines.decline, {
+      eventId,
+      firstName: 'Mario',
+      lastName: 'Rossi',
+      email: 'mario@example.com',
+      notes: 'x'.repeat(MAX_NOTES_LENGTH + 1),
+    }),
+  ).rejects.toThrow(NOTES_TOO_LONG_ERROR)
+
+  // Il rifiuto precede ogni scrittura: nessuna Rinuncia a metà.
+  const declines = await t.run((ctx) => ctx.db.query('declines').collect())
+  expect(declines).toHaveLength(0)
+})
+
+test('declines.list exposes the note to admin', async () => {
+  const t = convexTest(schema, modules)
+  const { eventId } = await createEventFixture(t, { collectNotes: true })
+  const adminId = await createUser(t, { email: 'admin@example.com', role: 'admin' })
+
+  await t.mutation(api.declines.decline, {
+    eventId,
+    firstName: 'Mario',
+    lastName: 'Rossi',
+    email: 'mario@example.com',
+    notes: 'Impegno di lavoro',
+  })
+
+  const listed = await t
+    .withIdentity({ subject: subjectFor(adminId) })
+    .query(api.declines.list, { eventId })
+  expect(listed[0]?.notes).toBe('Impegno di lavoro')
 })

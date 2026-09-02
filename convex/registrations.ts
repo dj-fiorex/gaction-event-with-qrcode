@@ -37,6 +37,14 @@ const selectionInput = v.object({
  */
 const MAX_ALLERGIES_LENGTH = 300
 
+/**
+ * Lunghezza massima della Nota (ADR 0019).
+ * Deve restare allineata a `NOTES_MAX` in lib/schemas.ts.
+ */
+export const MAX_NOTES_LENGTH = 1000
+
+export const NOTES_TOO_LONG_ERROR = `La nota non può superare i ${MAX_NOTES_LENGTH} caratteri`
+
 const REQUIRE_ACCOUNT_LOGIN_ERROR =
   'Per registrarti a questo evento devi accedere con un account Membro verificato'
 const REQUIRE_ACCOUNT_ROLE_ERROR =
@@ -70,6 +78,31 @@ export function acceptedPrivacyNotice(
   return notice
 }
 
+/**
+ * Nota (ADR 0019). Condivisa da `register` e `decline`: un solo interruttore
+ * d'Evento accende la textarea su tutti e due i rami del form pubblico, quindi
+ * una sola funzione ne tiene le regole.
+ *
+ * Restituisce il testo da scrivere sulla riga, o `undefined` quando non c'è
+ * nulla da scrivere — l'Evento non chiede la Nota, oppure la Nota è vuota. Con
+ * l'interruttore spento una Nota inviata comunque dal client viene **ignorata**,
+ * come i nomi quando la Raccolta nomi è disattiva: `register` e `decline` sono
+ * mutation pubbliche, chiamabili senza passare dal form.
+ *
+ * Il `trim` tocca solo i bordi: gli a-capo interni restano, perché è una
+ * textarea e un elenco scritto a mano è esattamente ciò che ci finisce.
+ */
+export function acceptedNotes(
+  event: Doc<'events'>,
+  notes: string | undefined,
+): string | undefined {
+  if (!(event.collectNotes ?? false)) return undefined
+  const trimmed = notes?.trim() ?? ''
+  if (trimmed.length === 0) return undefined
+  if (trimmed.length > MAX_NOTES_LENGTH) throw new ConvexError(NOTES_TOO_LONG_ERROR)
+  return trimmed
+}
+
 /* ------------------------------------------------------------------ */
 /* Registrazione pubblica                                              */
 /* ------------------------------------------------------------------ */
@@ -88,6 +121,8 @@ export const register = mutation({
     selections: v.array(selectionInput),
     /** Consenso all'informativa (ADR 0012). Richiesto solo se l'Evento ne ha una. */
     privacyAccepted: v.optional(v.boolean()),
+    /** Nota lasciata all'organizzatore (ADR 0019). Raccolta solo se l'Evento la chiede. */
+    notes: v.optional(v.string()),
     /** true quando la registrazione arriva dal form incorporato su un sito terzo. */
     embed: v.optional(v.boolean()),
   },
@@ -98,6 +133,10 @@ export const register = mutation({
     // Consenso all'informativa (ADR 0012): prima di ogni altra verifica, così
     // nessuna scrittura può precedere il consenso.
     const privacyNoticeAccepted = acceptedPrivacyNotice(event, args.privacyAccepted)
+
+    // Nota (ADR 0019): rifiutata qui se troppo lunga, prima di qualsiasi
+    // scrittura — non a metà, con le Persone già create.
+    const notes = acceptedNotes(event, args.notes)
 
     const caller = await getCurrentUser(ctx)
 
@@ -255,6 +294,8 @@ export const register = mutation({
       // Il testo accettato viaggia con la riga (ADR 0012): l'admin può
       // riscrivere l'informativa dell'Evento senza toccare questo consenso.
       ...(privacyNoticeAccepted ? { privacyNoticeAccepted } : {}),
+      // Nota (ADR 0019): assente quando l'Evento non la chiede o è vuota.
+      ...(notes ? { notes } : {}),
     })
 
     // Etichetta posizionale (issue #36): con «Raccolta nomi» disattiva, il nome
@@ -449,6 +490,10 @@ async function buildRegistrationDTO(
     eventId: registration.eventId,
     contactEmail: registration.contactEmail,
     createdAt: new Date(registration._creationTime).toISOString(),
+    // Nota (ADR 0019): `buildRegistrationDTO` alimenta solo `listAll`, che è
+    // dietro requireAdmin. La Nota non ha nessun'altra uscita: non entra nei
+    // DTO del Membro, dello scanner né dell'email.
+    notes: registration.notes ?? null,
     selections: selections.map((s) => ({ activityId: s.activityId, slotId: s.slotId })),
     persons: personDTOs,
     // Ultima Consegna dell'email di conferma (ADR 0016): l'admin ne ricava

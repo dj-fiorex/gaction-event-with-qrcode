@@ -3,13 +3,14 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useEffect, useMemo, useState } from 'react'
-import { Controller, useFieldArray, useForm } from 'react-hook-form'
+import { Controller, useFieldArray, useForm, type UseFormRegisterReturn } from 'react-hook-form'
 import { Plus, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Textarea } from '@/components/ui/textarea'
 import {
   Select,
   SelectContent,
@@ -23,6 +24,7 @@ import type { Id } from '@/convex/_generated/dataModel'
 import {
   makeDeclineSchema,
   makeRegistrationSchema,
+  NOTES_MAX,
   type DeclineInput,
   type RegistrationFormValues,
   type RegistrationInput,
@@ -114,6 +116,11 @@ export function RegistrationForm({
   // Persona. Con l'impostazione disattiva nessun campo compare e il server
   // ignora comunque qualsiasi dichiarazione inviata.
   const collectAllergies = event.collectAllergies
+  // Nota (ADR 0019): un solo campo in coda al form, non uno per Persona. Lo
+  // stesso interruttore d'Evento la accende su tutti e due i rami — la
+  // Prenotazione e la Rinuncia — e con l'interruttore spento il server ignora
+  // comunque qualsiasi Nota inviata.
+  const collectNotes = event.collectNotes
   // Consenso all'informativa (ADR 0012): la casella compare solo se l'admin ha
   // scritto un'informativa per questo Evento. Il rifiuto che conta è comunque
   // quello della mutation — qui si evita solo un viaggio inutile al server.
@@ -150,6 +157,7 @@ export function RegistrationForm({
       companions: [],
       selections: [],
       privacyAccepted: false,
+      notes: '',
     },
   })
 
@@ -289,6 +297,7 @@ export function RegistrationForm({
           slotId: s.slotId as Id<'slots'>,
         })),
         privacyAccepted: values.privacyAccepted,
+        notes: values.notes,
         embed,
       })
 
@@ -330,7 +339,7 @@ export function RegistrationForm({
     formState: { errors: declineErrors },
   } = useForm<DeclineInput>({
     resolver: typedZodResolver(makeDeclineSchema(requiresPrivacy)),
-    defaultValues: { firstName: '', lastName: '', email: '', privacyAccepted: false },
+    defaultValues: { firstName: '', lastName: '', email: '', privacyAccepted: false, notes: '' },
   })
 
   // Come per la registrazione: per un Membro loggato la risposta vale per
@@ -366,6 +375,7 @@ export function RegistrationForm({
         lastName: values.lastName,
         email: values.email,
         privacyAccepted: values.privacyAccepted,
+        notes: values.notes,
       })
       setDeclined(true)
     } catch (error) {
@@ -499,6 +509,17 @@ export function RegistrationForm({
               </p>
             )}
           </div>
+          {/* Nota (ADR 0019): stesso interruttore, stessa posizione. Il
+              *perché* del «no» è spesso ciò che serve di più a chi organizza. */}
+          {collectNotes && (
+            <NotesField
+              id="declineNotes"
+              field={registerDecline('notes')}
+              value={watchDecline('notes') ?? ''}
+              error={declineErrors.notes?.message}
+            />
+          )}
+
           {/* Anche il «no» raccoglie nome ed e-mail: nessuna porta di servizio
               dove i dati personali entrano senza consenso (ADR 0012). */}
           {requiresPrivacy && (
@@ -893,6 +914,19 @@ export function RegistrationForm({
           )
         })}
 
+        {/* Nota (ADR 0019): ultimo campo, sopra il Consenso — quel che si
+            accetta viene dopo quel che si è scritto. */}
+        {collectNotes && (
+          <section>
+            <NotesField
+              id="notes"
+              field={register('notes')}
+              value={watch('notes') ?? ''}
+              error={errors.notes?.message}
+            />
+          </section>
+        )}
+
         {/* Consenso all'informativa (ADR 0012). Il testo è quello dell'Evento:
             quello che l'Utente spunta qui viene copiato sulla Prenotazione. */}
         {requiresPrivacy && (
@@ -1009,6 +1043,53 @@ interface PersonRepeaterProps {
   collectNames: boolean
   /** Prefisso dell'Etichetta posizionale («Figlio», «Ospite») usato quando i nomi non sono raccolti. */
   labelSingular: string
+}
+
+/**
+ * Nota (ADR 0019): la stessa textarea sui due rami del form pubblico, così la
+ * Prenotazione e la Rinuncia non possono divergere per etichetta, tetto o
+ * contatore. Ultimo campo prima del Consenso all'informativa: si accetta dopo
+ * aver scritto, non prima, e il testo libero è a sua volta un dato personale.
+ */
+function NotesField({
+  id,
+  field,
+  value,
+  error,
+}: {
+  id: string
+  /** `register('notes')` di uno dei due form: la stessa forma in entrambi. */
+  field: UseFormRegisterReturn<'notes'>
+  value: string
+  error?: string
+}) {
+  const length = value.length
+  return (
+    <div className="grid gap-2">
+      <Label htmlFor={id}>Note (facoltativo)</Label>
+      <Textarea
+        id={id}
+        rows={4}
+        placeholder="C’è qualcosa che dovremmo sapere?"
+        aria-invalid={!!error}
+        {...field}
+      />
+      <div className="flex items-start justify-between gap-3">
+        {error ? (
+          <p className="text-sm text-destructive">{error}</p>
+        ) : (
+          <span aria-hidden="true" />
+        )}
+        <p
+          className={`shrink-0 text-sm tabular-nums ${
+            length > NOTES_MAX ? 'text-destructive' : 'text-muted-foreground'
+          }`}
+        >
+          {length}/{NOTES_MAX}
+        </p>
+      </div>
+    </div>
+  )
 }
 
 function PersonRepeater({

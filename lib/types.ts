@@ -94,6 +94,12 @@ export interface Event {
    */
   collectAllergies: boolean
   /**
+   * Nota (ADR 0019). Se true, il form pubblico chiede in coda una
+   * dichiarazione libera e facoltativa, **una per risposta** — su tutti e due
+   * i rami, Prenotazione e Rinuncia. false (default) = nessun campo.
+   */
+  collectNotes: boolean
+  /**
    * Registrazione dell'uscita (issue #38). Se true, lo scanner offre la
    * modalità «Uscita» come terzo momento di Check-in. false = comportamento
    * odierno (solo ingresso evento e accesso attività).
@@ -213,6 +219,11 @@ export interface Registration {
   persons: Person[]
   createdAt: string
   /**
+   * Nota lasciata all'organizzatore (ADR 0019). null = nessuna Nota. Arriva
+   * solo dai DTO admin: non esiste una superficie pubblica che la legga.
+   */
+  notes: string | null
+  /**
    * Ultima Consegna dell'email di conferma (ADR 0016). null = nessuna
    * registrata: le Prenotazioni anteriori a quel lavoro non ne hanno, per
    * scelta, e l'assenza non è un allarme.
@@ -233,6 +244,8 @@ export interface Decline {
   email: string
   /** ISO dell'ultima risposta «no» (aggiornata a ogni upsert). */
   respondedAt: string
+  /** Nota di chi rinuncia (ADR 0019): il *perché* del «no». null = nessuna Nota. */
+  notes: string | null
 }
 
 export interface SlotWithAvailability extends Slot {

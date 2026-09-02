@@ -36,6 +36,7 @@ function buildEventInput(requireAccount: boolean) {
     confirmParticipation: false,
     collectNames: true,
     collectAllergies: false,
+    collectNotes: false,
     recordExit: false,
     allowChildren: false,
     maxChildrenPerRegistration: 0,

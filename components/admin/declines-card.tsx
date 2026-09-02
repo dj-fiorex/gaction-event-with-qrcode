@@ -16,6 +16,7 @@ import {
 } from '@/components/ui/table'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { NoteDialog } from '@/components/admin/note-dialog'
 import { formatDateTime } from '@/lib/format'
 import { fullName } from '@/lib/person-name'
 import type { Decline } from '@/lib/types'
@@ -66,6 +67,8 @@ export function DeclinesCard({ declines }: DeclinesCardProps) {
                   <TableHead>Nome</TableHead>
                   <TableHead>Email</TableHead>
                   <TableHead>Quando</TableHead>
+                  {/* Nota (ADR 0019): il *perché* del «no», quando c'è. */}
+                  <TableHead className="w-12 text-center">Nota</TableHead>
                   <TableHead className="text-right">Azioni</TableHead>
                 </TableRow>
               </TableHeader>
@@ -76,6 +79,9 @@ export function DeclinesCard({ declines }: DeclinesCardProps) {
                     <TableCell className="text-muted-foreground">{d.email}</TableCell>
                     <TableCell className="text-muted-foreground">
                       {formatDateTime(d.respondedAt)}
+                    </TableCell>
+                    <TableCell className="text-center">
+                      <NoteDialog notes={d.notes} author={fullName(d)} />
                     </TableCell>
                     <TableCell className="text-right">
                       {/* Rimozione della Rinuncia (ADR 0005): rimedio quando chi ha

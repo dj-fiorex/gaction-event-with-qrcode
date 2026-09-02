@@ -209,6 +209,8 @@ export interface EventWithStatsDTO {
   collectNames: boolean
   /** Allergie e intolleranze (issue #37). false (default) = nessun campo nel form. */
   collectAllergies: boolean
+  /** Nota (ADR 0019): assente sullo schema = false, come le allergie. */
+  collectNotes: boolean
   /** Registrazione dell'uscita (issue #38). false (default) = nessuna modalità Uscita. */
   recordExit: boolean
   /**
@@ -429,6 +431,7 @@ export async function loadEventWithStats(
     confirmParticipation: event.confirmParticipation ?? false,
     collectNames: event.collectNames ?? true,
     collectAllergies: event.collectAllergies ?? false,
+    collectNotes: event.collectNotes ?? false,
     recordExit: event.recordExit ?? false,
     // Testo dell'email di conferma (issue #42): configurazione da pannello
     // admin, non esposta al pubblico — come scanToken e allowedOrigins.

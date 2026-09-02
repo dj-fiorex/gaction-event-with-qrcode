@@ -76,6 +76,8 @@ export const eventSchema = z
     collectNames: z.boolean().default(true),
     /** Allergie e intolleranze (issue #37): disattiva di default (comportamento odierno). */
     collectAllergies: z.boolean().default(false),
+    /** Nota (ADR 0019): disattiva di default (comportamento odierno). */
+    collectNotes: z.boolean().default(false),
     /** Registrazione dell'uscita (issue #38): disattiva di default. */
     recordExit: z.boolean().default(false),
     /** Informativa privacy (ADR 0012). Vuota = nessuna casella nel form pubblico. */
@@ -184,6 +186,21 @@ export type EventInput = z.infer<typeof eventSchema>
  */
 export const allergiesInputSchema = z.string().trim().max(300, 'Massimo 300 caratteri').optional()
 
+/**
+ * Nota (ADR 0019): dichiarazione libera e facoltativa resa **una volta per
+ * risposta**, non per Persona. Vuota = nessuna Nota.
+ *
+ * Mille e non trecento come le allergie: quelle sono un elenco di sostanze,
+ * questa è una frase. `trim` tocca solo i bordi — gli a-capo interni si
+ * conservano, perché è una textarea e la gente ci scrive elenchi a mano.
+ */
+export const NOTES_MAX = 1000
+export const notesInputSchema = z
+  .string()
+  .trim()
+  .max(NOTES_MAX, `Massimo ${NOTES_MAX} caratteri`)
+  .optional()
+
 export const childInputSchema = z.object({
   /** Solo il nome: il cognome non si chiede a Figli e Ospiti (ADR 0017). */
   firstName: z.string().trim().min(2, 'Inserisci il nome del bambino'),
@@ -239,6 +256,12 @@ export const registrationSchema = z.object({
    * istanza la mutation, che è il solo punto che conta.
    */
   privacyAccepted: z.boolean().default(false),
+  /**
+   * Nota (ADR 0019). Facoltativa qui come nel form: lo schema non sa se
+   * l'Evento la chiede, e con l'interruttore spento la mutation la ignora
+   * comunque.
+   */
+  notes: notesInputSchema,
 })
 
 export type ChildInput = z.infer<typeof childInputSchema>
@@ -295,6 +318,8 @@ export const declineSchema = z.object({
   email: z.string().trim().email('Inserisci un’email valida'),
   /** Consenso all'informativa (ADR 0012): anche il «no» raccoglie dati personali. */
   privacyAccepted: z.boolean().default(false),
+  /** Nota (ADR 0019): il *perché* del «no». Stesso interruttore d'Evento della Prenotazione. */
+  notes: notesInputSchema,
 })
 
 export function makeDeclineSchema(requirePrivacy = false) {

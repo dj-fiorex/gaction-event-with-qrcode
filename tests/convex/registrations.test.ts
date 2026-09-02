@@ -6,6 +6,7 @@ import { api, internal } from '../../convex/_generated/api'
 import type { Id } from '../../convex/_generated/dataModel'
 import schema from '../../convex/schema'
 import { fullName } from '../../lib/person-name'
+import { MAX_NOTES_LENGTH, NOTES_TOO_LONG_ERROR } from '../../convex/registrations'
 
 const modules = import.meta.glob('../../convex/**/*.ts')
 
@@ -47,6 +48,9 @@ async function createEventFixture(
     maxCompanionsWithChildren,
     collectNames,
     collectAllergies,
+    collectNotes,
+    confirmParticipation,
+    privacyNotice,
   }: {
     requireAccount?: boolean
     embedEnabled?: boolean
@@ -59,6 +63,10 @@ async function createEventFixture(
     collectNames?: boolean
     /** Omesso = campo assente (l'app lo tratta come allergie non richieste). */
     collectAllergies?: boolean
+    /** Nota (ADR 0019). Omesso = campo assente (l'app lo tratta come Nota non richiesta). */
+    collectNotes?: boolean
+    confirmParticipation?: boolean
+    privacyNotice?: string
   } = {},
 ) {
   return t.run(async (ctx) => {
@@ -84,6 +92,9 @@ async function createEventFixture(
       requireAccount,
       ...(collectNames === undefined ? {} : { collectNames }),
       ...(collectAllergies === undefined ? {} : { collectAllergies }),
+      ...(collectNotes === undefined ? {} : { collectNotes }),
+      ...(confirmParticipation === undefined ? {} : { confirmParticipation }),
+      ...(privacyNotice === undefined ? {} : { privacyNotice }),
     })
     const activityId = await ctx.db.insert('activities', {
       eventId,
@@ -1055,6 +1066,7 @@ test('register ignores submitted allergies when the event does not ask for them'
     maxChildrenPerRegistration: 5,
     maxCompanionsPerRegistration: 2,
     collectAllergies: false,
+    collectNotes: false,
   })
 
   const { registrationId } = await t.mutation(api.registrations.register, {
@@ -1942,3 +1954,146 @@ test('register persiste nome e cognome in due colonne, e il cognome è solo dell
   expect(persons.map(fullName).sort()).toEqual(['Marco', 'Mario De Luca', 'Zia Pina'])
 })
 
+
+/* ------------------------------------------------------------------ */
+/* Nota (ADR 0019)                                                     */
+/* ------------------------------------------------------------------ */
+
+test('register persists the note when the event asks for one', async () => {
+  const t = convexTest(schema, modules)
+  const { eventId, activityId, slotId } = await createEventFixture(t, { collectNotes: true })
+
+  const { registrationId } = await t.mutation(api.registrations.register, {
+    eventId,
+    userFirstName: 'Mario',
+    userLastName: 'Rossi',
+    contactEmail: 'guest@example.com',
+    children: [],
+    companions: [],
+    selections: [{ activityId, slotId }],
+    notes: '  Arriviamo verso le 21.\nSiamo in sedia a rotelle.  ',
+  })
+
+  const registration = await t.run((ctx) => ctx.db.get(registrationId))
+  // Trim ai bordi, a-capo interni conservati.
+  expect(registration?.notes).toBe('Arriviamo verso le 21.\nSiamo in sedia a rotelle.')
+})
+
+test('register ignores a submitted note when the event does not ask for one', async () => {
+  const t = convexTest(schema, modules)
+  const { eventId, activityId, slotId } = await createEventFixture(t, { collectNotes: false })
+
+  const { registrationId } = await t.mutation(api.registrations.register, {
+    eventId,
+    userFirstName: 'Mario',
+    userLastName: 'Rossi',
+    contactEmail: 'guest@example.com',
+    children: [],
+    companions: [],
+    selections: [{ activityId, slotId }],
+    notes: 'Una nota che nessuno ha chiesto',
+  })
+
+  const registration = await t.run((ctx) => ctx.db.get(registrationId))
+  expect(registration?.notes).toBeUndefined()
+})
+
+test('register leaves the note absent when it is empty or only spaces', async () => {
+  const t = convexTest(schema, modules)
+  const { eventId, activityId, slotId } = await createEventFixture(t, { collectNotes: true })
+
+  const { registrationId } = await t.mutation(api.registrations.register, {
+    eventId,
+    userFirstName: 'Mario',
+    userLastName: 'Rossi',
+    contactEmail: 'guest@example.com',
+    children: [],
+    companions: [],
+    selections: [{ activityId, slotId }],
+    notes: '   ',
+  })
+
+  const registration = await t.run((ctx) => ctx.db.get(registrationId))
+  expect(registration?.notes).toBeUndefined()
+})
+
+test('register rejects a note longer than the cap, without writing anything', async () => {
+  const t = convexTest(schema, modules)
+  const { eventId, activityId, slotId } = await createEventFixture(t, { collectNotes: true })
+
+  await expect(
+    t.mutation(api.registrations.register, {
+      eventId,
+      userFirstName: 'Mario',
+      userLastName: 'Rossi',
+      contactEmail: 'guest@example.com',
+      children: [],
+      companions: [],
+      selections: [{ activityId, slotId }],
+      notes: 'x'.repeat(MAX_NOTES_LENGTH + 1),
+    }),
+  ).rejects.toThrow(NOTES_TOO_LONG_ERROR)
+
+  // Il rifiuto precede ogni scrittura: nessuna Prenotazione con le Persone
+  // già create e la Nota persa per strada.
+  const registrations = await t.run((ctx) => ctx.db.query('registrations').collect())
+  const persons = await t.run((ctx) => ctx.db.query('persons').collect())
+  expect(registrations).toHaveLength(0)
+  expect(persons).toHaveLength(0)
+})
+
+test('the note never leaves the admin surface: it is not on any person or ticket', async () => {
+  const t = convexTest(schema, modules)
+  const { eventId, activityId, slotId } = await createEventFixture(t, {
+    collectNotes: true,
+    allowCompanions: true,
+    maxCompanionsPerRegistration: 2,
+  })
+
+  const result = await t.mutation(api.registrations.register, {
+    eventId,
+    userFirstName: 'Mario',
+    userLastName: 'Rossi',
+    contactEmail: 'guest@example.com',
+    children: [],
+    companions: [{ firstName: 'Zia Pina' }],
+    selections: [{ activityId, slotId }],
+    notes: 'Testo che non deve tornare indietro',
+  })
+
+  // La Nota è della Prenotazione: non viene copiata su nessuna Persona, e il
+  // DTO restituito al form pubblico — quello da cui nascono i biglietti — non
+  // la porta (ADR 0019).
+  const persons = await t.run((ctx) => ctx.db.query('persons').collect())
+  expect(persons).toHaveLength(2)
+  for (const person of persons) {
+    expect(JSON.stringify(person)).not.toContain('Testo che non deve tornare indietro')
+  }
+  expect(JSON.stringify(result.persons)).not.toContain('Testo che non deve tornare indietro')
+})
+
+test('listAll exposes the note to admin', async () => {
+  const t = convexTest(schema, modules)
+  const { eventId, activityId, slotId } = await createEventFixture(t, { collectNotes: true })
+  const adminId = await createUser(t, {
+    email: 'admin@example.com',
+    role: 'admin',
+    verified: true,
+  })
+
+  await t.mutation(api.registrations.register, {
+    eventId,
+    userFirstName: 'Mario',
+    userLastName: 'Rossi',
+    contactEmail: 'guest@example.com',
+    children: [],
+    companions: [],
+    selections: [{ activityId, slotId }],
+    notes: 'Allergico al rumore',
+  })
+
+  const listed = await t
+    .withIdentity({ subject: subjectFor(adminId) })
+    .query(api.registrations.listAll, { eventId })
+  expect(listed[0]?.notes).toBe('Allergico al rumore')
+})

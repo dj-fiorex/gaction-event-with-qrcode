@@ -36,6 +36,7 @@ function toEventInput(event: EventWithStats): EventInput {
     confirmParticipation: event.confirmParticipation,
     collectNames: event.collectNames,
     collectAllergies: event.collectAllergies,
+    collectNotes: event.collectNotes,
     recordExit: event.recordExit,
     emailSubject: event.emailSubject,
     emailBody: event.emailBody,
