@@ -440,19 +440,19 @@ export function RegistrationForm({
   if (event.confirmParticipation && participationAnswer === null) {
     return (
       <RegistrationNotice
-        title="Confermi la partecipazione?"
-        description="Facci sapere se parteciperai a questo evento, così possiamo organizzarlo al meglio."
+        title="Parteciperai all'evento?"
+        description="Conferma la tua presenza e registra i tuoi accompagnatori."
       >
         <div className="flex flex-col gap-2 sm:flex-row">
           <Button className="flex-1" onClick={() => setParticipationAnswer('yes')}>
-            Sì, parteciperò
+            Partecipo
           </Button>
           <Button
             variant="outline"
             className="flex-1"
             onClick={() => setParticipationAnswer('no')}
           >
-            No, non parteciperò
+            Non partecipo
           </Button>
         </div>
       </RegistrationNotice>
@@ -643,7 +643,7 @@ export function RegistrationForm({
       <div>
         <h2 className="text-xl font-semibold tracking-tight">Registrati all&apos;evento</h2>
         <p className="mt-1 text-sm text-muted-foreground text-pretty">
-          Compila i dati di chi parteciperà con te: bastano pochi minuti.
+          Compila i tuoi dati e indica quante persone parteciperanno con te all'evento.
         </p>
       </div>
       {/* gap-8 tra le sezioni, gap-4 dentro una sezione: senza riquadri è
@@ -729,7 +729,7 @@ export function RegistrationForm({
                 viene solo deve poter rispondere di no. Il suggerimento sotto
                 la domanda l'ha tolto il committente: spiegava il meccanismo
                 del form invece di chiedere un dato. */}
-            <h3 className="text-base font-semibold">Vieni con dei figli minorenni?</h3>
+            <h3 className="text-base font-semibold">Hai figli minorenni che parteciperanno con te?</h3>
             <div className="mt-4 flex flex-col gap-2 sm:flex-row">
               <Button
                 type="button"
@@ -737,7 +737,7 @@ export function RegistrationForm({
                 className="flex-1"
                 onClick={() => selectFamilyBranch('children')}
               >
-                Sì, verrò con i miei figli
+                Si
               </Button>
               <Button
                 type="button"
@@ -745,7 +745,7 @@ export function RegistrationForm({
                 className="flex-1"
                 onClick={() => selectFamilyBranch('no-children')}
               >
-                No, nessun figlio
+                No
               </Button>
             </div>
           </section>
@@ -753,7 +753,7 @@ export function RegistrationForm({
 
         {showChildren && (
           <PersonRepeater
-            title="I tuoi figli"
+            title="Quanti figli minorenni parteciperanno con te?"
             hint={
               event.maxChildrenPerRegistration === 1
                 ? 'Puoi aggiungere un figlio minorenne: riceverà un proprio QR personale per l\u2019ingresso.'
@@ -785,11 +785,11 @@ export function RegistrationForm({
 
         {showCompanions && (
           <PersonRepeater
-            title="Chi porti con te"
+            title="Verrai con un familiare adulto?"
             hint={
               companionsMax === 1
-                ? 'Puoi aggiungere un ospite adulto: riceverà un proprio QR personale per l\u2019ingresso. I figli maggiorenni contano come ospiti adulti.'
-                : `Puoi aggiungere fino a ${plural(companionsMax, 'ospite adulto', 'ospiti adulti')}: ognuno riceverà un proprio QR personale per l\u2019ingresso. I figli maggiorenni contano come ospiti adulti.`
+                ? 'Puoi aggiungere un ospite adulto: riceverai un QR per ogni persona registrata. I figli maggiorenni contano come ospiti adulti.'
+                : `Puoi aggiungere fino a ${plural(companionsMax, 'ospite adulto', 'ospiti adulti')}: riceverai un QR per ogni persona registrata. I figli maggiorenni contano come ospiti adulti.`
             }
             fields={companionsArray.fields}
             canAdd={companionsArray.fields.length < companionsMax}
@@ -966,7 +966,7 @@ export function RegistrationForm({
               : `Conferma registrazione (${plural(personsNeeded, 'persona', 'persone')})`}
           </Button>
           <p className="text-sm text-muted-foreground">
-            Riceverai a breve un&apos;e-mail di conferma con i QR code di ingresso.
+            Ti invitiamo a verificare che le informazioni inserite siano corrette prima dell'invio del modulo.
           </p>
         </div>
       </form>
@@ -1066,7 +1066,7 @@ function NotesField({
   const length = value.length
   return (
     <div className="grid gap-2">
-      <Label htmlFor={id}>Note (facoltativo)</Label>
+      <Label htmlFor={id}>Hai note o esigenze particolari da segnalare?</Label>
       <Textarea
         id={id}
         rows={4}
