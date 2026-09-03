@@ -9,14 +9,14 @@ import {
 } from './emailDeliveries'
 import {
   requireAdmin,
+  assertValidEmail,
+  emailAlreadyUsedHead,
   generateTicketCode,
   getCurrentUser,
   normalizeEmail,
   requireEmailUnusedForEvent,
   responseKindForEmail,
   usedEmailsForEvent,
-  EMAIL_ALREADY_DECLINED_ERROR,
-  EMAIL_ALREADY_REGISTERED_ERROR,
 } from './model'
 import { intervalsOverlap } from '../lib/slots'
 import { getAuthUserId } from '@convex-dev/auth/server'
@@ -277,7 +277,7 @@ export const register = mutation({
     // Una sola risposta per email per Evento (ADR 0005): un'email che ha già
     // una Prenotazione o una Rinuncia non può prenotare di nuovo dal form
     // pubblico; ogni modifica passa dall'organizzatore.
-    await requireEmailUnusedForEvent(ctx, event._id, normalizeEmail(persistedContactEmail))
+    await requireEmailUnusedForEvent(ctx, event, normalizeEmail(persistedContactEmail))
 
     const children = event.allowChildren ? args.children : []
     const companions = event.allowCompanions ? args.companions : []
@@ -673,13 +673,6 @@ export const myRegistrations = query({
 /* Reinvio dell'email dei biglietti (admin, issue #40)                 */
 /* ------------------------------------------------------------------ */
 
-/** Controllo minimo di forma: la consegna vera resta responsabilità del provider. */
-const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
-
-function assertValidEmail(email: string): void {
-  if (!EMAIL_PATTERN.test(email)) throw new ConvexError('Indirizzo email non valido')
-}
-
 /**
  * Reinvio dell'email di conferma di una Prenotazione: apre una nuova Consegna,
  * persiste l'eventuale correzione del destinatario e pianifica l'invio.
@@ -873,9 +866,11 @@ export const importResponses = mutation({
         const contactEmail = response.email.trim()
         assertValidEmail(contactEmail)
         const normalizedEmail = normalizeEmail(contactEmail)
+        // Sola testa, senza la coda che nomina l'[[E-mail dell'organizzatore]]
+        // (ADR 0023): questo report lo legge l'admin, che *è* l'organizzatore —
+        // gli servirà sapere se la riga era un sì o un no, non a chi scrivere.
         const already = used.get(normalizedEmail)
-        if (already === 'registration') throw new ConvexError(EMAIL_ALREADY_REGISTERED_ERROR)
-        if (already === 'decline') throw new ConvexError(EMAIL_ALREADY_DECLINED_ERROR)
+        if (already) throw new ConvexError(emailAlreadyUsedHead(already))
 
         // La Nota entra anche con `collectNotes` spento: l'interruttore governa
         // il form, non un dato che esiste già. Il tetto invece vale.

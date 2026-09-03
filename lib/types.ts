@@ -59,6 +59,13 @@ export interface Event {
   title: string
   description: string
   location: string
+  /**
+   * E-mail dell'organizzatore (ADR 0023): il recapito che compare a chi trova
+   * la propria e-mail già usata per l'Evento. Stringa vuota = nessun recapito,
+   * e i messaggi invitano a scrivere «all'organizzatore» senza dire dove.
+   * Pubblica: la legge anche il form incorporato.
+   */
+  organizerEmail: string
   /** URL dell'immagine di copertina risolto dal backend, null se assente. */
   imageUrl: string | null
   /** storageId dell'immagine (solo operatori; null lato pubblico). */

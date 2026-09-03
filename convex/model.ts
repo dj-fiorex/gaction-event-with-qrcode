@@ -1,5 +1,11 @@
 import { ConvexError } from 'convex/values'
-import { normalizeEmail } from '../lib/email'
+import {
+  emailAlreadyUsedHead,
+  emailAlreadyUsedMessage,
+  isValidEmail,
+  normalizeEmail,
+  type ResponseKind,
+} from '../lib/email'
 import { getAuthUserId } from '@convex-dev/auth/server'
 import type { Doc, Id } from './_generated/dataModel'
 import type { MutationCtx, QueryCtx } from './_generated/server'
@@ -48,17 +54,20 @@ export function generateTicketCode(): string {
 /* Una sola risposta per email per Evento (ADR 0005)                   */
 /* ------------------------------------------------------------------ */
 
-export const EMAIL_ALREADY_REGISTERED_ERROR =
-  'Questa email risulta già iscritta a questo evento: per modificare la prenotazione invia un’email all’organizzatore'
-export const EMAIL_ALREADY_DECLINED_ERROR =
-  'Per questa email risulta già una rinuncia a questo evento: per modificare la risposta invia un’email all’organizzatore'
+// Normalizzazione, forma dell'indirizzo e testi della regola vivono in `lib/`
+// perché li condividono tutte e due le sponde (ADR 0022, 0023); si ri-esportano
+// di qui perché è da `model` che il resto di `convex/` li prende.
+export { normalizeEmail, emailAlreadyUsedHead, emailAlreadyUsedMessage }
+export type { ResponseKind }
 
-/** Le due risposte self-service possibili a un Evento (ADR 0005). */
-export type ResponseKind = 'registration' | 'decline'
-
-// La normalizzazione vive in `lib/` perché la condivide con il form (ADR 0022);
-// si ri-esporta di qui perché è da `model` che il resto di `convex/` la prende.
-export { normalizeEmail }
+/**
+ * Indirizzo di forma accettabile, o `ConvexError`. La regola sta in `lib`, che
+ * la condivide con lo zod del pannello admin; qui ci si mette solo l'eccezione,
+ * che è di casa in `convex/`.
+ */
+export function assertValidEmail(email: string): void {
+  if (!isValidEmail(email)) throw new ConvexError('Indirizzo email non valido')
+}
 
 /**
  * Che risposta ha già l'email (normalizzata) per l'Evento, o `null` se è
@@ -97,18 +106,21 @@ export async function responseKindForEmail(
  * l'Evento — Prenotazione o Rinuncia. Ogni modifica passa dall'organizzatore
  * (Annullamento della Prenotazione o Rimozione della Rinuncia, solo admin).
  *
- * Qui i due casi restano distinti, perché il messaggio nomina il rimedio
- * giusto. È la sola superficie che lo fa: l'anticipo del form dice che una
- * risposta c'è, non quale (ADR 0022).
+ * Qui i due casi restano distinti, perché la testa del messaggio nomina il
+ * ramo. È la sola superficie pubblica che lo fa: l'anticipo del form dice che
+ * una risposta c'è, non quale (ADR 0022).
+ *
+ * Prende l'Evento e non il suo id perché la coda del messaggio porta la sua
+ * [[E-mail dell'organizzatore]] (ADR 0023) — e chi chiama il documento ce l'ha
+ * già in mano, quindi non c'è nessuna lettura in più da pagare.
  */
 export async function requireEmailUnusedForEvent(
   ctx: QueryCtx | MutationCtx,
-  eventId: Id<'events'>,
+  event: Doc<'events'>,
   normalizedEmail: string,
 ): Promise<void> {
-  const kind = await responseKindForEmail(ctx, eventId, normalizedEmail)
-  if (kind === 'registration') throw new ConvexError(EMAIL_ALREADY_REGISTERED_ERROR)
-  if (kind === 'decline') throw new ConvexError(EMAIL_ALREADY_DECLINED_ERROR)
+  const kind = await responseKindForEmail(ctx, event._id, normalizedEmail)
+  if (kind) throw new ConvexError(emailAlreadyUsedMessage(kind, event.organizerEmail))
 }
 
 /**
@@ -243,6 +255,11 @@ export interface EventWithStatsDTO {
   title: string
   description: string
   location: string
+  /**
+   * E-mail dell'organizzatore (ADR 0023). Stringa vuota = nessun recapito.
+   * Pubblica: la legge anche il form incorporato.
+   */
+  organizerEmail: string
   /** URL risolto dell'immagine di copertina, o null se non impostata. */
   imageUrl: string | null
   /** storageId grezzo, esposto solo agli operatori (includeScanToken). */
@@ -469,6 +486,9 @@ export async function loadEventWithStats(
     title: event.title,
     description: event.description,
     location: event.location,
+    // Pubblica di proposito (ADR 0023): chi trova la propria e-mail già usata
+    // deve poterla leggere anche dentro l'iframe, dove non c'è altra pagina.
+    organizerEmail: event.organizerEmail ?? '',
     imageUrl,
     imageStorageId: opts.includeScanToken ? (event.imageStorageId ?? null) : null,
     createdAt: new Date(event._creationTime).toISOString(),

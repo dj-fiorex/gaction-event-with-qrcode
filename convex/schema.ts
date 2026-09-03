@@ -79,6 +79,22 @@ export default defineSchema({
     title: v.string(),
     description: v.string(),
     location: v.string(),
+    /**
+     * E-mail dell'organizzatore (ADR 0023): il recapito a cui l'Evento manda
+     * chi ha bisogno di parlare con chi organizza. Assente o vuota = i
+     * messaggi restano quelli di sempre, che invitano a scrivere
+     * «all'organizzatore» senza dire a quale indirizzo — quindi nessun
+     * backfill.
+     *
+     * Oggi la leggono **solo** i messaggi di «Una sola risposta per email»
+     * (ADR 0005). Non è il mittente delle email di conferma, che è
+     * `RESEND_FROM_EMAIL` e vale per tutto il deployment, e non è un
+     * reply-to: è un indirizzo che *riceve*, scritto dentro un testo.
+     *
+     * È **pubblica**: la rende il form a chiunque trovi la propria e-mail già
+     * usata, incorporamento compreso.
+     */
+    organizerEmail: v.optional(v.string()),
     /** Immagine di copertina opzionale (16:9). Byte su Convex file storage. */
     imageStorageId: v.optional(v.id('_storage')),
     /**

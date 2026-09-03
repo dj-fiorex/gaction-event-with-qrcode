@@ -2,6 +2,7 @@
 
 import type { Ref } from 'react'
 import { OctagonXIcon } from 'lucide-react'
+import { LinkedText } from './linked-text'
 import { cn } from '@/lib/utils'
 
 /**
@@ -50,7 +51,13 @@ export function FormAlert({
       )}
     >
       <OctagonXIcon className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
-      <p className="text-pretty">{message}</p>
+      {/* I messaggi che nominano l'[[E-mail dell'organizzatore]] (ADR 0023)
+          arrivano qui come stringa: renderla cliccabile è l'unico modo perché
+          «scrivi a info@…» dentro un riquadro d'errore, su un telefono, non
+          finisca trascritto a mano. */}
+      <p className="text-pretty">
+        <LinkedText text={message} />
+      </p>
     </div>
   )
 }

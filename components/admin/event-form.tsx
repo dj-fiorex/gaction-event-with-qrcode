@@ -56,6 +56,7 @@ const defaultValues: EventInput = {
   title: '',
   description: '',
   location: '',
+  organizerEmail: '',
   imageStorageId: undefined,
   startsAt: '',
   endsAt: '',
@@ -235,6 +236,29 @@ export function EventForm({
         <Label htmlFor="location">Luogo</Label>
         <Input id="location" {...register('location')} aria-invalid={!!errors.location} />
         <FieldError message={errors.location?.message} />
+      </div>
+
+      {/* E-mail dell'organizzatore (ADR 0023). Sta fra i campi generali e non
+          nel riquadro «Email di conferma» perché quello governa un'email che
+          *parte*, questa è un indirizzo che *riceve* — e la vicinanza farebbe
+          credere che sia il reply-to della conferma, che non è. */}
+      <div className="grid gap-2">
+        <Label htmlFor="organizerEmail">E-mail dell&rsquo;organizzatore</Label>
+        <Input
+          id="organizerEmail"
+          type="email"
+          inputMode="email"
+          placeholder="info@esempio.it"
+          {...register('organizerEmail')}
+          aria-invalid={!!errors.organizerEmail}
+          aria-describedby="organizerEmailHint"
+        />
+        <p id="organizerEmailHint" className="text-sm text-muted-foreground text-pretty">
+          Facoltativa. Compare a chi trova la propria e-mail gi&agrave; usata per questo evento,
+          come recapito a cui scrivere per cambiare risposta. Lasciandola vuota il messaggio dice
+          soltanto di scrivere all&rsquo;organizzatore.
+        </p>
+        <FieldError message={errors.organizerEmail?.message} />
       </div>
 
       <Controller

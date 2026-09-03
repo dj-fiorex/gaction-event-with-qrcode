@@ -37,13 +37,12 @@ import type { EventWithStats, RegisteredPerson, SlotWithAvailability } from '@/l
 import { useCurrentUser } from '@/lib/use-current-user'
 import { TicketResult } from './ticket-result'
 import { FormAlert } from './form-alert'
+import { LinkedText } from './linked-text'
 import { Skeleton } from '@/components/ui/skeleton'
 import { messageFromError } from '@/lib/errors'
 import { cn } from '@/lib/utils'
-import {
-  EMAIL_ALREADY_ANSWERED_NOTICE,
-  useEmailResponseCheck,
-} from '@/lib/use-email-response-check'
+import { useEmailResponseCheck } from '@/lib/use-email-response-check'
+import { emailAlreadyUsedHead, emailAlreadyUsedTail } from '@/lib/email'
 
 const NONE = '__none__'
 
@@ -113,6 +112,10 @@ export function RegistrationForm({
   // Anticipo di «Una sola risposta per email» (ADR 0022): condiviso dai due
   // rami, perché il vincolo che anticipa è uno solo.
   const emailCheck = useEmailResponseCheck(event.id)
+  // Testa generica — mai `registration` né `decline`: qui siamo sulla superficie
+  // pubblica, dove dire *quale* risposta ha dato un indirizzo racconterebbe di
+  // un terzo (ADR 0022). La coda porta l'[[E-mail dell'organizzatore]] se c'è.
+  const alreadyAnsweredNotice = `${emailAlreadyUsedHead(null)} ${emailAlreadyUsedTail(event.organizerEmail)}`
   const [slotByActivity, setSlotByActivity] = useState<Record<string, string>>({})
   const [participationAnswer, setParticipationAnswer] = useState<'yes' | 'no' | null>(
     event.confirmParticipation ? null : 'yes',
@@ -327,7 +330,7 @@ export function RegistrationForm({
     }
 
     if (emailCheck.isTaken(values.contactEmail)) {
-      failSubmit(EMAIL_ALREADY_ANSWERED_NOTICE)
+      failSubmit(alreadyAnsweredNotice)
       return
     }
 
@@ -434,7 +437,7 @@ export function RegistrationForm({
   const onDeclineSubmit = handleDeclineSubmit(async (values) => {
     setDeclineError(null)
     if (emailCheck.isTaken(values.email)) {
-      failDecline(EMAIL_ALREADY_ANSWERED_NOTICE)
+      failDecline(alreadyAnsweredNotice)
       return
     }
 
@@ -519,7 +522,7 @@ export function RegistrationForm({
     return (
       <RegistrationNotice
         title="Hai già risposto a questo evento"
-        description={`Risulta già una risposta per ${lockedContactEmail}, l’e-mail del tuo account Membro. Per modificarla invia un’e-mail all’organizzatore.`}
+        description={`${emailAlreadyUsedHead(null)} L’indirizzo è ${lockedContactEmail}, quello del tuo account Membro. ${emailAlreadyUsedTail(event.organizerEmail)}`}
       >
         <Button nativeButton={false} variant="outline" className="w-full" render={<Link href="/profilo" />}>
           Apri il profilo
@@ -610,7 +613,7 @@ export function RegistrationForm({
             )}
             {declineEmailTaken && (
               <p id="declineEmailAnswered" className="text-sm text-destructive" role="status">
-                {EMAIL_ALREADY_ANSWERED_NOTICE}
+                <LinkedText text={alreadyAnsweredNotice} />
               </p>
             )}
             {contactEmailLocked && (
@@ -830,7 +833,7 @@ export function RegistrationForm({
                 sta ancora compilando, e interromperlo sarebbe sproporzionato. */}
             {contactEmailTaken && (
               <p id="contactEmailAnswered" className="text-sm text-destructive" role="status">
-                {EMAIL_ALREADY_ANSWERED_NOTICE}
+                <LinkedText text={alreadyAnsweredNotice} />
               </p>
             )}
             <p className="text-sm text-muted-foreground">

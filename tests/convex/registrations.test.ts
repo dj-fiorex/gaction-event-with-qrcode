@@ -614,9 +614,7 @@ test('register blocks an email that already has a Prenotazione on the same event
       companions: [],
       selections: [{ activityId, slotId }],
     }),
-  ).rejects.toThrow(
-    'Questa email risulta già iscritta a questo evento: per modificare la prenotazione invia un’email all’organizzatore',
-  )
+  ).rejects.toThrow('Questa e-mail è già stata utilizzata per una registrazione a questo evento.')
   expect(await registrationsForEvent(t, eventId)).toHaveLength(1)
 
   // La stessa email resta libera su un altro Evento.

@@ -5,6 +5,7 @@ import { expect, test } from 'vitest'
 import { api } from '../../convex/_generated/api'
 import type { Id } from '../../convex/_generated/dataModel'
 import { IMPORTED_CONSENT_NOTICE } from '../../convex/registrations'
+import { emailAlreadyUsedHead } from '../../convex/model'
 import schema from '../../convex/schema'
 
 const modules = import.meta.glob('../../convex/**/*.ts')
@@ -233,8 +234,10 @@ test('la riga che viola una regola si salta e si riporta, le altre entrano', asy
   expect(report.imported).toBe(1)
   expect(report.declined).toBe(1)
   expect(report.skipped).toEqual([
-    { row: 3, name: 'Giulia Ancona', reason: expect.stringContaining('già iscritta') },
-    { row: 4, name: 'Doppione Ancona', reason: expect.stringContaining('già iscritta') },
+    // Sola testa, senza la coda che nomina l'E-mail dell'organizzatore: questo
+    // report lo legge l'admin, che *è* l'organizzatore (ADR 0023).
+    { row: 3, name: 'Giulia Ancona', reason: emailAlreadyUsedHead('registration') },
+    { row: 4, name: 'Doppione Ancona', reason: emailAlreadyUsedHead('registration') },
     { row: 5, name: 'Camilla Ancona', reason: 'Puoi aggiungere al massimo 1 ospiti' },
     {
       row: 6,
@@ -242,7 +245,7 @@ test('la riga che viola una regola si salta e si riporta, le altre entrano', asy
       reason: 'L’età di un figlio deve essere un numero intero tra 0 e 17',
     },
     { row: 7, name: 'Senza Ancona', reason: 'Indirizzo email non valido' },
-    { row: 9, name: 'Ancora Profeta', reason: expect.stringContaining('già una rinuncia') },
+    { row: 9, name: 'Ancora Profeta', reason: emailAlreadyUsedHead('decline') },
   ])
 
   // Una riga saltata non lascia mezza Prenotazione.

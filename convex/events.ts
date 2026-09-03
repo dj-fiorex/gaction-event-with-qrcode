@@ -13,6 +13,7 @@ import {
   requireCanOperate,
 } from './model'
 import { generateSlots } from '../lib/slots'
+import { isValidEmail } from '../lib/email'
 import { parseAllowedOrigins, parseEmbedTheme } from '../lib/embed'
 // Stessa regola per chi scrive il campo e per chi lo rilegge per comporre l'email.
 import { normalizeEmailCopy } from '../lib/email-content'
@@ -41,6 +42,12 @@ const eventInput = {
   title: v.string(),
   description: v.string(),
   location: v.string(),
+  /**
+   * E-mail dell'organizzatore (ADR 0023). Vuota = «tolta»: il form manda
+   * comunque il campo, e svuotarlo deve cancellare il recapito, non
+   * persisterne uno vuoto.
+   */
+  organizerEmail: v.optional(v.string()),
   imageStorageId: v.optional(v.id('_storage')),
   /**
    * Date proprie dell'Evento (ADR 0009). Assenti = derivate dalle Attività.
@@ -479,10 +486,21 @@ async function syncActivitiesAndSlots(
   }
 }
 
+/**
+ * Il recapito si persiste ripulito dagli spazi: finisce dentro un testo *e*
+ * dentro un `mailto:`, e uno spazio in coda romperebbe il secondo senza farsi
+ * vedere nel primo. Vuoto = tolto.
+ */
+function normalizeOrganizerEmail(value: string | undefined): string | undefined {
+  const trimmed = value?.trim()
+  return trimmed ? trimmed : undefined
+}
+
 /** Valida che ogni attività generi almeno uno slot e la policy min. */
 function validateEventInput(input: {
   startsAt?: string
   endsAt?: string
+  organizerEmail?: string
   activityPolicy: 'all' | 'min' | 'free'
   minActivities: number
   allowChildren: boolean
@@ -497,6 +515,14 @@ function validateEventInput(input: {
     freeAccess?: boolean
   }>
 }): string | null {
+  // E-mail dell'organizzatore (ADR 0023): vuota va benissimo — è facoltativa —
+  // ma se c'è dev'essere un indirizzo. Un refuso qui non rimbalza a nessuno:
+  // finisce in un messaggio d'errore che l'admin non vedrà mai.
+  const organizerEmail = normalizeOrganizerEmail(input.organizerEmail)
+  if (organizerEmail && !isValidEmail(organizerEmail)) {
+    return 'E-mail dell\u2019organizzatore non valida'
+  }
+
   // Date proprie dell'Evento: la fine dichiarata richiede l'inizio ed è
   // successiva, l'inizio sta in piedi da solo. Il perché sta nell'ADR 0009.
   const declaredStart = readDeclaredDate(input.startsAt)
@@ -566,6 +592,7 @@ export const create = mutation({
       title: args.title,
       description: args.description,
       location: args.location,
+      organizerEmail: normalizeOrganizerEmail(args.organizerEmail),
       imageStorageId: args.imageStorageId,
       ...normalizeEventDates(args),
       ...normalizeSelectionPolicy(args.activityPolicy, args.minActivities, args.activities.length),
@@ -645,6 +672,7 @@ export const update = mutation({
       title: args.title,
       description: args.description,
       location: args.location,
+      organizerEmail: normalizeOrganizerEmail(args.organizerEmail),
       imageStorageId: args.imageStorageId,
       ...normalizeEventDates(args),
       ...normalizeSelectionPolicy(args.activityPolicy, args.minActivities, args.activities.length),

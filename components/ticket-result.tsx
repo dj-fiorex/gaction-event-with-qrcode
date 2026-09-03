@@ -1,6 +1,6 @@
 'use client'
 
-import { Fragment, useState } from 'react'
+import { useState } from 'react'
 import Image from 'next/image'
 import { AlertTriangle, CheckCircle2, Download, Loader2 } from 'lucide-react'
 import { useQuery } from 'convex/react'
@@ -10,7 +10,8 @@ import { Button } from '@/components/ui/button'
 import { FormAlert } from './form-alert'
 import { CATEGORY_LABEL } from '@/lib/person-labels'
 import { cn } from '@/lib/utils'
-import { linkify, resultBody, resultClosing, resultTitle, toParagraphs } from '@/lib/result-content'
+import { resultBody, resultClosing, resultTitle, toParagraphs } from '@/lib/result-content'
+import { LinkedText } from './linked-text'
 import type { RegisteredPerson } from '@/lib/types'
 import { fullName } from '@/lib/person-name'
 import type { TicketPdfEvent } from '@/lib/pdf/ticket-document'
@@ -262,20 +263,7 @@ function ResultText({ text, className }: { text: string; className?: string }) {
     <div className={cn('text-sm text-muted-foreground text-pretty', className)}>
       {paragraphs.map((paragraph, index) => (
         <p key={index} className={index > 0 ? 'mt-2 whitespace-pre-line' : 'whitespace-pre-line'}>
-          {linkify(paragraph).map((segment, segmentIndex) =>
-            segment.kind === 'link' ? (
-              <a
-                key={segmentIndex}
-                href={segment.href}
-                className="underline underline-offset-2"
-                rel="noreferrer"
-              >
-                {segment.text}
-              </a>
-            ) : (
-              <Fragment key={segmentIndex}>{segment.text}</Fragment>
-            ),
-          )}
+          <LinkedText text={paragraph} />
         </p>
       ))}
     </div>

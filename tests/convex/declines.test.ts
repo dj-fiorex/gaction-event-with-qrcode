@@ -4,10 +4,7 @@ import { convexTest } from 'convex-test'
 import { expect, test } from 'vitest'
 import { api } from '../../convex/_generated/api'
 import type { Id } from '../../convex/_generated/dataModel'
-import {
-  EMAIL_ALREADY_DECLINED_ERROR,
-  EMAIL_ALREADY_REGISTERED_ERROR,
-} from '../../convex/model'
+import { emailAlreadyUsedHead } from '../../convex/model'
 import { MAX_NOTES_LENGTH, NOTES_TOO_LONG_ERROR } from '../../convex/registrations'
 import schema from '../../convex/schema'
 
@@ -36,10 +33,13 @@ async function createEventFixture(
   {
     confirmParticipation = true,
     collectNotes,
+    organizerEmail,
   }: {
     confirmParticipation?: boolean
     /** Nota (ADR 0019). Omesso = campo assente (l'app lo tratta come Nota non richiesta). */
     collectNotes?: boolean
+    /** E-mail dell'organizzatore (ADR 0023). Omessa = Evento senza recapito. */
+    organizerEmail?: string
   } = {},
 ) {
   return t.run(async (ctx) => {
@@ -62,6 +62,7 @@ async function createEventFixture(
       scanUnlockToken: null,
       confirmParticipation,
       ...(collectNotes === undefined ? {} : { collectNotes }),
+      ...(organizerEmail === undefined ? {} : { organizerEmail }),
     })
     const activityId = await ctx.db.insert('activities', {
       eventId,
@@ -174,7 +175,7 @@ test('a second decline from the same normalized email is blocked and keeps the f
       lastName: 'R.',
       email: '  MARIO@EXAMPLE.COM',
     }),
-  ).rejects.toThrow(EMAIL_ALREADY_DECLINED_ERROR)
+  ).rejects.toThrow(emailAlreadyUsedHead('decline'))
 
   const declines = await t.run((ctx) =>
     ctx.db
@@ -215,7 +216,7 @@ test('registering with an email that has a Rinuncia on that event is blocked and
       companions: [],
       selections: [{ activityId, slotId }],
     }),
-  ).rejects.toThrow(EMAIL_ALREADY_DECLINED_ERROR)
+  ).rejects.toThrow(emailAlreadyUsedHead('decline'))
 
   const declines = await t.run((ctx) =>
     ctx.db
@@ -316,7 +317,7 @@ test('declining with an email that already has a Prenotazione throws the block m
       lastName: 'Rossi',
       email: 'Mario@Example.com',
     }),
-  ).rejects.toThrow(EMAIL_ALREADY_REGISTERED_ERROR)
+  ).rejects.toThrow(emailAlreadyUsedHead('registration'))
 
   const declines = await t.run((ctx) =>
     ctx.db
@@ -375,7 +376,7 @@ test('a member with a Prenotazione cannot decline even by typing a different ema
       lastName: 'Rossi',
       email: 'different@example.com',
     }),
-  ).rejects.toThrow(EMAIL_ALREADY_REGISTERED_ERROR)
+  ).rejects.toThrow(emailAlreadyUsedHead('registration'))
 
   const declines = await t.run((ctx) =>
     ctx.db
@@ -573,4 +574,58 @@ test('declines.list exposes the note to admin', async () => {
     .withIdentity({ subject: subjectFor(adminId) })
     .query(api.declines.list, { eventId })
   expect(listed[0]?.notes).toBe('Impegno di lavoro')
+})
+
+/* ------------------------------------------------------------------ */
+/* E-mail dell'organizzatore nella coda del rifiuto (ADR 0023)         */
+/* ------------------------------------------------------------------ */
+
+test('il rifiuto nomina l\u2019E-mail dell\u2019organizzatore quando l\u2019Evento ce l\u2019ha', async () => {
+  const t = convexTest(schema, modules)
+  const { eventId } = await createEventFixture(t, { organizerEmail: 'info@maestridacciaio.it' })
+
+  await t.mutation(api.declines.decline, {
+    eventId,
+    firstName: 'Mario',
+    lastName: 'Rossi',
+    email: 'mario@example.com',
+  })
+
+  // Testa che nomina il ramo, coda che nomina il recapito: la coda \u00e8 una sola
+  // per tutte e tre le teste, perch\u00e9 il rimedio non dipende dal ramo.
+  await expect(
+    t.mutation(api.declines.decline, {
+      eventId,
+      firstName: 'Mario',
+      lastName: 'Rossi',
+      email: 'Mario@Example.com ',
+    }),
+  ).rejects.toThrow(
+    `${emailAlreadyUsedHead('decline')} Per modificare la risposta scrivi a info@maestridacciaio.it.`,
+  )
+})
+
+test('senza E-mail dell\u2019organizzatore la coda resta quella di sempre', async () => {
+  const t = convexTest(schema, modules)
+  const { eventId } = await createEventFixture(t)
+
+  await t.mutation(api.declines.decline, {
+    eventId,
+    firstName: 'Mario',
+    lastName: 'Rossi',
+    email: 'mario@example.com',
+  })
+
+  // Nessun backfill: l\u2019Evento che il campo non ce l\u2019ha dice comunque che un
+  // rimedio esiste, che \u00e8 meglio di un vicolo cieco.
+  await expect(
+    t.mutation(api.declines.decline, {
+      eventId,
+      firstName: 'Mario',
+      lastName: 'Rossi',
+      email: 'mario@example.com',
+    }),
+  ).rejects.toThrow(
+    `${emailAlreadyUsedHead('decline')} Per modificare la risposta invia un\u2019e-mail all\u2019organizzatore.`,
+  )
 })

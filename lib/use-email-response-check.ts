@@ -6,15 +6,6 @@ import { api } from '@/convex/_generated/api'
 import type { Id } from '@/convex/_generated/dataModel'
 import { normalizeEmail } from './email'
 
-/**
- * Messaggio unico dell'anticipo (ADR 0022). Non distingue Prenotazione da
- * Rinuncia — e non potrebbe, perché `hasResponse` ritorna un booleano: il
- * rimedio è comunque lo stesso, e i due messaggi precisi restano quelli con
- * cui `register` e `decline` rifiutano l'invio.
- */
-export const EMAIL_ALREADY_ANSWERED_NOTICE =
-  'Questa e-mail ha già una risposta per questo evento: per modificarla invia un’e-mail all’organizzatore.'
-
 export interface EmailResponseCheck {
   /** Lancia il controllo per l'indirizzo dato. Idempotente sullo stesso indirizzo. */
   check: (rawEmail: string) => void

@@ -52,7 +52,7 @@ export const decline = mutation({
     const firstName = args.firstName.trim()
     const lastName = args.lastName.trim()
 
-    await requireEmailUnusedForEvent(ctx, args.eventId, email)
+    await requireEmailUnusedForEvent(ctx, event, email)
 
     const id = await ctx.db.insert('declines', {
       eventId: args.eventId,

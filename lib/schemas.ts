@@ -1,5 +1,6 @@
 import { z } from 'zod'
 
+import { isValidEmail } from './email'
 import { RESULT_TITLE_MAX } from './result-content'
 
 /* ------------------------------------------------------------------ */
@@ -53,6 +54,18 @@ export const eventSchema = z
     title: z.string().trim().min(3, 'Titolo troppo corto'),
     description: z.string().trim().min(10, 'Descrizione troppo corta'),
     location: z.string().trim().min(2, 'Inserisci il luogo'),
+    /**
+     * E-mail dell'organizzatore (ADR 0023): facoltativa, e vuota vuol dire
+     * «nessun recapito» — non un campo da compilare. La forma la decide
+     * `isValidEmail` in `lib/email.ts`, la stessa che usa la mutation: due
+     * regole diverse farebbero passare dal pannello un indirizzo che il server
+     * rifiuta, o viceversa.
+     */
+    organizerEmail: z
+      .string()
+      .trim()
+      .refine((value) => value === '' || isValidEmail(value), 'Indirizzo e-mail non valido')
+      .default(''),
     /** storageId Convex dell'immagine di copertina (opzionale). */
     imageStorageId: z.string().optional(),
     /**

@@ -21,6 +21,7 @@ function toEventInput(event: EventWithStats): EventInput {
     title: event.title,
     description: event.description,
     location: event.location,
+    organizerEmail: event.organizerEmail,
     imageStorageId: event.imageStorageId ?? undefined,
     // La dichiarazione, non la data risolta (ADR 0009): rimettere in campo una
     // data derivata la congelerebbe in dichiarazione al primo salvataggio, e
