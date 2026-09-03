@@ -16,3 +16,6 @@ node_modules
 
 # Cache incrementale di TypeScript
 *.tsbuildinfo
+docs/import-risposte-casi-test.csv
+docs/import-risposte-casi-test.xlsx
+docs/Maestri_d'Acciaio2026-09-01_04_12_08.xlsx
