@@ -2,10 +2,9 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Controller, useFieldArray, useForm, type UseFormRegisterReturn } from 'react-hook-form'
 import { Plus, Trash2 } from 'lucide-react'
-import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Input } from '@/components/ui/input'
@@ -37,7 +36,14 @@ import { intervalsOverlap } from '@/lib/slots'
 import type { EventWithStats, RegisteredPerson, SlotWithAvailability } from '@/lib/types'
 import { useCurrentUser } from '@/lib/use-current-user'
 import { TicketResult } from './ticket-result'
+import { FormAlert } from './form-alert'
+import { Skeleton } from '@/components/ui/skeleton'
 import { messageFromError } from '@/lib/errors'
+import { cn } from '@/lib/utils'
+import {
+  EMAIL_ALREADY_ANSWERED_NOTICE,
+  useEmailResponseCheck,
+} from '@/lib/use-email-response-check'
 
 const NONE = '__none__'
 
@@ -99,6 +105,14 @@ export function RegistrationForm({
   // dell'account e non quella digitata nel form.
   const [confirmedEmail, setConfirmedEmail] = useState('')
   const [submitting, setSubmitting] = useState(false)
+  // Errore dell'invio, reso accanto al bottone invece che in un toast (ADR 0021).
+  const [submitError, setSubmitError] = useState<string | null>(null)
+  const [declineError, setDeclineError] = useState<string | null>(null)
+  const submitErrorRef = useRef<HTMLDivElement>(null)
+  const declineErrorRef = useRef<HTMLDivElement>(null)
+  // Anticipo di «Una sola risposta per email» (ADR 0022): condiviso dai due
+  // rami, perché il vincolo che anticipa è uno solo.
+  const emailCheck = useEmailResponseCheck(event.id)
   const [slotByActivity, setSlotByActivity] = useState<Record<string, string>>({})
   const [participationAnswer, setParticipationAnswer] = useState<'yes' | 'no' | null>(
     event.confirmParticipation ? null : 'yes',
@@ -185,6 +199,21 @@ export function RegistrationForm({
   const isMember = user?.role === 'member'
   const lockedContactEmail = isMember ? (user.email ?? '') : ''
   const contactEmailLocked = lockedContactEmail.length > 0
+
+  const {
+    check: checkEmailResponse,
+    isTaken: emailAlreadyAnswered,
+    pristine: emailCheckPristine,
+  } = emailCheck
+
+  // Per il Membro l'email è `readOnly`: il campo non riceve mai il fuoco,
+  // quindi non lo perde mai e il controllo all'uscita non partirebbe. Qui è
+  // l'unico caso in cui l'indirizzo è noto già al montaggio, ed è anche l'unico
+  // in cui l'utente non può cambiarlo.
+  useEffect(() => {
+    if (!contactEmailLocked) return
+    checkEmailResponse(lockedContactEmail)
+  }, [contactEmailLocked, lockedContactEmail, checkEmailResponse])
   const eventUrl = `/eventi/${event.id}`
   const redirectPath = pathname || eventUrl
   const userFirstName = watch('userFirstName')
@@ -201,6 +230,14 @@ export function RegistrationForm({
   // «Non ancora risposto» è l'assenza di chiave, «no» è NONE — la stessa
   // distinzione che una casella non saprebbe fare.
   const freeAccessUnanswered = freeAccessActivities.some((a) => !slotByActivity[a.id])
+
+  // `register` va chiamato una volta e conservato: l'`onBlur` di react-hook-form
+  // va **composto** con il nostro, non sostituito, altrimenti il campo smette
+  // di essere validato quando lo si lascia.
+  const contactEmailField = register('contactEmail')
+  const contactEmail = watch('contactEmail')
+  const contactEmailTaken = emailAlreadyAnswered(contactEmail)
+  const submitBlocked = familyBranchMissing || freeAccessUnanswered || contactEmailTaken
 
   useEffect(() => {
     if (!isMember) return
@@ -264,21 +301,40 @@ export function RegistrationForm({
     return null
   }
 
+  /**
+   * Porta il messaggio sotto gli occhi di chi ha appena premuto il bottone.
+   * Il fuoco, non lo scorrimento: dentro l'iframe scorrere non servirebbe
+   * comunque a nulla, perché a scorrere è la pagina ospitante.
+   */
+  function failSubmit(message: string) {
+    setSubmitError(message)
+    requestAnimationFrame(() => submitErrorRef.current?.focus())
+  }
+
   const onSubmit = handleSubmit(async (values) => {
+    setSubmitError(null)
+
+    // Il bottone è `aria-disabled`, non `disabled`: resta cliccabile apposta,
+    // così queste risposte mancanti si leggono invece di restare mute (ADR 0021).
     if (familyBranchMissing) {
-      toast.error('Rispondi alla domanda sui figli minorenni prima di confermare')
+      failSubmit('Rispondi alla domanda sui figli minorenni prima di confermare')
       return
     }
 
     if (freeAccessUnanswered) {
-      toast.error('Rispondi a tutte le domande prima di confermare')
+      failSubmit('Rispondi a tutte le domande prima di confermare')
+      return
+    }
+
+    if (emailCheck.isTaken(values.contactEmail)) {
+      failSubmit(EMAIL_ALREADY_ANSWERED_NOTICE)
       return
     }
 
     const selections = buildSelections()
     const selectionError = validateSelectionsClient(selections)
     if (selectionError) {
-      toast.error(selectionError)
+      failSubmit(selectionError)
       return
     }
 
@@ -316,7 +372,6 @@ export function RegistrationForm({
       setTickets(registeredPersons)
       setRegistrationId(result.registrationId)
       setConfirmedEmail(result.contactEmail)
-      toast.success('Registrazione completata')
 
       // Qui non parte più nessuna email. L'invio è un lavoro del server
       // (ADR 0015): `register` ha già aperto la Consegna e pianificato l'action
@@ -324,7 +379,10 @@ export function RegistrationForm({
       // non è tornato e l'email non è mai partita». L'esito arriva a schermo
       // dal vivo, per iscrizione reattiva, dentro `TicketResult`.
     } catch (error) {
-      toast.error(messageFromError(error, 'Registrazione non riuscita'))
+      // Qui arriva anche la corsa che l'anticipo non può coprire: fra il
+      // controllo sull'email e questo invio la stessa email può aver risposto
+      // da un'altra scheda. La garanzia è e resta questo rifiuto (ADR 0005).
+      failSubmit(messageFromError(error, 'Registrazione non riuscita'))
     } finally {
       setSubmitting(false)
     }
@@ -347,6 +405,8 @@ export function RegistrationForm({
   // parlano sempre della stessa email.
   const declineFirstName = watchDecline('firstName')
   const declineLastName = watchDecline('lastName')
+  const declineEmailField = registerDecline('email')
+  const declineEmailTaken = emailAlreadyAnswered(watchDecline('email'))
   useEffect(() => {
     if (!isMember) return
     if (lockedContactEmail) {
@@ -366,7 +426,18 @@ export function RegistrationForm({
     declineLastName,
   ])
 
+  function failDecline(message: string) {
+    setDeclineError(message)
+    requestAnimationFrame(() => declineErrorRef.current?.focus())
+  }
+
   const onDeclineSubmit = handleDeclineSubmit(async (values) => {
+    setDeclineError(null)
+    if (emailCheck.isTaken(values.email)) {
+      failDecline(EMAIL_ALREADY_ANSWERED_NOTICE)
+      return
+    }
+
     setDecliningSubmitting(true)
     try {
       await declineMutation({
@@ -379,7 +450,7 @@ export function RegistrationForm({
       })
       setDeclined(true)
     } catch (error) {
-      toast.error(messageFromError(error, 'Invio non riuscito'))
+      failDecline(messageFromError(error, 'Invio non riuscito'))
     } finally {
       setDecliningSubmitting(false)
     }
@@ -425,6 +496,35 @@ export function RegistrationForm({
           setFamilyBranch(null)
         }}
       />
+    )
+  }
+
+  // Membro loggato che ha già risposto a questo Evento (ADR 0022). La sua email
+  // è quella dell'account e non è modificabile: non c'è nessun refuso da
+  // correggere, quindi un form con il bottone spento in fondo sarebbe solo un
+  // giro lungo per la stessa risposta. Sta prima della domanda «partecipi?»
+  // perché il vincolo vale su tutti e due i rami.
+  if (contactEmailLocked && emailCheckPristine) {
+    return (
+      <section className="flex flex-col gap-4" aria-busy="true">
+        <Skeleton className="h-7 w-2/3" />
+        <Skeleton className="h-4 w-full" />
+        <Skeleton className="h-4 w-4/5" />
+        <span className="sr-only">Controllo della tua risposta in corso…</span>
+      </section>
+    )
+  }
+
+  if (contactEmailLocked && emailAlreadyAnswered(lockedContactEmail)) {
+    return (
+      <RegistrationNotice
+        title="Hai già risposto a questo evento"
+        description={`Risulta già una risposta per ${lockedContactEmail}, l’e-mail del tuo account Membro. Per modificarla invia un’e-mail all’organizzatore.`}
+      >
+        <Button nativeButton={false} variant="outline" className="w-full" render={<Link href="/profilo" />}>
+          Apri il profilo
+        </Button>
+      </RegistrationNotice>
     )
   }
 
@@ -495,13 +595,23 @@ export function RegistrationForm({
             <Input
               id="declineEmail"
               type="email"
-              {...registerDecline('email')}
+              {...declineEmailField}
+              onBlur={(e) => {
+                declineEmailField.onBlur(e)
+                checkEmailResponse(e.target.value)
+              }}
               readOnly={contactEmailLocked}
-              aria-invalid={!!declineErrors.email}
+              aria-invalid={!!declineErrors.email || declineEmailTaken}
+              aria-describedby={declineEmailTaken ? 'declineEmailAnswered' : undefined}
               className={contactEmailLocked ? 'bg-muted' : undefined}
             />
             {declineErrors.email && (
               <p className="text-sm text-destructive">{declineErrors.email.message}</p>
+            )}
+            {declineEmailTaken && (
+              <p id="declineEmailAnswered" className="text-sm text-destructive" role="status">
+                {EMAIL_ALREADY_ANSWERED_NOTICE}
+              </p>
             )}
             {contactEmailLocked && (
               <p className="text-sm text-muted-foreground">
@@ -549,6 +659,13 @@ export function RegistrationForm({
               </div>
             </div>
           )}
+          <FormAlert
+            id="declineSubmitError"
+            ref={declineErrorRef}
+            urgent
+            message={declineError}
+            className="mt-2"
+          />
           <div className="mt-2 flex gap-2">
             <Button
               type="button"
@@ -558,7 +675,18 @@ export function RegistrationForm({
             >
               Indietro
             </Button>
-            <Button type="submit" className="flex-1" disabled={decliningSubmitting}>
+            {/* `aria-disabled` e non `disabled`: il bottone resta cliccabile e
+                raggiungibile da tastiera, e al click il motivo compare qui
+                sopra invece di non succedere nulla (ADR 0021). `disabled` vero
+                resta solo per l'invio in corso, dove un secondo click non ha
+                proprio niente da dire. */}
+            <Button
+              type="submit"
+              className={cn('flex-1', declineEmailTaken && 'opacity-50')}
+              disabled={decliningSubmitting}
+              aria-disabled={declineEmailTaken || undefined}
+              aria-describedby={declineError ? 'declineSubmitError' : undefined}
+            >
               {decliningSubmitting ? 'Invio…' : 'Conferma non partecipazione'}
             </Button>
           </div>
@@ -685,13 +813,25 @@ export function RegistrationForm({
             <Input
               id="contactEmail"
               type="email"
-              {...register('contactEmail')}
+              {...contactEmailField}
+              onBlur={(e) => {
+                contactEmailField.onBlur(e)
+                checkEmailResponse(e.target.value)
+              }}
               readOnly={contactEmailLocked}
-              aria-invalid={!!errors.contactEmail}
+              aria-invalid={!!errors.contactEmail || contactEmailTaken}
+              aria-describedby={contactEmailTaken ? 'contactEmailAnswered' : undefined}
               className={contactEmailLocked ? 'bg-muted' : undefined}
             />
             {errors.contactEmail && (
               <p className="text-sm text-destructive">{errors.contactEmail.message}</p>
+            )}
+            {/* `role="status"` e non `alert`: l'avviso arriva mentre l'utente
+                sta ancora compilando, e interromperlo sarebbe sproporzionato. */}
+            {contactEmailTaken && (
+              <p id="contactEmailAnswered" className="text-sm text-destructive" role="status">
+                {EMAIL_ALREADY_ANSWERED_NOTICE}
+              </p>
             )}
             <p className="text-sm text-muted-foreground">
               {contactEmailLocked
@@ -956,10 +1096,18 @@ export function RegistrationForm({
         )}
 
         <div className="flex flex-col gap-2">
+          <FormAlert id="submitError" ref={submitErrorRef} urgent message={submitError} />
+          {/* Spento sì, muto no (ADR 0021): `aria-disabled` lascia il bottone
+              cliccabile e nel percorso del tab, e le guardie in `onSubmit`
+              scrivono il motivo qui sopra. Con `disabled` vero quei messaggi
+              erano irraggiungibili — il click che avrebbe dovuto mostrarli non
+              arrivava mai. */}
           <Button
             type="submit"
-            disabled={submitting || familyBranchMissing || freeAccessUnanswered}
-            className="w-full"
+            disabled={submitting}
+            aria-disabled={submitBlocked || undefined}
+            aria-describedby={submitError ? 'submitError' : undefined}
+            className={cn('w-full', submitBlocked && 'opacity-50')}
           >
             {submitting
               ? 'Registrazione in corso…'

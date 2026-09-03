@@ -3,11 +3,11 @@
 import { Fragment, useState } from 'react'
 import Image from 'next/image'
 import { AlertTriangle, CheckCircle2, Download, Loader2 } from 'lucide-react'
-import { toast } from 'sonner'
 import { useQuery } from 'convex/react'
 import { api } from '@/convex/_generated/api'
 import type { Id } from '@/convex/_generated/dataModel'
 import { Button } from '@/components/ui/button'
+import { FormAlert } from './form-alert'
 import { CATEGORY_LABEL } from '@/lib/person-labels'
 import { cn } from '@/lib/utils'
 import { linkify, resultBody, resultClosing, resultTitle, toParagraphs } from '@/lib/result-content'
@@ -67,6 +67,10 @@ export function TicketResult({
 }: TicketResultProps) {
   const [downloadingAll, setDownloadingAll] = useState(false)
   const [downloadingCode, setDownloadingCode] = useState<string | null>(null)
+  // Il fallimento del PDF si legge accanto al bottone che l'ha chiesto, non in
+  // un toast (ADR 0021). Qui pesa più che altrove: siamo dopo la prenotazione,
+  // e questo download è l'unica presa di chi non riceve l'email.
+  const [downloadError, setDownloadError] = useState<string | null>(null)
 
   // L'invio è passato al server e non ritorna più nulla al browser, ma Convex è
   // reattivo: restiamo iscritti e l'esito arriva dal vivo (ADR 0016). La query
@@ -82,10 +86,11 @@ export function TicketResult({
 
   async function handleDownloadAll() {
     setDownloadingAll(true)
+    setDownloadError(null)
     try {
       await downloadAllTickets(persons, event)
     } catch {
-      toast.error('Impossibile generare il PDF. Riprova.')
+      setDownloadError('Impossibile generare il PDF. Riprova.')
     } finally {
       setDownloadingAll(false)
     }
@@ -93,10 +98,11 @@ export function TicketResult({
 
   async function handleDownloadPerson(person: RegisteredPerson) {
     setDownloadingCode(person.ticketCode)
+    setDownloadError(null)
     try {
       await downloadPersonTicket(person, event)
     } catch {
-      toast.error('Impossibile generare il PDF. Riprova.')
+      setDownloadError('Impossibile generare il PDF. Riprova.')
     } finally {
       setDownloadingCode(null)
     }
@@ -126,6 +132,12 @@ export function TicketResult({
         )}
         {persons.length === 1 ? 'Scarica biglietto (PDF)' : 'Scarica tutti i biglietti (PDF)'}
       </Button>
+
+      {/* Un solo blocco per tutti i bottoni di download: il messaggio è lo
+          stesso e il tentativo è uno alla volta, quindi due righe direbbero la
+          stessa cosa due volte. Sta sotto il bottone principale, che è il primo
+          che si incontra scendendo. */}
+      <FormAlert urgent message={downloadError} className="w-full sm:w-auto" />
 
       {showTickets && (
         <ul className="grid w-full gap-4 sm:grid-cols-2">

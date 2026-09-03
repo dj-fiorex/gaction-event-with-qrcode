@@ -87,6 +87,8 @@ Risposta negativa («non partecipo») di una persona a un Evento che richiede la
 ### Una sola risposta per email
 Per ogni Evento, un'email (normalizzata trim + lowercase) può avere al massimo **una** risposta self-service: una Prenotazione **o** una [[Rinuncia]]. Qualsiasi invio successivo con la stessa email — nuovo «sì», nuovo «no», o cambio di risposta — è bloccato con l'invito a scrivere un'email all'organizzatore. Ogni modifica è un rimedio riservato all'admin: [[Annullamento della Prenotazione]] o [[Rimozione della Rinuncia]] (ADR 0005).
 
+Il form pubblico **anticipa** la regola invece di limitarsi ad applicarla: appena l'email è nota — su entrambi i rami — avvisa che una risposta esiste già e spegne il bottone di invio, così non si compila un modulo intero per scoprire alla fine che non si poteva. L'anticipo dichiara **che** una risposta c'è, mai **quale**: il rimedio è identico nei due casi, e dire pubblicamente se un indirizzo ha detto «sì» o «no» sarebbe un modo comodo per sapere chi ha rinunciato. La distinzione resta nel rifiuto all'invio, che è la sola garanzia: fra l'avviso e l'invio la stessa email può rispondere altrove (ADR 0022). Per un [[Membro (Account personale)|Membro]] loggato, che l'email non può cambiarla, al posto del form compare direttamente l'avviso.
+
 ### Annullamento della Prenotazione
 Azione riservata all'admin che elimina un'intera Prenotazione: rimuove le sue Persone e selezioni, libera i posti negli Slot e invalida i relativi QR code. Non esiste un annullamento self-service dal form pubblico.
 

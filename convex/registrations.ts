@@ -13,6 +13,7 @@ import {
   getCurrentUser,
   normalizeEmail,
   requireEmailUnusedForEvent,
+  responseKindForEmail,
   usedEmailsForEvent,
   EMAIL_ALREADY_DECLINED_ERROR,
   EMAIL_ALREADY_REGISTERED_ERROR,
@@ -565,6 +566,39 @@ export const listAll = query({
     return dtos.sort(
       (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
     )
+  },
+})
+
+/* ------------------------------------------------------------------ */
+/* Anticipo della regola «Una sola risposta per email» (ADR 0022)      */
+/* ------------------------------------------------------------------ */
+
+/**
+ * L'email ha già una risposta per l'Evento? Serve al form pubblico per
+ * avvisare **prima** dell'invio, invece di lasciare che l'utente compili tutto
+ * e sbatta contro il rifiuto di `register` o `decline` (ADR 0022).
+ *
+ * Ritorna un **booleano e nient'altro**: la distinzione Prenotazione/Rinuncia
+ * non lascia il server. È una query pubblica e non autenticata, quindi dire
+ * *quale* risposta ha dato un indirizzo la trasformerebbe in un modo comodo
+ * per sapere se un collega ha rinunciato alla cena. Il rimedio è comunque lo
+ * stesso nei due casi — scrivere all'organizzatore — perciò all'utente
+ * legittimo non manca niente. Il `returns` non è decorazione: è ciò che rende
+ * quel confine impossibile da erodere per distrazione.
+ *
+ * Non sostituisce il controllo server-side: `requireEmailUnusedForEvent` resta
+ * l'unica garanzia, perché fra questa lettura e l'invio la stessa email può
+ * essere usata da qualcun altro (ADR 0005).
+ */
+export const hasResponse = query({
+  args: { eventId: v.id('events'), email: v.string() },
+  returns: v.boolean(),
+  handler: async (ctx, args) => {
+    const email = normalizeEmail(args.email)
+    // Campo vuoto: non c'è niente da chiedere, e rispondere «libera» eviterebbe
+    // comunque una lettura inutile di tutte le Prenotazioni dell'Evento.
+    if (email === '') return false
+    return (await responseKindForEmail(ctx, args.eventId, email)) !== null
   },
 })
 

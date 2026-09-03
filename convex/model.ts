@@ -1,4 +1,5 @@
 import { ConvexError } from 'convex/values'
+import { normalizeEmail } from '../lib/email'
 import { getAuthUserId } from '@convex-dev/auth/server'
 import type { Doc, Id } from './_generated/dataModel'
 import type { MutationCtx, QueryCtx } from './_generated/server'
@@ -52,24 +53,29 @@ export const EMAIL_ALREADY_REGISTERED_ERROR =
 export const EMAIL_ALREADY_DECLINED_ERROR =
   'Per questa email risulta già una rinuncia a questo evento: per modificare la risposta invia un’email all’organizzatore'
 
-/** Trim + lowercase, solo per dedup dentro l'Evento (mai identity linking, ADR 0003). */
-export function normalizeEmail(email: string): string {
-  return email.trim().toLowerCase()
-}
+/** Le due risposte self-service possibili a un Evento (ADR 0005). */
+export type ResponseKind = 'registration' | 'decline'
+
+// La normalizzazione vive in `lib/` perché la condivide con il form (ADR 0022);
+// si ri-esporta di qui perché è da `model` che il resto di `convex/` la prende.
+export { normalizeEmail }
 
 /**
- * Blocca la scrittura se l'email (normalizzata) ha già una risposta per
- * l'Evento — Prenotazione o Rinuncia. Ogni modifica passa dall'organizzatore
- * (Annullamento della Prenotazione o Rimozione della Rinuncia, solo admin).
+ * Che risposta ha già l'email (normalizzata) per l'Evento, o `null` se è
+ * libera. Sorgente unica del vincolo «Una sola risposta per email» (ADR 0005):
+ * la usano il rifiuto server-side (`requireEmailUnusedForEvent`) e l'anticipo
+ * che il form ne fa (`registrations.hasResponse`, ADR 0022), così le due
+ * superfici non possono divergere nel tempo.
  *
  * Le Prenotazioni memorizzano `contactEmail` così come digitata, quindi il
- * confronto normalizza a lettura e non può usare un indice sull'email.
+ * confronto normalizza a lettura e non può usare un indice sull'email — al
+ * contrario delle Rinunce, che la memorizzano già normalizzata.
  */
-export async function requireEmailUnusedForEvent(
+export async function responseKindForEmail(
   ctx: QueryCtx | MutationCtx,
   eventId: Id<'events'>,
   normalizedEmail: string,
-): Promise<void> {
+): Promise<ResponseKind | null> {
   const registrations = await ctx.db
     .query('registrations')
     .withIndex('by_event', (q) => q.eq('eventId', eventId))
@@ -77,13 +83,32 @@ export async function requireEmailUnusedForEvent(
   const alreadyRegistered = registrations.some(
     (r) => normalizeEmail(r.contactEmail) === normalizedEmail,
   )
-  if (alreadyRegistered) throw new ConvexError(EMAIL_ALREADY_REGISTERED_ERROR)
+  if (alreadyRegistered) return 'registration'
 
   const decline = await ctx.db
     .query('declines')
     .withIndex('by_event_email', (q) => q.eq('eventId', eventId).eq('email', normalizedEmail))
     .unique()
-  if (decline) throw new ConvexError(EMAIL_ALREADY_DECLINED_ERROR)
+  return decline ? 'decline' : null
+}
+
+/**
+ * Blocca la scrittura se l'email (normalizzata) ha già una risposta per
+ * l'Evento — Prenotazione o Rinuncia. Ogni modifica passa dall'organizzatore
+ * (Annullamento della Prenotazione o Rimozione della Rinuncia, solo admin).
+ *
+ * Qui i due casi restano distinti, perché il messaggio nomina il rimedio
+ * giusto. È la sola superficie che lo fa: l'anticipo del form dice che una
+ * risposta c'è, non quale (ADR 0022).
+ */
+export async function requireEmailUnusedForEvent(
+  ctx: QueryCtx | MutationCtx,
+  eventId: Id<'events'>,
+  normalizedEmail: string,
+): Promise<void> {
+  const kind = await responseKindForEmail(ctx, eventId, normalizedEmail)
+  if (kind === 'registration') throw new ConvexError(EMAIL_ALREADY_REGISTERED_ERROR)
+  if (kind === 'decline') throw new ConvexError(EMAIL_ALREADY_DECLINED_ERROR)
 }
 
 /**
@@ -94,8 +119,6 @@ export async function requireEmailUnusedForEvent(
  * n² letture per un dato che non cambia se non per mano dell'import stesso —
  * che infatti aggiorna la mappa a ogni scrittura.
  */
-export type ResponseKind = 'registration' | 'decline'
-
 export async function usedEmailsForEvent(
   ctx: QueryCtx | MutationCtx,
   eventId: Id<'events'>,
