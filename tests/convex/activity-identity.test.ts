@@ -356,7 +356,11 @@ test('accorciare la finestra cancella solo le selezioni delle fasce sparite', as
   expect(event.activities[0].slots).toHaveLength(2)
 
   const registrationId = await t.run(async (ctx) => {
-    const reg = await ctx.db.insert('registrations', { eventId, contactEmail: 'anna@example.com' })
+    const reg = await ctx.db.insert('registrations', {
+      eventId,
+      contactEmail: 'anna@example.com',
+      source: 'form',
+    })
     await ctx.db.insert('persons', {
       registrationId: reg,
       eventId,

@@ -379,6 +379,10 @@ export const register = mutation({
     const registrationId = await ctx.db.insert('registrations', {
       eventId: event._id,
       contactEmail: persistedContactEmail,
+      // Origine (ADR 0024). `form` copre anche l'Incorporamento: è questa
+      // mutation a servire tutte e due le superfici, ed è la stessa persona a
+      // compilare di sua mano.
+      source: 'form',
       ...(registrationUserId ? { userId: registrationUserId } : {}),
       // Il testo accettato viaggia con la riga (ADR 0012): l'admin può
       // riscrivere l'informativa dell'Evento senza toccare questo consenso.
@@ -910,6 +914,10 @@ export const importResponses = mutation({
         const registrationId = await ctx.db.insert('registrations', {
           eventId: event._id,
           contactEmail,
+          // Origine (ADR 0024): è la sola cosa che le fa spedire il secondo
+          // Testo dell'email di conferma. Non è invece ciò che le fa trovare
+          // dall'Invio massivo — quello resta l'assenza di Consegna.
+          source: 'import',
           privacyNoticeAccepted: IMPORTED_CONSENT_NOTICE,
           ...(notes ? { notes } : {}),
         })

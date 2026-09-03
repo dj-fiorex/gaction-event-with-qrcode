@@ -6,7 +6,12 @@ import { internal } from '../../convex/_generated/api'
 import type { Id } from '../../convex/_generated/dataModel'
 import schema from '../../convex/schema'
 
-import { applyPlaceholders, buildTicketsEmailMarkdown } from '../../lib/email-content'
+import {
+  applyPlaceholders,
+  buildTicketsEmailMarkdown,
+  resolveEmailCopy,
+} from '../../lib/email-content'
+import type { RegistrationSource } from '../../lib/types'
 
 const modules = import.meta.glob('../../convex/**/*.ts')
 
@@ -18,6 +23,8 @@ async function createEventFixture(
     collectNames,
     emailSubject,
     emailBody,
+    emailSubjectImport,
+    emailBodyImport,
     emailShowSummary,
   }: {
     title?: string
@@ -28,6 +35,10 @@ async function createEventFixture(
     emailSubject?: string
     /** Omesso = campo assente (l'app ripiega sul corpo odierno). */
     emailBody?: string
+    /** Omesso = campo assente (l'app ripiega sull'oggetto del form, ADR 0024). */
+    emailSubjectImport?: string
+    /** Omesso = campo assente (l'app ripiega sul corpo del form, ADR 0024). */
+    emailBodyImport?: string
     /** Omesso = campo assente (il Riepilogo si vede, come prima dell'interruttore). */
     emailShowSummary?: boolean
   } = {},
@@ -53,6 +64,8 @@ async function createEventFixture(
       ...(collectNames === undefined ? {} : { collectNames }),
       ...(emailSubject === undefined ? {} : { emailSubject }),
       ...(emailBody === undefined ? {} : { emailBody }),
+      ...(emailSubjectImport === undefined ? {} : { emailSubjectImport }),
+      ...(emailBodyImport === undefined ? {} : { emailBodyImport }),
       ...(emailShowSummary === undefined ? {} : { emailShowSummary }),
     }),
   )
@@ -76,10 +89,16 @@ async function createBookingFixture(
   {
     contactEmail = 'utente@example.com',
     persons = [],
-  }: { contactEmail?: string; persons?: PersonFixture[] } = {},
+    source = 'form',
+  }: {
+    contactEmail?: string
+    persons?: PersonFixture[]
+    /** Origine della Prenotazione (ADR 0024). Omessa = nata dal form. */
+    source?: RegistrationSource
+  } = {},
 ) {
   return t.run(async (ctx) => {
-    const registrationId = await ctx.db.insert('registrations', { eventId, contactEmail })
+    const registrationId = await ctx.db.insert('registrations', { eventId, contactEmail, source })
     for (const person of persons) {
       await ctx.db.insert('persons', {
         registrationId,
@@ -497,4 +516,141 @@ test('accendere la Raccolta nomi dopo una Prenotazione non promuove le etichette
   // resta sola perché la riga si ricorda di essere stata generata.
   expect(document.markdown).toContain('- **Ospite 1**\n')
   expect(document.markdown).not.toContain('**Ospite 1** — Ospite')
+})
+
+/* ------------------------------------------------------------------ */
+/* Origine della Prenotazione e secondo Testo (ADR 0024)               */
+/* ------------------------------------------------------------------ */
+
+// La catena di ripiego è pura: i casi che contano sono asserzioni, non invii.
+test('resolveEmailCopy: il testo del form ignora sempre i campi dell’import', () => {
+  const copy = {
+    emailSubject: 'Oggetto form',
+    emailBody: 'Corpo form',
+    emailSubjectImport: 'Oggetto import',
+    emailBodyImport: 'Corpo import',
+  }
+  expect(resolveEmailCopy('form', copy)).toEqual({
+    subject: 'Oggetto form',
+    body: 'Corpo form',
+  })
+  expect(resolveEmailCopy('import', copy)).toEqual({
+    subject: 'Oggetto import',
+    body: 'Corpo import',
+  })
+})
+
+test('resolveEmailCopy: il ripiego dell’import sul form è campo per campo', () => {
+  // Scrivere il solo oggetto per gli importati deve restare una sola modifica:
+  // il corpo continua a essere quello dell'Evento, non va ricopiato.
+  expect(
+    resolveEmailCopy('import', {
+      emailSubject: 'Oggetto form',
+      emailBody: 'Corpo form',
+      emailSubjectImport: 'Oggetto import',
+    }),
+  ).toEqual({ subject: 'Oggetto import', body: 'Corpo form' })
+
+  expect(
+    resolveEmailCopy('import', {
+      emailSubject: 'Oggetto form',
+      emailBody: 'Corpo form',
+      emailBodyImport: 'Corpo import',
+    }),
+  ).toEqual({ subject: 'Oggetto form', body: 'Corpo import' })
+})
+
+test('resolveEmailCopy: campi di soli spazi valgono «non impostato», non «vuoto»', () => {
+  // Stessa regola di `normalizeEmailCopy`: un corpo cancellato a mano nel
+  // pannello non deve spedire un'email vuota agli importati.
+  expect(
+    resolveEmailCopy('import', {
+      emailSubject: 'Oggetto form',
+      emailBody: 'Corpo form',
+      emailSubjectImport: '   ',
+      emailBodyImport: '\n\n',
+    }),
+  ).toEqual({ subject: 'Oggetto form', body: 'Corpo form' })
+})
+
+test('resolveEmailCopy: senza nessun testo scritto ripiega sul codice, in entrambe le Origini', () => {
+  expect(resolveEmailCopy('form', {})).toEqual({ subject: undefined, body: undefined })
+  expect(resolveEmailCopy('import', {})).toEqual({ subject: undefined, body: undefined })
+})
+
+test('una Prenotazione importata riceve il secondo Testo', async () => {
+  const t = convexTest(schema, modules)
+  const eventId = await createEventFixture(t, {
+    emailSubject: 'Ci vediamo!',
+    emailBody: 'Grazie per esserti iscritto dal sito.',
+    emailSubjectImport: 'Risulti iscritto',
+    emailBodyImport: 'Ti scriviamo perché l’azienda ci ha passato la tua adesione.',
+  })
+  const registrationId = await createBookingFixture(t, eventId, {
+    source: 'import',
+    persons: [{ firstName: 'Mario', lastName: 'Rossi', category: 'user', ticketCode: 'ABC-123' }],
+  })
+
+  const document = await t.query(internal.emailContent.ticketEmailDocument, { registrationId })
+
+  expect(document.subject).toBe('Risulti iscritto')
+  expect(document.markdown).toContain('l’azienda ci ha passato la tua adesione')
+  expect(document.markdown).not.toContain('Grazie per esserti iscritto dal sito')
+})
+
+test('una Prenotazione dal form non vede mai il testo degli importati', async () => {
+  const t = convexTest(schema, modules)
+  const eventId = await createEventFixture(t, {
+    emailSubject: 'Ci vediamo!',
+    emailBody: 'Grazie per esserti iscritto dal sito.',
+    emailSubjectImport: 'Risulti iscritto',
+    emailBodyImport: 'Ti scriviamo perché l’azienda ci ha passato la tua adesione.',
+  })
+  const registrationId = await createBookingFixture(t, eventId, {
+    persons: [{ firstName: 'Mario', lastName: 'Rossi', category: 'user', ticketCode: 'ABC-123' }],
+  })
+
+  const document = await t.query(internal.emailContent.ticketEmailDocument, { registrationId })
+
+  expect(document.subject).toBe('Ci vediamo!')
+  expect(document.markdown).toContain('Grazie per esserti iscritto dal sito')
+})
+
+test('un Evento senza secondo Testo spedisce agli importati quello del form', async () => {
+  // Nessun backfill: un Evento che il secondo testo non l'ha scritto manda
+  // esattamente ciò che mandava prima dell'ADR 0024.
+  const t = convexTest(schema, modules)
+  const eventId = await createEventFixture(t, {
+    emailSubject: 'Ci vediamo!',
+    emailBody: 'Grazie {{nome}}, a presto.',
+  })
+  const registrationId = await createBookingFixture(t, eventId, {
+    source: 'import',
+    persons: [{ firstName: 'Mario', lastName: 'Rossi', category: 'user', ticketCode: 'ABC-123' }],
+  })
+
+  const document = await t.query(internal.emailContent.ticketEmailDocument, { registrationId })
+
+  expect(document.subject).toBe('Ci vediamo!')
+  // I Segnaposto valgono identici sulle due Origini: l'importato ha nome e
+  // cognome dichiarati come chiunque altro.
+  expect(document.markdown).toContain('Grazie Mario, a presto.')
+})
+
+test('il Riepilogo non si sdoppia: lo decide l’Evento, non l’Origine', async () => {
+  const t = convexTest(schema, modules)
+  const eventId = await createEventFixture(t, {
+    emailBody: 'Testo del form',
+    emailBodyImport: 'Testo degli importati',
+    emailShowSummary: false,
+  })
+  const registrationId = await createBookingFixture(t, eventId, {
+    source: 'import',
+    persons: [{ firstName: 'Mario', lastName: 'Rossi', category: 'user', ticketCode: 'ABC-123' }],
+  })
+
+  const document = await t.query(internal.emailContent.ticketEmailDocument, { registrationId })
+
+  expect(document.markdown).toContain('Testo degli importati')
+  expect(document.markdown).not.toContain('Riepilogo della prenotazione')
 })

@@ -70,6 +70,12 @@ const eventInput = {
   recordExit: v.boolean(),
   emailSubject: v.optional(v.string()),
   emailBody: v.optional(v.string()),
+  /**
+   * Secondo Testo dell'email di conferma, per le Prenotazioni importate (ADR
+   * 0024). Assenti o vuoti = ripiego sul testo del form, campo per campo.
+   */
+  emailSubjectImport: v.optional(v.string()),
+  emailBodyImport: v.optional(v.string()),
   /** Riepilogo in coda all'email. Assente = si vede, come sullo schema. */
   emailShowSummary: v.optional(v.boolean()),
   /**
@@ -607,6 +613,8 @@ export const create = mutation({
       recordExit: args.recordExit,
       emailSubject: normalizeEmailCopy(args.emailSubject),
       emailBody: normalizeEmailCopy(args.emailBody),
+      emailSubjectImport: normalizeEmailCopy(args.emailSubjectImport),
+      emailBodyImport: normalizeEmailCopy(args.emailBodyImport),
       emailShowSummary: args.emailShowSummary,
       ticketHeader: args.ticketHeader,
       resultTitle: normalizeEmailCopy(args.resultTitle),
@@ -687,6 +695,8 @@ export const update = mutation({
       recordExit: args.recordExit,
       emailSubject: normalizeEmailCopy(args.emailSubject),
       emailBody: normalizeEmailCopy(args.emailBody),
+      emailSubjectImport: normalizeEmailCopy(args.emailSubjectImport),
+      emailBodyImport: normalizeEmailCopy(args.emailBodyImport),
       emailShowSummary: args.emailShowSummary,
       ticketHeader: args.ticketHeader,
       resultTitle: normalizeEmailCopy(args.resultTitle),

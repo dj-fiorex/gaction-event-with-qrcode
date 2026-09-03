@@ -2,7 +2,11 @@ import { ConvexError, v } from 'convex/values'
 import { internalQuery } from './_generated/server'
 import { personCategory, ticketHeader } from './schema'
 import { resolveEventDates } from './model'
-import { buildTicketsEmailMarkdown, ticketsEmailSubject } from '../lib/email-content'
+import {
+  buildTicketsEmailMarkdown,
+  resolveEmailCopy,
+  ticketsEmailSubject,
+} from '../lib/email-content'
 import { EVENT_TIME_ZONE, formatDateRange } from '../lib/format'
 import { ticketsPdfFilename } from '../lib/pdf/filename'
 import { TICKET_HEADER_DEFAULT } from '../lib/pdf/ticket-header'
@@ -98,10 +102,16 @@ export const ticketEmailDocument = internalQuery({
       nameProvided: person.nameProvided,
     }))
 
+    // Quale dei due Testi dell'email di conferma spedire lo dice l'Origine
+    // scritta sulla riga, non il momento dell'invio (ADR 0024): il Reinvio
+    // arriva mesi dopo, e rileggere l'Origine qui è ciò che gli impedisce di
+    // mandare a un importato le parole scritte per chi ha compilato il form.
+    const copy = resolveEmailCopy(registration.source, event)
+
     return {
-      subject: ticketsEmailSubject(event.emailSubject, event.title),
+      subject: ticketsEmailSubject(copy.subject, event.title),
       markdown: buildTicketsEmailMarkdown({
-        emailBody: event.emailBody,
+        emailBody: copy.body,
         event: { title: event.title, location: event.location },
         persons: summaryPersons,
         // L'allegato non è più best-effort: o il PDF si renderizza e l'email

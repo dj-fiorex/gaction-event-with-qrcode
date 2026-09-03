@@ -288,7 +288,17 @@ export interface EventWithStatsDTO {
    */
   emailSubject: string
   emailBody: string
-  /** Riepilogo in coda all'email. true (default) = si vede. Solo operatori. */
+  /**
+   * Secondo Testo dell'email di conferma, per le Prenotazioni importate (ADR
+   * 0024). Vuoti = ripiego sul testo del form, campo per campo. Solo
+   * operatori, come la coppia qui sopra.
+   */
+  emailSubjectImport: string
+  emailBodyImport: string
+  /**
+   * Riepilogo in coda all'email. true (default) = si vede. Solo operatori.
+   * Non si sdoppia per Origine: non è copy, è dato generato.
+   */
   emailShowSummary: boolean
   /**
    * Intestazione del Biglietto: 'title' (default) = titolo dell'Evento;
@@ -508,6 +518,12 @@ export async function loadEventWithStats(
     // admin, non esposta al pubblico — come scanToken e allowedOrigins.
     emailSubject: opts.includeScanToken ? (event.emailSubject ?? '') : '',
     emailBody: opts.includeScanToken ? (event.emailBody ?? '') : '',
+    // Secondo Testo (ADR 0024): il ripiego sul testo del form non è qui ma in
+    // `resolveEmailCopy`, che è la sola cosa a leggerlo. Qui il DTO riporta
+    // ciò che l'admin ha scritto, perché il pannello deve poterlo rimettere
+    // nel campo vuoto invece del testo del form ripiegato.
+    emailSubjectImport: opts.includeScanToken ? (event.emailSubjectImport ?? '') : '',
+    emailBodyImport: opts.includeScanToken ? (event.emailBodyImport ?? '') : '',
     // Al pubblico vale il default: non c'è niente da leggere, e niente da
     // rivelare.
     emailShowSummary: opts.includeScanToken ? (event.emailShowSummary ?? true) : true,

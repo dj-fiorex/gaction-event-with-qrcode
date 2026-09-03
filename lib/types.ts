@@ -22,6 +22,14 @@ export type CheckInAccess = 'private' | 'password'
 /** Categoria di una Persona. L'Utente iscritto è sempre una Persona di categoria "user". */
 export type PersonCategory = 'user' | 'child' | 'companion'
 
+/**
+ * Origine della Prenotazione (ADR 0024): com'è nata. `form` copre pagina
+ * pubblica e Incorporamento — stessa mutation, stesso componente, la stessa
+ * persona che compila di sua mano. Non ha un valore «non si sa»: sulla riga è
+ * obbligatoria.
+ */
+export type RegistrationSource = 'form' | 'import'
+
 /** Ruolo di un account operatore autenticato via Convex Auth. */
 export type Role = 'admin' | 'staff' | 'member'
 
@@ -120,8 +128,16 @@ export interface Event {
   emailSubject: string
   emailBody: string
   /**
+   * Secondo Testo dell'email di conferma, per le Prenotazioni importate (ADR
+   * 0024). Vuoti = ripiego sul testo del form, campo per campo. Solo per
+   * operatori, come la coppia qui sopra: vuoti lato pubblico.
+   */
+  emailSubjectImport: string
+  emailBodyImport: string
+  /**
    * Riepilogo della Prenotazione in coda all'email. true (default) = si vede;
    * false = l'email è il solo Testo. Solo per operatori: true lato pubblico.
+   * Non si sdoppia per Origine: non è copy, è dato generato.
    */
   emailShowSummary: boolean
   /**

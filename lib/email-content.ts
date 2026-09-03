@@ -1,6 +1,6 @@
 import { CATEGORY_LABEL } from './person-labels'
 import { fullName } from './person-name'
-import type { PersonCategory } from './types'
+import type { PersonCategory, RegistrationSource } from './types'
 
 /**
  * Composizione del documento markdown dell'email di conferma (issue #42).
@@ -41,6 +41,46 @@ export interface EmailSummaryPerson {
  */
 export function normalizeEmailCopy(value: string | undefined): string | undefined {
   return value && value.trim().length > 0 ? value : undefined
+}
+
+/** I quattro campi di copy dell'Evento, come stanno sulla riga. */
+export interface EventEmailCopy {
+  emailSubject?: string
+  emailBody?: string
+  emailSubjectImport?: string
+  emailBodyImport?: string
+}
+
+/**
+ * Sceglie oggetto e corpo in base all'Origine della Prenotazione (ADR 0024).
+ *
+ * Il rapporto fra le due coppie è **asimmetrico di proposito**: quella del
+ * form è *il* testo dell'Evento, quella dell'import è l'*eccezione*. Un campo
+ * import vuoto ripiega quindi sul campo corrispondente del form, che a sua
+ * volta ripiegherà sul testo generato dal codice — ma quel secondo passo non
+ * è qui: lo fanno `ticketsEmailSubject` e `buildTicketsEmailMarkdown`, che già
+ * lo facevano. Questa funzione restituisce il testo *scritto dall'admin* che
+ * vince, o `undefined` se non ne è stato scritto nessuno.
+ *
+ * Il ripiego è **campo per campo**, come nei tre dell'Esito della Prenotazione:
+ * scrivere il solo oggetto per gli importati resta una sola modifica, e non
+ * costringe a ricopiare il corpo.
+ *
+ * È pura e sta qui, non nella query Convex, perché i quattro casi che contano
+ * (import scritto, import vuoto, entrambi vuoti, solo l'oggetto scritto) sono
+ * quattro asserzioni e non quattro invii.
+ */
+export function resolveEmailCopy(
+  source: RegistrationSource,
+  copy: EventEmailCopy,
+): { subject: string | undefined; body: string | undefined } {
+  const subject = normalizeEmailCopy(copy.emailSubject)
+  const body = normalizeEmailCopy(copy.emailBody)
+  if (source === 'form') return { subject, body }
+  return {
+    subject: normalizeEmailCopy(copy.emailSubjectImport) ?? subject,
+    body: normalizeEmailCopy(copy.emailBodyImport) ?? body,
+  }
 }
 
 /**

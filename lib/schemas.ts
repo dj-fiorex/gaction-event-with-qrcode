@@ -101,6 +101,14 @@ export const eventSchema = z
      */
     emailSubject: z.string().trim().max(200, 'Oggetto troppo lungo').optional(),
     emailBody: z.string().optional(),
+    /**
+     * Secondo Testo dell'email di conferma, per le Prenotazioni importate (ADR
+     * 0024). Stesso tetto sull'oggetto: è la stessa riga d'intestazione in una
+     * casella di posta, e un limite diverso sarebbe solo da spiegare. Vuoti =
+     * ripiego sul testo del form, campo per campo.
+     */
+    emailSubjectImport: z.string().trim().max(200, 'Oggetto troppo lungo').optional(),
+    emailBodyImport: z.string().optional(),
     /** Riepilogo della Prenotazione in coda all'email: attivo di default (comportamento odierno). */
     emailShowSummary: z.boolean().default(true),
     /**

@@ -68,6 +68,7 @@ async function seedRegistration(
     const registrationId = await ctx.db.insert('registrations', {
       eventId,
       contactEmail: 'anna@example.com',
+      source: 'form',
     })
     await ctx.db.insert('persons', {
       eventId,

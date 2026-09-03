@@ -73,6 +73,8 @@ const defaultValues: EventInput = {
   recordExit: false,
   emailSubject: '',
   emailBody: '',
+  emailSubjectImport: '',
+  emailBodyImport: '',
   emailShowSummary: true,
   ticketHeader: 'title',
   resultTitle: '',
@@ -989,6 +991,43 @@ export function EventForm({
               allegato e le allergie si leggono solo nel pannello.
             </p>
           </div>
+        </div>
+      </fieldset>
+
+      {/* Secondo Testo dell'email di conferma (ADR 0024) */}
+      <fieldset className="flex flex-col gap-4 rounded-lg border border-border p-4">
+        <div>
+          <legend className="font-medium">Email per le prenotazioni importate</legend>
+          <p className="text-sm text-muted-foreground">
+            Chi arriva da un file di risposte non ha mai compilato il form, e a volte gli si vuole
+            scrivere altro. Qui c&rsquo;è il testo che riceve al posto di quello qui sopra.{' '}
+            <strong>Lasciando vuoto un campo si usa quello dell&rsquo;email di conferma</strong>, uno
+            per uno: puoi cambiare il solo oggetto e tenere lo stesso corpo. Segnaposto, riepilogo e
+            biglietti in allegato funzionano identici.
+          </p>
+        </div>
+
+        <div className="grid gap-2">
+          <Label htmlFor="emailSubjectImport">Oggetto</Label>
+          <Input
+            id="emailSubjectImport"
+            placeholder="Come l'oggetto qui sopra"
+            {...register('emailSubjectImport')}
+            aria-invalid={!!errors.emailSubjectImport}
+          />
+          <FieldError message={errors.emailSubjectImport?.message} />
+        </div>
+
+        <div className="grid gap-2">
+          <Label htmlFor="emailBodyImport">Corpo</Label>
+          <Controller
+            control={control}
+            name="emailBodyImport"
+            render={({ field }) => (
+              <EmailBodyEditor value={field.value ?? ''} onChange={field.onChange} />
+            )}
+          />
+          <FieldError message={errors.emailBodyImport?.message} />
         </div>
       </fieldset>
 

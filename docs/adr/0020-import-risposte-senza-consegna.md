@@ -2,7 +2,9 @@
 
 ## Status
 
-accepted
+accepted — con **un solo punto superato dall'ADR `0024`**: il campo «origine» sulla
+Prenotazione ora esiste, perché la regola che lo legge è arrivata dopo. Tutto il resto
+di questo documento resta valido, criterio dell'invio massivo compreso.
 
 ## Contesto e decisione
 
@@ -14,7 +16,7 @@ Le scelte che danno forma alla decisione:
 
 - **Prenotazioni, non invitati.** Il file contiene già le risposte; un'email di invito al form avrebbe chiesto a 127 persone di ricompilare quello che avevano compilato, e avrebbe richiesto un secondo tipo di email da scrivere e tracciare. Con le Prenotazioni vere il tasto riusa `sendTickets`, la Consegna e il Reinvio, senza nulla di nuovo.
 - **L'import non manda email, e questa è un'eccezione all'ADR `0015`.** Lì la pianificazione sta nella transazione della `register` perché *il browser non doveva restare l'unico a sapere che un'email era dovuta*. Qui non c'è un browser che sa qualcosa: l'email non è dovuta finché l'admin non decide che lo è. Se l'import spedisse, il tasto non avrebbe senso e 127 email partirebbero senza che nessuno le avesse viste.
-- **Il criterio è l'assenza di Consegna, non un flag «importata».** Per l'ADR `0015` ogni Prenotazione nata dal form apre la sua Consegna nella stessa transazione; «senza Consegna» è quindi, per costruzione, «importata e mai spedita». Un campo origine aggiungerebbe uno stato che nessuna regola legge: se un giorno una Prenotazione dal form restasse senza Consegna sarebbe un bug, e spedirla sarebbe il rimedio giusto, non un errore da filtrare. La differenza nel consenso resta leggibile dalla copia testuale sulla riga («Consenso raccolto tramite modulo esterno»), senza un secondo campo che dica la stessa cosa.
+- **Il criterio è l'assenza di Consegna, non un flag «importata».** Per l'ADR `0015` ogni Prenotazione nata dal form apre la sua Consegna nella stessa transazione; «senza Consegna» è quindi, per costruzione, «importata e mai spedita». Un campo origine aggiungerebbe uno stato che nessuna regola legge: se un giorno una Prenotazione dal form restasse senza Consegna sarebbe un bug, e spedirla sarebbe il rimedio giusto, non un errore da filtrare. La differenza nel consenso resta leggibile dalla copia testuale sulla riga («Consenso raccolto tramite modulo esterno»), senza un secondo campo che dica la stessa cosa. **Aggiornamento (ADR `0024`):** la regola è arrivata — un cliente vuole un testo di email diverso per gli importati — e il campo esiste. Il criterio dell'invio massivo resta però l'assenza di Consegna: `source` non entra in quella query.
 - **Niente «rimanda a tutti».** Il secondo clic non trova nessuno. I rifiuti di Resend sono quasi tutti permanenti (ADR `0015`), un invio ripetuto brucia quota e produce doppioni nelle caselle degli ospiti; la ripetizione controllata esiste già come Reinvio, riga per riga, con destinatario correggibile.
 - **Riga per riga, mai tutto o niente, mai sovrascrivere.** Un file con due email doppie su 140 non deve essere ritoccato a mano; e sovrascrivere una risposta esistente violerebbe la regola che ogni modifica passa da un rimedio esplicito dell'admin (ADR `0005`). Saltare e riportare rende l'import ripetibile: il file aggiornato di settimana prossima aggiunge solo le righe nuove.
 - **Tutte le Attività ad accesso libero, nessuna a Slot.** Una Prenotazione senza selezioni verrebbe respinta allo scanner della visita allo stabilimento pur avendo un biglietto valido. Iscriverla alla visita libera è la scelta che ogni dipendente avrebbe fatto e non toglie posti a nessuno, perché non c'è un tetto. Le Attività a Slot restano fuori: una fascia non si sceglie per conto di 127 persone.

@@ -76,6 +76,7 @@ async function createFixture(
     const registrationId = await ctx.db.insert('registrations', {
       eventId,
       contactEmail: 'mario@example.com',
+      source: 'form',
     })
     const personId = await ctx.db.insert('persons', {
       registrationId,

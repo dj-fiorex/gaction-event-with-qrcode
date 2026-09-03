@@ -30,6 +30,14 @@ export const personCategory = v.union(
 export const userRole = v.union(v.literal('admin'), v.literal('staff'), v.literal('member'))
 
 /**
+ * Origine della Prenotazione (ADR 0024): com'è nata. `form` copre pagina
+ * pubblica e Incorporamento — è la stessa mutation, lo stesso componente, la
+ * stessa persona che compila di sua mano; `import` è l'Import delle risposte.
+ * I valori sono quelli di `RegistrationSource` in `lib/types.ts`.
+ */
+export const registrationSource = v.union(v.literal('form'), v.literal('import'))
+
+/**
  * Stack tipografici dell'Aspetto dell'Incorporamento (ADR 0013). Enum e non
  * stringa CSS libera: le chiavi sono quelle di `EMBED_FONT_STACKS` in
  * `lib/embed.ts`, che ne tiene i valori.
@@ -176,6 +184,21 @@ export default defineSchema({
     emailSubject: v.optional(v.string()),
     emailBody: v.optional(v.string()),
     /**
+     * Secondo Testo dell'email di conferma, per le Prenotazioni di Origine
+     * `import` (ADR 0024). Il rapporto con la coppia qui sopra è
+     * **asimmetrico**: quella è *il* testo dell'Evento, questa è l'*eccezione*
+     * per gli importati. Assenti o vuoti ripiegano quindi sul testo del form —
+     * e solo dopo sul ripiego del codice — **campo per campo**, come i tre
+     * dell'Esito della Prenotazione. Nessun backfill: un Evento che non li
+     * scrive spedisce esattamente ciò che spediva prima.
+     *
+     * Si sdoppia la copy e non `emailShowSummary`: il Riepilogo non è copy ma
+     * dato generato, e che si veda o no resta una scelta dell'Evento, non del
+     * canale.
+     */
+    emailSubjectImport: v.optional(v.string()),
+    emailBodyImport: v.optional(v.string()),
+    /**
      * Riepilogo della Prenotazione in coda all'email: assente o true = si
      * vede (comportamento odierno), quindi nessun backfill. false = l'email è
      * il solo Testo, i ticketCode viaggiano soltanto nel PDF allegato e le
@@ -313,6 +336,25 @@ export default defineSchema({
     eventId: v.id('events'),
     contactEmail: v.string(),
     userId: v.optional(v.id('users')),
+    /**
+     * Origine della Prenotazione (ADR 0024): scritta alla nascita e mai più
+     * toccata. La legge una regola sola — quale Testo dell'email di conferma
+     * spedire — e non compare in nessuna superficie, né tabella admin né
+     * export.
+     *
+     * **Obbligatoria, ed è la sola deviazione dall'idioma «assente =
+     * comportamento odierno» del resto di questo schema.** Qui l'idioma non è
+     * applicabile: possono coesistere righe nate dal form e righe nate
+     * dall'import, e nessun default le classifica bene entrambe. Un `source`
+     * assente non varrebbe «come prima» ma «non si sa», e in questo campo «non
+     * si sa» significa spedire l'email sbagliata senza che nessuno se ne
+     * accorga. Il caso non deve essere esprimibile.
+     *
+     * Sta sulla riga e non si deduce dal momento dell'invio: il Reinvio arriva
+     * mesi dopo, e senza il fatto qui manderebbe a un importato le parole
+     * scritte per chi ha compilato il form.
+     */
+    source: registrationSource,
     /**
      * Copia del testo dell'informativa accettata (ADR 0012). Non esiste un
      * campo «ha acconsentito»: la riga non potrebbe esistere senza consenso,

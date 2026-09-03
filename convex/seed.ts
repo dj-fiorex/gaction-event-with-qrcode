@@ -127,6 +127,7 @@ export const populateDemo = internalMutation({
     const reg1 = await ctx.db.insert('registrations', {
       eventId: familyDayId,
       contactEmail: 'mario.rossi@example.com',
+      source: 'form',
     })
     const p1 = await ctx.db.insert('persons', {
       registrationId: reg1,
