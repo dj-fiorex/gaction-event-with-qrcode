@@ -125,3 +125,69 @@ test('autolink: più link nello stesso paragrafo', () => {
     { kind: 'link', text: 'c@d.com', href: 'mailto:c@d.com' },
   ])
 })
+
+/* ------------------------------------------------------------------ *
+ * Link con parole proprie (informativa privacy, ADR 0012)
+ * ------------------------------------------------------------------ */
+
+test('link con parole proprie: la parola è cliccabile, l’URL non si legge', () => {
+  // Il testo del committente: il rimando sta dentro la frase, e l'URL nudo in
+  // coda («… nell'informativa . https://…») è la cosa che questa sintassi
+  // toglie di mezzo.
+  expect(
+    linkify(
+      'Autorizzo il trattamento dei miei dati personali come indicato nell’[informativa](https://www.maestridacciaio.it/privacy).',
+    ),
+  ).toEqual([
+    {
+      kind: 'text',
+      text: 'Autorizzo il trattamento dei miei dati personali come indicato nell’',
+    },
+    {
+      kind: 'link',
+      text: 'informativa',
+      href: 'https://www.maestridacciaio.it/privacy',
+    },
+    { kind: 'text', text: '.' },
+  ])
+})
+
+test('link con parole proprie: la tonda chiude la destinazione, il punto resta fuori', () => {
+  // L'autolink toglierebbe la tonda finale con la punteggiatura; qui la
+  // destinazione è delimitata, quindi finisce dove l'ha finita chi scrive.
+  const [link] = linkify('[informativa](https://x.it/privacy)')
+  expect(link).toEqual({ kind: 'link', text: 'informativa', href: 'https://x.it/privacy' })
+})
+
+test('link con parole proprie: vale anche per un indirizzo e-mail', () => {
+  expect(linkify('[Scrivici](info@maestridacciaio.it) per altro')).toEqual([
+    { kind: 'link', text: 'Scrivici', href: 'mailto:info@maestridacciaio.it' },
+    { kind: 'text', text: ' per altro' },
+  ])
+  expect(linkify('[Scrivici](mailto:info@maestridacciaio.it)')).toEqual([
+    { kind: 'link', text: 'Scrivici', href: 'mailto:info@maestridacciaio.it' },
+  ])
+})
+
+test('link con parole proprie: una destinazione che non è un indirizzo resta testo', () => {
+  // Nessun altro schema entra da un campo di testo, e le parentesi scritte
+  // per altro non spariscono in un link rotto.
+  for (const text of [
+    '[clicca](javascript:alert(1))',
+    '[clicca](/privacy)',
+    '[clicca](www.esempio.it)',
+    'Il posto [Sala A] (piano terra)',
+  ]) {
+    expect(linkify(text)).toEqual([{ kind: 'text', text }])
+  }
+})
+
+test('link con parole proprie: convivono con gli indirizzi scritti nudi', () => {
+  expect(linkify('Vedi l’[informativa](https://x.it/privacy) o scrivi a info@x.it.')).toEqual([
+    { kind: 'text', text: 'Vedi l’' },
+    { kind: 'link', text: 'informativa', href: 'https://x.it/privacy' },
+    { kind: 'text', text: ' o scrivi a ' },
+    { kind: 'link', text: 'info@x.it', href: 'mailto:info@x.it' },
+    { kind: 'text', text: '.' },
+  ])
+})

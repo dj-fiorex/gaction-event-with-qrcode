@@ -1078,6 +1078,15 @@ export function EventForm({
             quando vuoi: le risposte già raccolte conservano il testo che hanno accettato, quindi
             una correzione di oggi non cambia ciò che qualcuno ha letto il mese scorso.
           </p>
+          <p className="mt-2 text-sm text-muted-foreground">
+            Per rimandare all&rsquo;informativa completa scrivi{' '}
+            <code className="rounded bg-muted px-1 py-0.5 text-xs">
+              [informativa](https://tuosito.it/privacy)
+            </code>
+            : chi legge trova la parola cliccabile dentro la frase, e la pagina si apre in una
+            scheda nuova senza portargli via il form. Un indirizzo scritto per intero diventa link
+            da sé, anche un&rsquo;e-mail.
+          </p>
         </div>
 
         <div className="grid gap-2">

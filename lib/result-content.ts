@@ -12,7 +12,9 @@
  * markdown: l'unico motore in casa è `emailmd`, che rende email, e importarne
  * uno per la UI vorrebbe dire metterne il peso dentro un iframe servito su
  * siti di terzi per ottenere grassetti che nessuno ha chiesto. Il bisogno
- * reale è «vai a capo», più gli indirizzi cliccabili.
+ * reale è «vai a capo», più i link — l'indirizzo scritto nudo e, dove il
+ * rimando sta dentro la frase, `[parole](indirizzo)`: una coppia di parentesi
+ * letta a mano da `linkify`, non un motore.
  */
 
 /**
@@ -109,41 +111,86 @@ export type ResultSegment =
  * o un `a@b` qualsiasi diventerebbero un `mailto:` rotto. È il caso che
  * separa un indirizzo da una chiocciola qualunque.
  */
-const LINK_PATTERN = /(https?:\/\/[^\s<]+|[\w.+-]+@[\w-]+(?:\.[\w-]+)+)/g
+const EMAIL = String.raw`[\w.+-]+@[\w-]+(?:\.[\w-]+)+`
+
+/** Un indirizzo scritto nudo dentro la frase: finisce dove finisce la parola. */
+const BARE = String.raw`https?:\/\/[^\s<]+|${EMAIL}`
+
+/**
+ * Destinazione di un link con parole proprie. Dentro le tonde l'URL non può
+ * contenere la tonda che lo chiude, e le uniche forme ammesse sono le stesse
+ * due dell'autolink: da un campo di testo non esce un `javascript:`.
+ */
+const TARGET = String.raw`https?:\/\/[^\s<)]+|(?:mailto:)?${EMAIL}`
+
+/**
+ * Link con parole proprie, nell'unica sintassi che chi scrive già incontra nel
+ * [[Testo dell'email di conferma]]: `[informativa](https://…)`.
+ *
+ * Serve dove il link *non è* il testo. Il [[Consenso all'informativa]] (ADR
+ * 0012) è la richiesta che l'ha portato: «come indicato nell'informativa»
+ * vuole la parola cliccabile dentro la frase, e un URL nudo in coda alla riga
+ * accanto alla casella è la stessa cosa solo per chi l'ha scritto.
+ *
+ * Non è markdown: è una sola coppia di parentesi, letta a mano. Il resto —
+ * grassetti, titoli, elenchi — resta fuori, come dice l'intestazione di questo
+ * modulo, e un `[qualcosa](non-un-indirizzo)` resta il testo che l'admin ha
+ * scritto invece di sparire in un link rotto.
+ */
+const LABELLED = String.raw`\[([^\]\n]+)\]\((${TARGET})\)`
+
+const LINK_PATTERN = new RegExp(`${LABELLED}|(${BARE})`, 'g')
 
 /** Punteggiatura che chiude la frase e non fa parte dell'indirizzo. */
 const TRAILING_PUNCTUATION = /[.,;:!?)\]]+$/
+
+/** Solo `http(s)` e `mailto:`: nessun altro schema entra da un campo di testo. */
+function hrefOf(target: string): string {
+  return target.startsWith('http') || target.startsWith('mailto:') ? target : `mailto:${target}`
+}
 
 /**
  * Spezza un paragrafo in testo e link. Serve perché i campi sono testo
  * semplice: «scrivici a info@…» dentro un iframe, su un telefono, senza link,
  * è un invito che costringe a trascrivere a mano un indirizzo.
  *
- * Solo `http(s)` e `mailto:`: nessun altro schema entra da un campo di testo.
+ * Due forme, con la stessa uscita: l'indirizzo scritto nudo, che diventa link
+ * di sé stesso, e `[parole](indirizzo)`, che dà il link a parole già dentro la
+ * frase.
  */
 export function linkify(text: string): ResultSegment[] {
   const segments: ResultSegment[] = []
   let lastIndex = 0
 
+  const pushTextUpTo = (end: number) => {
+    if (end > lastIndex) segments.push({ kind: 'text', text: text.slice(lastIndex, end) })
+  }
+
   for (const match of text.matchAll(LINK_PATTERN)) {
     const start = match.index
     if (start === undefined) continue
-    const found = match[0].replace(TRAILING_PUNCTUATION, '')
-    if (!found) continue
+    const [whole, label, target, bare] = match
 
-    if (start > lastIndex) {
-      segments.push({ kind: 'text', text: text.slice(lastIndex, start) })
+    if (label !== undefined && target !== undefined) {
+      const shown = label.trim()
+      // Parentesi vuote di parole: non c'è niente da rendere cliccabile, e
+      // «continue» senza toccare `lastIndex` le lascia dove sono, testo.
+      if (!shown) continue
+      pushTextUpTo(start)
+      segments.push({ kind: 'link', text: shown, href: hrefOf(target) })
+      lastIndex = start + whole.length
+      continue
     }
-    segments.push({
-      kind: 'link',
-      text: found,
-      href: found.startsWith('http') ? found : `mailto:${found}`,
-    })
+
+    // La punteggiatura si toglie solo all'indirizzo nudo: dentro le tonde
+    // finisce dove l'ha finito chi scrive, punto finale compreso.
+    const found = bare.replace(TRAILING_PUNCTUATION, '')
+    if (!found) continue
+    pushTextUpTo(start)
+    segments.push({ kind: 'link', text: found, href: hrefOf(found) })
     lastIndex = start + found.length
   }
 
-  if (lastIndex < text.length) {
-    segments.push({ kind: 'text', text: text.slice(lastIndex) })
-  }
+  pushTextUpTo(text.length)
   return segments
 }

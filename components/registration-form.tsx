@@ -651,8 +651,8 @@ export function RegistrationForm({
                 )}
               />
               <div className="grid gap-1">
-                <Label htmlFor="declinePrivacyAccepted" className="font-normal text-pretty">
-                  {privacyNotice}
+                <Label htmlFor="declinePrivacyAccepted" className="block font-normal text-pretty">
+                  <LinkedText text={privacyNotice} />
                 </Label>
                 {declineErrors.privacyAccepted && (
                   <p className="text-sm text-destructive">
@@ -1071,7 +1071,13 @@ export function RegistrationForm({
         )}
 
         {/* Consenso all'informativa (ADR 0012). Il testo è quello dell'Evento:
-            quello che l'Utente spunta qui viene copiato sulla Prenotazione. */}
+            quello che l'Utente spunta qui viene copiato sulla Prenotazione.
+            Il rimando all'informativa vive dentro quella frase, quindi il
+            testo passa da `LinkedText`. Il link sta dentro la `<label>` e non
+            spunta la casella: il click su un discendente interattivo la label
+            non lo gira al proprio controllo. La label torna però `block`: da
+            contenitore flex — com'è di suo — l'`<a>` diventerebbe una colonna
+            per conto proprio e la frase smetterebbe di andare a capo. */}
         {requiresPrivacy && (
           <section className="flex items-start gap-3">
             <Controller
@@ -1088,8 +1094,8 @@ export function RegistrationForm({
               )}
             />
             <div className="grid gap-1">
-              <Label htmlFor="privacyAccepted" className="font-normal text-pretty">
-                {privacyNotice}
+              <Label htmlFor="privacyAccepted" className="block font-normal text-pretty">
+                <LinkedText text={privacyNotice} />
               </Label>
               {errors.privacyAccepted && (
                 <p className="text-sm text-destructive">{errors.privacyAccepted.message}</p>
