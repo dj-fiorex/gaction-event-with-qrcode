@@ -81,6 +81,45 @@ function summarize(person: Doc<'persons'>) {
 }
 
 /**
+ * Come si indica la Persona a un momento di Check-in: con il `code` del QR
+ * (fotocamera e Codice manuale) oppure con il suo `personId` (Check-in
+ * dall'elenco, per chi arriva senza QR). Uno dei due, non entrambi: sono due
+ * modi di trovare la stessa riga, e quel che segue non li distingue.
+ */
+const personRefArgs = {
+  code: v.optional(v.string()),
+  personId: v.optional(v.id('persons')),
+}
+
+/**
+ * Risolve la Persona da uno dei due riferimenti. L'esito negativo è già un
+ * `CheckInResultValue`, così i chiamanti lo restituiscono senza reinterpretarlo:
+ * un QR sconosciuto e una riga sparita dall'elenco sono lo stesso «non trovato».
+ */
+async function resolvePerson(
+  ctx: QueryCtx,
+  args: { code?: string; personId?: Id<'persons'> },
+): Promise<{ person: Doc<'persons'> } | { notFound: CheckInResultValue }> {
+  if (args.personId) {
+    const person = await ctx.db.get(args.personId)
+    return person
+      ? { person }
+      : { notFound: { status: 'not-found' as const, message: 'Persona non trovata.' } }
+  }
+  const code = args.code?.trim()
+  if (!code) {
+    return { notFound: { status: 'not-found' as const, message: 'Nessun QR indicato.' } }
+  }
+  const person = await ctx.db
+    .query('persons')
+    .withIndex('by_ticketCode', (q) => q.eq('ticketCode', code))
+    .unique()
+  return person
+    ? { person }
+    : { notFound: { status: 'not-found' as const, message: 'QR non riconosciuto.' } }
+}
+
+/**
  * Rilegge dal database i tre momenti di Check-in della Persona.
  * Va chiamata *dopo* le patch della scansione in corso, così l'esito riporta
  * lo stato come è appena diventato e non come era prima.
@@ -124,7 +163,7 @@ export const unlockScan = mutation({
 export const checkIn = mutation({
   args: {
     eventId: v.id('events'),
-    code: v.string(),
+    ...personRefArgs,
     mode: checkInMode,
     activityId: v.optional(v.id('activities')),
     unlockToken: v.optional(v.string()),
@@ -140,13 +179,9 @@ export const checkIn = mutation({
       throw new ConvexError('Accesso non autorizzato')
     }
 
-    const person = await ctx.db
-      .query('persons')
-      .withIndex('by_ticketCode', (q) => q.eq('ticketCode', args.code.trim()))
-      .unique()
-    if (!person) {
-      return { status: 'not-found' as const, message: 'QR non riconosciuto.' }
-    }
+    const resolved = await resolvePerson(ctx, args)
+    if ('notFound' in resolved) return resolved.notFound
+    const person = resolved.person
 
     const outcome = await recordCheckIn(ctx, args, targetEvent, person)
     // I tre momenti sono relativi all'Evento della Persona: allegarli a un QR
@@ -412,7 +447,7 @@ async function recordCheckIn(
 export const lookup = query({
   args: {
     eventId: v.id('events'),
-    code: v.string(),
+    ...personRefArgs,
     unlockToken: v.optional(v.string()),
   },
   returns: checkInResultValidator,
@@ -426,13 +461,9 @@ export const lookup = query({
       throw new ConvexError('Accesso non autorizzato')
     }
 
-    const person = await ctx.db
-      .query('persons')
-      .withIndex('by_ticketCode', (q) => q.eq('ticketCode', args.code.trim()))
-      .unique()
-    if (!person) {
-      return { status: 'not-found' as const, message: 'QR non riconosciuto.' }
-    }
+    const resolved = await resolvePerson(ctx, args)
+    if ('notFound' in resolved) return resolved.notFound
+    const person = resolved.person
 
     // Come per il check-in: lo stato di un QR di un altro Evento non è lo stato
     // di questo, e non spetta a chi opera qui.
@@ -452,6 +483,116 @@ export const lookup = query({
       personStatus: await consolidate(ctx, person._id),
       eventTitle: event.title,
     }
+  },
+})
+
+const participantRowValidator = v.object({
+  personId: v.id('persons'),
+  firstName: v.string(),
+  lastName: v.union(v.string(), v.null()),
+  category: v.union(v.literal('user'), v.literal('child'), v.literal('companion')),
+  age: v.union(v.number(), v.null()),
+  /** Il nome è dichiarato o è un'Etichetta posizionale? Solo i dichiarati si cercano. */
+  nameProvided: v.boolean(),
+  status: personStatusValidator,
+})
+
+const participantGroupValidator = v.object({
+  registrationId: v.id('registrations'),
+  contactEmail: v.string(),
+  /** L'Utente per primo, poi Figli e Ospiti nell'ordine in cui sono stati iscritti. */
+  persons: v.array(participantRowValidator),
+})
+
+export type ParticipantRow = Infer<typeof participantRowValidator>
+export type ParticipantGroup = Infer<typeof participantGroupValidator>
+
+const CATEGORY_ORDER = { user: 0, child: 1, companion: 2 } as const
+
+/**
+ * Elenco partecipanti: tutte le Persone dell'Evento raggruppate per
+ * Prenotazione, ciascuna con il proprio Stato consolidato, per il Check-in
+ * dall'elenco di chi arriva senza QR. Stessa autorizzazione dei momenti di
+ * Check-in, password compresa: chi sta al varco deve poter trovare chi ha di
+ * fronte. Niente allergie qui: restano nella scheda dell'esito, dove si
+ * leggono per una Persona alla volta e non per tutte insieme.
+ *
+ * Ordinato per cognome e nome dell'Utente. Realtime: un check-in dalla
+ * fotocamera aggiorna la riga, e viceversa.
+ */
+export const participants = query({
+  args: {
+    eventId: v.id('events'),
+    unlockToken: v.optional(v.string()),
+  },
+  returns: v.array(participantGroupValidator),
+  handler: async (ctx, args): Promise<ParticipantGroup[]> => {
+    const event = await ctx.db.get(args.eventId)
+    if (!event) return []
+    const authorized = await canOperateEvent(ctx, event, args.unlockToken ?? null)
+    if (!authorized) {
+      throw new ConvexError('Accesso non autorizzato')
+    }
+
+    const [registrations, persons, activityCheckIns] = await Promise.all([
+      ctx.db
+        .query('registrations')
+        .withIndex('by_event', (q) => q.eq('eventId', event._id))
+        .collect(),
+      ctx.db
+        .query('persons')
+        .withIndex('by_event', (q) => q.eq('eventId', event._id))
+        .collect(),
+      ctx.db
+        .query('activityCheckIns')
+        .withIndex('by_event', (q) => q.eq('eventId', event._id))
+        .collect(),
+    ])
+
+    const visitsByPerson = new Map<Id<'persons'>, Doc<'activityCheckIns'>[]>()
+    for (const row of activityCheckIns) {
+      const list = visitsByPerson.get(row.personId) ?? []
+      list.push(row)
+      visitsByPerson.set(row.personId, list)
+    }
+
+    const rowsByRegistration = new Map<Id<'registrations'>, ParticipantRow[]>()
+    for (const person of persons) {
+      const list = rowsByRegistration.get(person.registrationId) ?? []
+      list.push({
+        personId: person._id,
+        firstName: person.firstName,
+        lastName: person.lastName ?? null,
+        category: person.category,
+        age: person.age,
+        nameProvided: person.nameProvided,
+        status: statusOfPerson(person, visitsByPerson.get(person._id) ?? []),
+      })
+      rowsByRegistration.set(person.registrationId, list)
+    }
+
+    const groups: ParticipantGroup[] = []
+    for (const registration of registrations) {
+      const rows = rowsByRegistration.get(registration._id)
+      if (!rows || rows.length === 0) continue
+      // `persons` arriva in ordine di creazione: dentro la stessa categoria è
+      // già l'ordine del form («Figlio 1» prima di «Figlio 2»).
+      rows.sort((a, b) => CATEGORY_ORDER[a.category] - CATEGORY_ORDER[b.category])
+      groups.push({
+        registrationId: registration._id,
+        contactEmail: registration.contactEmail,
+        persons: rows,
+      })
+    }
+
+    const collator = new Intl.Collator('it', { sensitivity: 'base' })
+    const headOf = (g: ParticipantGroup) => g.persons[0]
+    groups.sort(
+      (a, b) =>
+        collator.compare(headOf(a).lastName ?? '', headOf(b).lastName ?? '') ||
+        collator.compare(headOf(a).firstName, headOf(b).firstName),
+    )
+    return groups
   },
 })
 

@@ -446,7 +446,9 @@ export default defineSchema({
   })
     .index('by_person', ['personId'])
     .index('by_person_activity', ['personId', 'activityId'])
-    .index('by_slot', ['slotId']),
+    .index('by_slot', ['slotId'])
+    /** Elenco partecipanti: la Visita di tutte le Persone dell'Evento in una lettura sola. */
+    .index('by_event', ['eventId']),
 
   // Associazione Assistente–Evento (modalità private).
   eventStaff: defineTable({

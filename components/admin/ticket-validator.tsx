@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useConvex, useMutation } from 'convex/react'
 import { Scanner, type IDetectedBarcode } from '@yudiel/react-qr-scanner'
 import { CheckCircle2, Clock, Eye, Keyboard, LogOut, Repeat, ScanLine, XCircle } from 'lucide-react'
@@ -20,6 +20,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { MomentValue } from '@/components/admin/check-in-moment'
+import { ParticipantsList } from '@/components/admin/participants-list'
 import { formatDateTime, formatTimeRange } from '@/lib/format'
 import { CATEGORY_LABEL } from '@/lib/person-labels'
 import { fullName } from '@/lib/person-name'
@@ -27,6 +28,13 @@ import type { PersonStatus } from '@/lib/person-status'
 import type { CheckInResult, EventWithStats, ScannerMode } from '@/lib/types'
 
 type InputMode = 'camera' | 'manual'
+
+/**
+ * Come si indica la Persona alla scansione: con il QR (fotocamera, Codice
+ * manuale) o scegliendola dall'Elenco partecipanti. Stesso check-in, stesse
+ * regole: cambia solo come si è trovata.
+ */
+type PersonRef = { code: string } | { personId: Id<'persons'> }
 
 const POSITIVE = new Set<CheckInResult['status']>([
   'event-valid',
@@ -57,6 +65,17 @@ export function TicketValidator({ event, unlockToken }: TicketValidatorProps) {
   const [manualCode, setManualCode] = useState('')
   const [result, setResult] = useState<CheckInResult | null>(null)
   const [pending, setPending] = useState(false)
+  // Dopo un Check-in dall'elenco la scheda dell'esito sta sopra l'elenco, che
+  // può essere lungo: la si porta in vista, altrimenti chi ha appena toccato
+  // una riga in fondo non vede cosa è successo.
+  const resultRef = useRef<HTMLDivElement>(null)
+  const [scrollToResult, setScrollToResult] = useState(false)
+  useEffect(() => {
+    if (result && scrollToResult) {
+      resultRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+      setScrollToResult(false)
+    }
+  }, [result, scrollToResult])
 
   const activityItems = useMemo(
     () =>
@@ -109,9 +128,9 @@ export function TicketValidator({ event, unlockToken }: TicketValidatorProps) {
 
   const contextReady = checkMode !== 'activity' || activityId.length > 0
 
-  async function runCheckIn(code: string) {
-    const trimmed = code.trim()
-    if (!trimmed || !contextReady || pending) return
+  async function runCheckIn(ref: PersonRef) {
+    if ('code' in ref && !ref.code.trim()) return
+    if (!contextReady || pending) return
     setPending(true)
     try {
       const res =
@@ -119,12 +138,12 @@ export function TicketValidator({ event, unlockToken }: TicketValidatorProps) {
           ? // «Solo verifica»: una query, che nel runtime Convex non può scrivere.
             await convex.query(api.checkins.lookup, {
               eventId: event.id as Id<'events'>,
-              code: trimmed,
+              ...ref,
               unlockToken: unlockToken ?? undefined,
             })
           : await checkIn({
               eventId: event.id as Id<'events'>,
-              code: trimmed,
+              ...ref,
               mode: checkMode,
               activityId:
                 checkMode === 'activity' ? (activityId as Id<'activities'>) : undefined,
@@ -145,7 +164,14 @@ export function TicketValidator({ event, unlockToken }: TicketValidatorProps) {
     const value = codes[0]?.rawValue
     if (!value || pending) return
     setScanning(false)
-    runCheckIn(value)
+    runCheckIn({ code: value })
+  }
+
+  /** Check-in dall'elenco: la Persona è scelta, il momento è quello già selezionato. */
+  async function handleListCheckIn(personId: Id<'persons'>) {
+    setScanning(false)
+    setScrollToResult(true)
+    await runCheckIn({ personId })
   }
 
   function reset() {
@@ -290,7 +316,7 @@ export function TicketValidator({ event, unlockToken }: TicketValidatorProps) {
               />
             </div>
             <Button
-              onClick={() => runCheckIn(manualCode)}
+              onClick={() => runCheckIn({ code: manualCode })}
               disabled={pending || !manualCode.trim() || !contextReady}
             >
               {pending ? 'Verifica…' : 'Verifica accesso'}
@@ -299,7 +325,20 @@ export function TicketValidator({ event, unlockToken }: TicketValidatorProps) {
         </Card>
       )}
 
-      {result && <ResultCard result={result} onReset={reset} />}
+      {result && (
+        <div ref={resultRef} className="scroll-mt-4">
+          <ResultCard result={result} onReset={reset} />
+        </div>
+      )}
+
+      <ParticipantsList
+        eventId={event.id}
+        unlockToken={unlockToken}
+        mode={checkMode}
+        contextReady={contextReady}
+        pending={pending}
+        onCheckIn={handleListCheckIn}
+      />
     </div>
   )
 }

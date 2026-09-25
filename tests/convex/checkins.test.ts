@@ -375,3 +375,182 @@ test('events.update can toggle recordExit on and back off', async () => {
   await asAdmin.mutation(api.events.update, { eventId, ...buildEventInput() })
   expect((await t.query(api.events.getPublic, { eventId }))?.recordExit).toBe(false)
 })
+
+/* ------------------------------------------------------------------ */
+/* Check-in dall'elenco: la Persona indicata per id, non per QR          */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Seconda Prenotazione nello stesso Evento: un Utente con un Figlio senza
+ * nome dichiarato («Figlio 1») e un Ospite con nome. Serve all'Elenco
+ * partecipanti: gruppi, ordine e ricerca.
+ */
+async function addFamily(t: ReturnType<typeof convexTest>, eventId: Id<'events'>) {
+  return t.run(async (ctx) => {
+    const registrationId = await ctx.db.insert('registrations', {
+      eventId,
+      contactEmail: 'anna@example.com',
+      source: 'form',
+    })
+    const base = {
+      registrationId,
+      eventId,
+      eventCheckInAt: null,
+      eventCheckInCount: 0,
+      eventCheckInLastAt: null,
+    }
+    const childId = await ctx.db.insert('persons', {
+      ...base,
+      firstName: 'Figlio 1',
+      nameProvided: false,
+      category: 'child',
+      age: 7,
+      ticketCode: 'TCK-TEST-0003',
+    })
+    const userId = await ctx.db.insert('persons', {
+      ...base,
+      firstName: 'Anna',
+      lastName: 'Bianchi',
+      nameProvided: true,
+      category: 'user',
+      age: null,
+      ticketCode: 'TCK-TEST-0002',
+    })
+    const companionId = await ctx.db.insert('persons', {
+      ...base,
+      firstName: 'Luca',
+      nameProvided: true,
+      category: 'companion',
+      age: null,
+      ticketCode: 'TCK-TEST-0004',
+    })
+    return { registrationId, userId, childId, companionId }
+  })
+}
+
+test('checkIn by personId records the entry exactly like a QR scan', async () => {
+  const t = convexTest(schema, modules)
+  const { eventId, personId } = await createFixture(t)
+
+  const result = await t.mutation(api.checkins.checkIn, {
+    eventId,
+    personId,
+    mode: 'event',
+    ...UNLOCK,
+  })
+
+  expect(result.status).toBe('event-valid')
+  expect(result.person?.ticketCode).toBe('TCK-TEST-0001')
+  expect(result.personStatus?.entry.count).toBe(1)
+  const person = await t.run((ctx) => ctx.db.get(personId))
+  expect(person?.eventCheckInAt).toBe(result.at)
+
+  // Il secondo passaggio segue la stessa regola del QR: riuso spento → già registrato.
+  const again = await t.mutation(api.checkins.checkIn, {
+    eventId,
+    personId,
+    mode: 'event',
+    ...UNLOCK,
+  })
+  expect(again.status).toBe('event-already')
+})
+
+test('lookup by personId reads the Stato consolidato without writing', async () => {
+  const t = convexTest(schema, modules)
+  const { eventId, personId } = await createFixture(t, {
+    enteredAt: '2026-07-07T09:00:00.000Z',
+  })
+
+  const result = await t.query(api.checkins.lookup, { eventId, personId, ...UNLOCK })
+
+  expect(result.status).toBe('lookup')
+  expect(result.personStatus?.entry.at).toBe('2026-07-07T09:00:00.000Z')
+  const person = await t.run((ctx) => ctx.db.get(personId))
+  expect(person?.eventCheckInCount).toBe(1)
+})
+
+test('a personId of another Evento is refused as wrong-event, like a foreign QR', async () => {
+  const t = convexTest(schema, modules)
+  const { personId } = await createFixture(t)
+  const { eventId: otherEventId } = await createFixture(t)
+
+  const result = await t.mutation(api.checkins.checkIn, {
+    eventId: otherEventId,
+    personId,
+    mode: 'event',
+    ...UNLOCK,
+  })
+
+  expect(result.status).toBe('wrong-event')
+  expect(result.personStatus).toBeUndefined()
+})
+
+test('checkIn with neither code nor personId is not-found and writes nothing', async () => {
+  const t = convexTest(schema, modules)
+  const { eventId } = await createFixture(t)
+
+  const result = await t.mutation(api.checkins.checkIn, { eventId, mode: 'event', ...UNLOCK })
+
+  expect(result.status).toBe('not-found')
+})
+
+/* ------------------------------------------------------------------ */
+/* Elenco partecipanti                                                  */
+/* ------------------------------------------------------------------ */
+
+test('participants groups Persone by Prenotazione, Utente first, sorted by cognome', async () => {
+  const t = convexTest(schema, modules)
+  const { eventId, personId: marioId } = await createFixture(t, {
+    enteredAt: '2026-07-07T09:00:00.000Z',
+  })
+  const { registrationId, userId, childId, companionId } = await addFamily(t, eventId)
+
+  const groups = await t.query(api.checkins.participants, { eventId, ...UNLOCK })
+
+  expect(groups).toHaveLength(2)
+  // Bianchi prima di Rossi.
+  expect(groups[0].registrationId).toBe(registrationId)
+  expect(groups[0].contactEmail).toBe('anna@example.com')
+  expect(groups[0].persons.map((p) => p.personId)).toEqual([userId, childId, companionId])
+  expect(groups[0].persons[1]).toMatchObject({
+    firstName: 'Figlio 1',
+    nameProvided: false,
+    category: 'child',
+    age: 7,
+  })
+  expect(groups[0].persons[0].status.entry.at).toBeNull()
+
+  expect(groups[1].persons).toHaveLength(1)
+  expect(groups[1].persons[0].personId).toBe(marioId)
+  expect(groups[1].persons[0].status.entry.at).toBe('2026-07-07T09:00:00.000Z')
+  // Niente allergie nell'elenco: restano nella scheda dell'esito.
+  expect('allergies' in groups[1].persons[0]).toBe(false)
+})
+
+test('participants requires the same authorization as a check-in', async () => {
+  const t = convexTest(schema, modules)
+  const { eventId } = await createFixture(t)
+
+  await expect(t.query(api.checkins.participants, { eventId })).rejects.toThrow(
+    'Accesso non autorizzato',
+  )
+  await expect(
+    t.query(api.checkins.participants, { eventId, unlockToken: 'wrong' }),
+  ).rejects.toThrow('Accesso non autorizzato')
+
+  const staffId = await createStaff(t)
+  const asStaff = t.withIdentity({ subject: subjectFor(staffId) })
+  // Evento in modalità password: ogni Assistente loggato può operare.
+  expect(await asStaff.query(api.checkins.participants, { eventId })).toHaveLength(1)
+})
+
+test('participants reflects a QR check-in on the same row', async () => {
+  const t = convexTest(schema, modules)
+  const { eventId, code, personId } = await createFixture(t)
+
+  await t.mutation(api.checkins.checkIn, { eventId, code, mode: 'event', ...UNLOCK })
+  const groups = await t.query(api.checkins.participants, { eventId, ...UNLOCK })
+
+  const row = groups[0].persons.find((p) => p.personId === personId)
+  expect(row?.status.entry.count).toBe(1)
+})
