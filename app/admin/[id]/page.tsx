@@ -9,6 +9,8 @@ import {
   CalendarClock,
   CheckCircle2,
   Layers,
+  LogIn,
+  LogOut,
   MapPin,
   Pencil,
   Ticket,
@@ -128,7 +130,7 @@ function EventDetailContent() {
    * Le impostazioni che parlano di Attività — policy, minimo, sovrapposizioni,
    * tolleranza — e il tetto di posti hanno senso solo se un'Attività c'è
    * (ADR 0010). Senza, non si annunciano: la capienza è un concetto dello
-   * Slot, e i numeri veri l'admin li legge in «Persone totali dentro» e
+   * Slot, e i numeri veri l'admin li legge in «Persone iscritte» e
    * «Registrazioni».
    */
   const hasActivities = event.activities.length > 0
@@ -220,9 +222,9 @@ function EventDetailContent() {
           </div>
         </div>
 
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           <StatCard
-            label="Persone totali dentro"
+            label="Persone iscritte"
             value={event.personsCount}
             icon={<Users className="h-5 w-5" aria-hidden="true" />}
           />
@@ -231,6 +233,31 @@ function EventDetailContent() {
             value={event.registrationsCount}
             icon={<Ticket className="h-5 w-5" aria-hidden="true" />}
           />
+          {/*
+            Presenze dell'Evento: «Dentro adesso» esiste solo dove l'Evento
+            può saperlo, cioè con la Registrazione dell'uscita. Senza, l'unico
+            numero onesto è quante Persone sono entrate almeno una volta.
+          */}
+          {event.recordExit ? (
+            <>
+              <StatCard
+                label="Dentro adesso"
+                value={event.presence.inside}
+                icon={<LogIn className="h-5 w-5" aria-hidden="true" />}
+              />
+              <StatCard
+                label="Uscite"
+                value={event.presence.exited}
+                icon={<LogOut className="h-5 w-5" aria-hidden="true" />}
+              />
+            </>
+          ) : (
+            <StatCard
+              label="Entrate"
+              value={event.presence.entered}
+              icon={<LogIn className="h-5 w-5" aria-hidden="true" />}
+            />
+          )}
           <StatCard
             label="Attività"
             value={event.activities.length}

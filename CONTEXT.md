@@ -213,5 +213,15 @@ _Evitare_: lista presenze, elenco iscritti
 [[Check-in]] di una Persona **scelta dall'[[Elenco partecipanti]]** invece che dal suo [[QR code]], per chi arriva senza — succede. Non è un check-in diverso: stesso momento selezionato in cima allo scanner (Ingresso, Attività, Uscita, [[Solo verifica]]), stesse regole di tolleranza e rientro, stesso [[Esito check-in]] e stessa scheda con lo Stato consolidato. Cambia solo come si è trovata la Persona. Poiché toccare la riga sbagliata è più facile che scansionare il QR sbagliato, e un check-in registrato non si cancella, i momenti che scrivono chiedono **conferma** nominando Persona e momento; la Solo verifica no, perché non scrive. Distinto dal **Codice manuale**, che resta la digitazione del [[ticketCode (QR token)|ticketCode]].
 _Evitare_: check-in manuale, presenza manuale, segna come entrato
 
+### Presenze dell'Evento
+I numeri con cui il pannello admin di un [[Evento]] risponde a «quante Persone ci sono **adesso**?», calcolati dai [[Check-in]] già registrati e letti in tempo reale. Sono una fotografia di dove sta ciascuna Persona, non una storia di quanti passaggi ci sono stati: chi è entrato tre volte conta una volta sola. Si distinguono da **Persone iscritte**, che è il numero di [[Persona|Persone]] della sua [[Prenotazione|Prenotazioni]] e non dice nulla su chi si è presentato.
+
+- **Entrate** — Persone con almeno un Ingresso registrato. È l'unico numero di presenza di un Evento **senza** [[Registrazione dell'uscita]]: lì «dentro adesso» non è conoscibile, e chiamarlo così ripeterebbe l'equivoco che questo termine corregge.
+- **Dentro adesso** — Persone il cui ultimo Ingresso è più recente della loro ultima Uscita, o che sono entrate e mai uscite. Esiste solo con la Registrazione dell'uscita attiva.
+- **Uscite** — Persone la cui ultima Uscita è più recente del loro ultimo Ingresso. Esiste solo con la Registrazione dell'uscita attiva. Dentro adesso + Uscite = Entrate.
+
+Ogni Persona sta in una sola delle due colonne, e cambia colonna a ogni passaggio: esce e «Dentro adesso» cala di uno mentre «Uscite» sale di uno; rientra e i due numeri tornano indietro. Con il riuso del QR spento un'uscita è definitiva anche qui, perché il rientro non viene scritto. A parità di istante l'Uscita vince, perché non può che essere venuta dopo l'Ingresso. Vive **solo** nella pagina di dettaglio dell'Evento: non nella lista degli Eventi, non nello scanner, non nell'export.
+_Evitare_: persone totali dentro, presenti, partecipanti
+
 ### Registrazione dell'uscita
 Impostazione a livello di Evento decisa dall'admin (`recordExit`, disattiva di default). Se attiva, lo scanner offre la modalità «Uscita», che registra l'orario di uscita della Persona dall'Evento in campi speculari a quelli d'ingresso (prima uscita, contatore, ultima uscita). Un'uscita senza ingresso registrato è **bloccata** («Non risulta entrato») e non scrive nulla, così una scansione nella modalità sbagliata non corrompe i dati. Le ri-uscite seguono la stessa regola dei rientri (riuso QR): riuso off → «già registrata»; riuso on → il contatore avanza e l'ultima uscita si aggiorna.

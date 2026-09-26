@@ -48,7 +48,7 @@ export function momentFrom(
  * Quelli d'uscita sono facoltativi perché nei documenti pre-#38 mancano del
  * tutto, mentre il DTO li normalizza a null/0.
  */
-interface PersonMomentFields {
+export interface PersonMomentFields {
   eventCheckInAt: string | null
   eventCheckInCount: number
   eventCheckInLastAt: string | null
@@ -97,4 +97,42 @@ export function mergeMoments(moments: CheckInMoment[]): CheckInMoment {
       recorded[0].lastAt ?? recorded[0].at!,
     ),
   }
+}
+
+/** Presenze dell'Evento: quante Persone sono entrate, e dove stanno adesso. */
+export interface EventPresence {
+  /** Persone con almeno un Ingresso registrato. Vale `inside + exited`. */
+  entered: number
+  /** Persone il cui ultimo Ingresso è più recente dell'ultima Uscita. */
+  inside: number
+  /** Persone la cui ultima Uscita è più recente dell'ultimo Ingresso. */
+  exited: number
+}
+
+/** Nessuna presenza: l'Evento mai scansionato, o il DTO pubblico. */
+export const NO_PRESENCE: EventPresence = { entered: 0, inside: 0, exited: 0 }
+
+/**
+ * Presenze dell'Evento a partire dai momenti d'ingresso e d'uscita di tutte
+ * le sue Persone. È una fotografia, non una storia: chi è entrato tre volte
+ * conta una volta sola, e ogni Persona entrata sta in una sola delle due
+ * colonne — dentro o uscita — a seconda di quale dei due momenti è l'ultimo.
+ *
+ * A parità di istante l'Uscita vince: la scrittura dell'uscita richiede un
+ * ingresso già registrato, quindi non può che essere venuta dopo. Le righe
+ * senza campi d'uscita (pre-#38, o Eventi senza Registrazione dell'uscita)
+ * hanno `exit` mai avvenuto e contano come dentro.
+ */
+export function presenceOf(persons: PersonMomentFields[]): EventPresence {
+  let inside = 0
+  let exited = 0
+  for (const person of persons) {
+    const entry = momentFrom(person.eventCheckInAt, person.eventCheckInCount, person.eventCheckInLastAt)
+    const exit = momentFrom(person.eventCheckOutAt, person.eventCheckOutCount, person.eventCheckOutLastAt)
+    if (entry.lastAt === null) continue
+    // Confronto lessicografico: entrambi sono ISO UTC scritti dallo scanner.
+    if (exit.lastAt !== null && exit.lastAt >= entry.lastAt) exited += 1
+    else inside += 1
+  }
+  return { entered: inside + exited, inside, exited }
 }

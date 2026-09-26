@@ -11,6 +11,7 @@ import type { Doc, Id } from './_generated/dataModel'
 import type { MutationCtx, QueryCtx } from './_generated/server'
 import type { EmbedTheme } from '../lib/embed'
 import { TICKET_HEADER_DEFAULT, type TicketHeader } from '../lib/pdf/ticket-header'
+import { NO_PRESENCE, presenceOf, type EventPresence } from '../lib/person-status'
 
 /* ------------------------------------------------------------------ */
 /* Hashing password di check-in (Web Crypto, runtime Convex)           */
@@ -350,6 +351,11 @@ export interface EventWithStatsDTO {
   embedTheme: EmbedTheme | null
   registrationsCount: number
   personsCount: number
+  /**
+   * Presenze dell'Evento: chi è entrato e dove sta adesso, letto dai Check-in
+   * già registrati. Solo per operatori: al pubblico è tutto a zero.
+   */
+  presence: EventPresence
   startsAt: string | null
   endsAt: string | null
   /** Date dichiarate sull'Evento (ADR 0009). null = derivate dalle Attività. */
@@ -556,6 +562,7 @@ export async function loadEventWithStats(
     embedTheme: event.embedTheme ?? null,
     registrationsCount: registrations.length,
     personsCount: persons.length,
+    presence: opts.includeScanToken ? presenceOf(persons) : NO_PRESENCE,
     ...resolveEventDates(event, activities),
     // La dichiarazione grezza, che il form dell'admin rimette in campo: dai
     // valori risolti non si distinguerebbe una data dichiarata da una derivata,

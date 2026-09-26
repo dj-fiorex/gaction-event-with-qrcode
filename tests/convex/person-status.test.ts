@@ -472,3 +472,33 @@ test('the admin registration DTO exposes the exit moment alongside the entry', a
   expect(person.allergies).toBe('Lattosio')
   expect(person.age).toBe(41)
 })
+
+/* ------------------------------------------------------------------ */
+/* Presenze dell'Evento                                                */
+/* ------------------------------------------------------------------ */
+
+test('the admin DTO tracks presence across entry, exit and re-entry; the public DTO shows zeros', async () => {
+  const t = convexTest(schema, modules)
+  const { eventId, code } = await createFixture(t, { recordExit: true, allowQrReuse: true })
+  const adminId = await createAdmin(t)
+  const asAdmin = t.withIdentity({ subject: subjectFor(adminId) })
+  const presence = async () => (await asAdmin.query(api.events.getForAdmin, { eventId }))!.presence
+
+  expect(await presence()).toEqual({ entered: 0, inside: 0, exited: 0 })
+
+  await t.mutation(api.checkins.checkIn, { eventId, code, mode: 'event', ...UNLOCK })
+  expect(await presence()).toEqual({ entered: 1, inside: 1, exited: 0 })
+
+  // Lo scanner scrive orari al millisecondo: aspetta un tick per non avere
+  // ingresso e uscita nello stesso istante.
+  await new Promise((r) => setTimeout(r, 2))
+  await t.mutation(api.checkins.checkIn, { eventId, code, mode: 'exit', ...UNLOCK })
+  expect(await presence()).toEqual({ entered: 1, inside: 0, exited: 1 })
+
+  await new Promise((r) => setTimeout(r, 2))
+  await t.mutation(api.checkins.checkIn, { eventId, code, mode: 'event', ...UNLOCK })
+  expect(await presence()).toEqual({ entered: 1, inside: 1, exited: 0 })
+
+  const pub = await t.query(api.events.getPublic, { eventId })
+  expect(pub!.presence).toEqual({ entered: 0, inside: 0, exited: 0 })
+})

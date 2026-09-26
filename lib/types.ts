@@ -5,7 +5,7 @@
 
 import type { DeliverySnapshot } from './email-delivery'
 
-import type { PersonStatus } from './person-status'
+import type { EventPresence, PersonStatus } from './person-status'
 
 import type { TicketHeader } from './pdf/ticket-header'
 
@@ -329,6 +329,8 @@ export interface EventWithStats extends Omit<Event, 'activities' | 'checkInPassw
   embedShowNewRegistration: boolean
   registrationsCount: number
   personsCount: number
+  /** Presenze dell'Evento (solo per operatori; a zero lato pubblico). */
+  presence: EventPresence
   /**
    * Data dell'Evento (ADR 0009): quella dichiarata sull'Evento se c'è,
    * altrimenti quella derivata dalle Attività (primo inizio, ultima fine).
